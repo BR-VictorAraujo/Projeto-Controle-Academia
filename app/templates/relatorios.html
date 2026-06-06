@@ -1,0 +1,841 @@
+{% extends 'base.html' %}
+
+{% block titulo %}Relatórios{% endblock %}
+{% block titulo_pagina %}Relatórios{% endblock %}
+{% block subtitulo %}Análise e exportação de dados{% endblock %}
+{% set pagina_ativa = 'relatorios' %}
+
+{% block estilos %}
+.section-title { font-size: 15px; font-weight: 600; color: #1a1a2e; margin: 32px 0 16px; }
+.filtro-card {
+    background: white; border-radius: 12px; padding: 20px 24px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 12px;
+}
+.btn-filtrar {
+    background-color: var(--cor-principal); color: white;
+    padding: 7px 18px; border-radius: 8px;
+    font-size: 13px; font-weight: 500; border: none; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 5px;
+}
+.btn-filtrar:hover { opacity: 0.9; }
+.btn-exportar-rel {
+    background: white; color: #1a1a2e;
+    padding: 7px 14px; border-radius: 8px;
+    font-size: 13px; font-weight: 500;
+    border: 1.5px solid #dee2e6; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 6px;
+}
+.btn-exportar-rel:hover { border-color: var(--cor-principal); color: var(--cor-principal); }
+.btn-filtros-avancados {
+    background: white; color: #1a1a2e;
+    padding: 7px 14px; border-radius: 8px;
+    font-size: 13px; font-weight: 500;
+    border: 1.5px solid #dee2e6; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 6px;
+    position: relative;
+}
+.btn-filtros-avancados:hover { border-color: var(--cor-principal); color: var(--cor-principal); }
+.badge-filtro-count {
+    position: absolute; top: -7px; right: -7px;
+    background: var(--cor-principal); color: white;
+    font-size: 10px; font-weight: 700;
+    width: 18px; height: 18px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+}
+.filtros-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+.filtro-tag {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: color-mix(in srgb, var(--cor-principal) 12%, white);
+    color: var(--cor-principal); border: 1px solid color-mix(in srgb, var(--cor-principal) 30%, white);
+    font-size: 12px; font-weight: 500; padding: 3px 10px; border-radius: 20px;
+}
+.filtro-tag a { color: var(--cor-principal); text-decoration: none; font-weight: 700; margin-left: 2px; }
+.filtro-tag a:hover { color: #c62828; }
+.empty-state { text-align: center; padding: 52px 24px; color: #6c757d; }
+.empty-state i { font-size: 40px; display: block; margin-bottom: 14px; color: #ced4da; }
+.empty-state p { margin: 0; font-size: 14px; }
+.total-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: color-mix(in srgb, var(--cor-principal) 10%, white);
+    color: var(--cor-principal); font-size: 13px; font-weight: 600;
+    padding: 4px 12px; border-radius: 20px; margin-bottom: 16px;
+}
+.fin-resumo-bar { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+.fin-resumo-item { padding: 10px 18px; border-radius: 10px; font-size: 13px; font-weight: 600; }
+.fin-pago    { background: #e8f5e9; color: #2e7d32; }
+.fin-vencido { background: #fdecea; color: #c62828; }
+.fin-pend    { background: #fff8e1; color: #f57f17; }
+.heatmap-section { margin-top: 24px; padding-top: 20px; border-top: 1px solid #f0f2f5; }
+.heatmap-badges { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+.badge-pico { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 20px; }
+.badge-quente { background: #1B5E20; color: #fff; }
+.badge-frio   { background: #E8F5E9; color: #2e7d32; }
+.heatmap-grid-wrap { overflow-x: auto; }
+.heatmap-grid { display: grid; grid-template-columns: 44px repeat(24, minmax(26px, 1fr)); gap: 3px; min-width: 480px; }
+.hm-label-hora { font-size: 10px; color: #6c757d; text-align: center; line-height: 26px; font-weight: 500; }
+.hm-label-dia  { font-size: 12px; color: #6c757d; font-weight: 500; display: flex; align-items: center; padding-right: 6px; white-space: nowrap; }
+.hm-cell { height: 26px; border-radius: 4px; cursor: default; transition: transform 0.12s; position: relative; }
+.hm-cell:hover { transform: scale(1.2); z-index: 10; }
+.hm-cell[title]:hover::after {
+    content: attr(title); position: absolute; bottom: calc(100% + 4px); left: 50%;
+    transform: translateX(-50%); background: #1a1a2e; color: #fff;
+    font-size: 11px; padding: 3px 8px; border-radius: 5px; white-space: nowrap; pointer-events: none; z-index: 20;
+}
+.heatmap-legend { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 11px; color: #6c757d; }
+.legend-bar { width: 110px; height: 10px; border-radius: 4px; background: linear-gradient(to right, #E8F5E9, #1B5E20); }
+.banner-relatorio {
+    display: flex; align-items: center; gap: 16px;
+    background: white; border-radius: 12px; padding: 18px 24px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05); border-left: 4px solid var(--cor-principal);
+}
+.banner-icone {
+    width: 44px; height: 44px; border-radius: 10px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; font-size: 22px;
+    background: color-mix(in srgb, var(--cor-principal) 12%, white); color: var(--cor-principal);
+}
+.banner-titulo { font-size: 15px; font-weight: 600; color: #1a1a2e; margin-bottom: 2px; }
+.banner-desc   { font-size: 13px; color: #6c757d; }
+.offcanvas-filtros { width: 340px !important; }
+.offcanvas-filtros .offcanvas-header { background: #1a1a2e; color: white; }
+.offcanvas-filtros .offcanvas-header .btn-close { filter: invert(1); }
+.offcanvas-filtros .offcanvas-title { font-size: 15px; font-weight: 600; }
+.filtro-grupo { margin-bottom: 18px; }
+.filtro-grupo label { font-size: 12px; font-weight: 600; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; display: block; }
+.filtro-grupo .form-control, .filtro-grupo .form-select { font-size: 13px; border-radius: 8px; }
+.btn-aplicar-filtro {
+    background: var(--cor-principal); color: white; border: none; border-radius: 8px;
+    padding: 10px 20px; font-size: 13px; font-weight: 600; width: 100%; cursor: pointer;
+}
+.btn-aplicar-filtro:hover { opacity: 0.9; }
+.btn-limpar-filtro {
+    background: #f8f9fa; color: #6c757d; border: 1px solid #dee2e6; border-radius: 8px;
+    padding: 8px 16px; font-size: 13px; cursor: pointer; width: 100%;
+}
+.btn-limpar-filtro:hover { background: #e9ecef; }
+.grupo-titulo {
+    font-size: 12px; font-weight: 700; color: #1a1a2e; text-transform: uppercase;
+    letter-spacing: 0.5px; padding: 8px 0 6px; border-bottom: 1px solid #f0f2f5; margin-bottom: 12px;
+}
+/* Modal exportar */
+.col-check { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.col-tag {
+    display: inline-block; font-size: 12px; font-weight: 500;
+    padding: 5px 14px; border-radius: 20px; border: 1.5px solid #dee2e6;
+    background: white; color: #6c757d; cursor: pointer; user-select: none; transition: all 0.15s;
+}
+.col-tag:hover { border-color: var(--cor-principal); color: var(--cor-principal); }
+.col-tag.marcada { background: var(--cor-principal) !important; color: white !important; border-color: var(--cor-principal) !important; }
+.formato-btn {
+    flex: 1; padding: 12px; border-radius: 10px; border: 1.5px solid #dee2e6;
+    background: white; cursor: pointer; text-align: center;
+    font-size: 13px; font-weight: 600; color: #6c757d; transition: all 0.15s;
+}
+.formato-btn:hover { border-color: var(--cor-principal); color: var(--cor-principal); }
+.formato-btn.ativo { border-color: var(--cor-principal); background: color-mix(in srgb, var(--cor-principal) 8%, white); color: var(--cor-principal); }
+.formato-btn i { font-size: 22px; display: block; margin-bottom: 4px; }
+.col-section { margin-bottom: 18px; }
+.col-section-title { font-size: 12px; font-weight: 700; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+{% endblock %}
+
+{% block conteudo %}
+<!-- Banner contextual -->
+<div id="banner-relatorio" class="banner-relatorio mb-3" style="display:none;">
+    <div class="banner-icone" id="banner-icone"></div>
+    <div>
+        <div class="banner-titulo" id="banner-titulo"></div>
+        <div class="banner-desc"  id="banner-desc"></div>
+    </div>
+</div>
+
+<div id="area-relatorio" style="display:none;">
+    <div class="section-title" id="titulo-relatorio"></div>
+
+    <!-- Barra de filtros -->
+    <div class="filtro-card">
+        <form method="GET" action="/relatorios" id="form-filtro">
+            <input type="hidden" name="tipo"       id="input-tipo">
+            <input type="hidden" name="f_nome"      id="h_f_nome"      value="{{ f_nome }}">
+            <input type="hidden" name="f_plano"     id="h_f_plano"     value="{{ f_plano }}">
+            <input type="hidden" name="f_tipo_ac"   id="h_f_tipo_ac"   value="{{ f_tipo_ac }}">
+            <input type="hidden" name="f_status"    id="h_f_status"    value="{{ f_status }}">
+            <input type="hidden" name="f_ordem"     id="h_f_ordem"     value="{{ f_ordem }}">
+            <input type="hidden" name="f_situacao"  id="h_f_situacao"  value="{{ f_situacao }}">
+            <input type="hidden" name="f_usuario"   id="h_f_usuario"   value="{{ f_usuario }}">
+            <input type="hidden" name="f_acao"      id="h_f_acao"      value="{{ f_acao }}">
+            <input type="hidden" name="f_pg_status" id="h_f_pg_status" value="{{ f_pg_status }}">
+            <input type="hidden" name="f_forma_pag" id="h_f_forma_pag" value="{{ f_forma_pag }}">
+            <div class="row g-2 align-items-end">
+                <div class="col-md-2">
+                    <label class="form-label" style="font-size:13px; font-weight:500;">Data início</label>
+                    <input type="date" name="inicio" class="form-control form-control-sm" id="filtro-inicio" value="{{ filtro_inicio or '' }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label" style="font-size:13px; font-weight:500;">Data fim</label>
+                    <input type="date" name="fim" class="form-control form-control-sm" id="filtro-fim" value="{{ filtro_fim or '' }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label" style="font-size:13px; font-weight:500;">Período rápido</label>
+                    <select class="form-select form-select-sm" onchange="aplicarPeriodo(this.value)">
+                        <option value="">Personalizado</option>
+                        <option value="hoje">Hoje</option>
+                        <option value="semana">Esta semana</option>
+                        <option value="mes">Este mês</option>
+                        <option value="mes_passado">Mês passado</option>
+                        <option value="ano">Este ano</option>
+                    </select>
+                </div>
+                <div class="col-md-6 d-flex gap-2 align-items-end flex-wrap">
+                    <button type="submit" class="btn-filtrar">
+                        <i class="bi bi-funnel"></i> Filtrar
+                    </button>
+                    <button type="button" class="btn-filtros-avancados" onclick="abrirFiltros()" id="btn-filtros-avancados">
+                        <i class="bi bi-sliders"></i> Filtros
+                        {% if filtros_ativos > 0 %}<span class="badge-filtro-count">{{ filtros_ativos }}</span>{% endif %}
+                    </button>
+                    <button type="button" id="btn-toggle-heatmap" onclick="toggleHeatmap()"
+                        style="display:none; align-items:center; gap:5px; padding:7px 12px;
+                               border-radius:8px; border:1.5px solid #00695c; background:#e0f2f1;
+                               color:#00695c; font-size:13px; font-weight:500; cursor:pointer; white-space:nowrap;">
+                        <i class="bi bi-grid-3x3-gap-fill" id="heatmap-icon"></i>
+                        <span id="heatmap-btn-label">Calor</span>
+                    </button>
+                    <!-- Botão exportar abre modal -->
+                    <button type="button" class="btn-exportar-rel" id="btn-exportar"
+                            onclick="abrirModalExportar()" style="display:none;">
+                        <i class="bi bi-download" style="color:var(--cor-principal);"></i> Exportar
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Tags de filtros ativos -->
+    {% if filtros_ativos > 0 %}
+    <div class="filtros-tags">
+        {% if f_nome %}<span class="filtro-tag"><i class="bi bi-person"></i> Nome: "{{ f_nome }}" <a href="{{ request.url | replace('&f_nome=' ~ f_nome, '') | replace('f_nome=' ~ f_nome ~ '&', '') }}">×</a></span>{% endif %}
+        {% if f_plano %}<span class="filtro-tag"><i class="bi bi-tag"></i> Plano: {{ f_plano }} <a href="{{ request.url | replace('&f_plano=' ~ f_plano, '') | replace('f_plano=' ~ f_plano ~ '&', '') }}">×</a></span>{% endif %}
+        {% if f_tipo_ac %}<span class="filtro-tag"><i class="bi bi-door-open"></i> Tipo: {{ f_tipo_ac }} <a href="{{ request.url | replace('&f_tipo_ac=' ~ f_tipo_ac, '') | replace('f_tipo_ac=' ~ f_tipo_ac ~ '&', '') }}">×</a></span>{% endif %}
+        {% if f_status %}<span class="filtro-tag"><i class="bi bi-circle"></i> Status: {{ f_status }} <a href="{{ request.url | replace('&f_status=' ~ f_status, '') | replace('f_status=' ~ f_status ~ '&', '') }}">×</a></span>{% endif %}
+        {% if f_ordem %}<span class="filtro-tag"><i class="bi bi-sort-down"></i> Ordem: {{ f_ordem }} <a href="{{ request.url | replace('&f_ordem=' ~ f_ordem, '') | replace('f_ordem=' ~ f_ordem ~ '&', '') }}">×</a></span>{% endif %}
+        {% if f_situacao %}<span class="filtro-tag"><i class="bi bi-calendar"></i> Situação: {{ f_situacao | replace('_', ' ') }} <a href="{{ request.url | replace('&f_situacao=' ~ f_situacao, '') | replace('f_situacao=' ~ f_situacao ~ '&', '') }}">×</a></span>{% endif %}
+        {% if f_usuario %}<span class="filtro-tag"><i class="bi bi-person-gear"></i> Usuário: {{ f_usuario }} <a href="{{ request.url | replace('&f_usuario=' ~ f_usuario, '') | replace('f_usuario=' ~ f_usuario ~ '&', '') }}">×</a></span>{% endif %}
+        {% if f_acao %}<span class="filtro-tag"><i class="bi bi-activity"></i> Ação: {{ f_acao }} <a href="{{ request.url | replace('&f_acao=' ~ f_acao, '') | replace('f_acao=' ~ f_acao ~ '&', '') }}">×</a></span>{% endif %}
+        {% if f_pg_status %}<span class="filtro-tag"><i class="bi bi-cash"></i> Status pag.: {{ f_pg_status }} <a href="{{ request.url | replace('&f_pg_status=' ~ f_pg_status, '') | replace('f_pg_status=' ~ f_pg_status ~ '&', '') }}">×</a></span>{% endif %}
+        {% if f_forma_pag %}<span class="filtro-tag"><i class="bi bi-credit-card"></i> Forma: {{ f_forma_pag }} <a href="{{ request.url | replace('&f_forma_pag=' ~ f_forma_pag, '') | replace('f_forma_pag=' ~ f_forma_pag ~ '&', '') }}">×</a></span>{% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Passagens -->
+    <div id="rel-passagens" class="relatorio-section" style="display:none;">
+        {% if not filtro_aplicado %}
+        <div class="card-base empty-state"><i class="bi bi-funnel"></i><p>Selecione <strong>data início</strong> e <strong>data fim</strong> e clique em <strong>Filtrar</strong>.</p></div>
+        {% elif passagens %}
+        <div class="card-base">
+            <div id="tabela-passagens">
+                <div class="total-badge"><i class="bi bi-door-open"></i> {{ total_passagens }} passagem{{ 's' if total_passagens != 1 else '' }} no período</div>
+                <table class="table table-borderless mb-0">
+                    <thead><tr><th>Data/Hora</th><th>Aluno</th><th>Plano</th><th>Tipo</th><th>Observação</th></tr></thead>
+                    <tbody>
+                        {% for reg in passagens %}
+                        <tr>
+                            <td style="color:#6c757d; font-size:13px; white-space:nowrap;">{{ reg.entrada_em | local_time }}</td>
+                            <td><a href="/alunos/{{ reg.aluno_id }}" style="text-decoration:none; color:#1a1a2e; font-weight:500;">{{ reg.aluno.nome }}</a></td>
+                            <td>{{ reg.aluno.plano or '—' }}</td>
+                            <td><span style="font-size:12px; padding:2px 8px; border-radius:12px; background:{% if reg.tipo=='biometria' %}#e3f2fd{% else %}#f3e5f5{% endif %}; color:{% if reg.tipo=='biometria' %}#1565c0{% else %}#6a1b9a{% endif %};">{{ reg.tipo }}</span></td>
+                            <td style="color:#6c757d; font-size:13px;">{{ reg.observacao or '—' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="heatmap-section">
+                <div id="heatmap-body" style="display:none;">
+                    <div style="margin-bottom:14px;">
+                        <h6 style="margin:0 0 3px; font-size:14px; font-weight:600; color:#1a1a2e;"><i class="bi bi-grid-3x3-gap-fill me-2" style="color:#00695c;"></i>Mapa de calor — hora × dia da semana</h6>
+                        <p style="margin:0; font-size:13px; color:#6c757d;">Distribuição das {{ total_passagens }} passagem{{ 's' if total_passagens != 1 else '' }} no período</p>
+                    </div>
+                    <div class="heatmap-badges">
+                        {% if pico_quente.valor > 0 %}
+                        <span class="badge-pico badge-quente"><i class="bi bi-fire"></i> Mais: {{ nomes_dias[pico_quente.dia] }} {{ '%02d'|format(pico_quente.hora) }}h ({{ pico_quente.valor }})</span>
+                        <span class="badge-pico badge-frio"><i class="bi bi-snow"></i> Menos: {{ nomes_dias[pico_frio.dia] }} {{ '%02d'|format(pico_frio.hora) }}h ({{ pico_frio.valor }})</span>
+                        {% endif %}
+                    </div>
+                    <div class="heatmap-grid-wrap">
+                        <div class="heatmap-grid" id="heatmap-grid">
+                            <div></div>
+                            {% for h in range(24) %}<div class="hm-label-hora">{{ '%02d'|format(h) }}</div>{% endfor %}
+                            {% set dias_semana = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'] %}
+                            {% for d in range(7) %}
+                            <div class="hm-label-dia">{{ dias_semana[d] }}</div>
+                            {% for h in range(24) %}<div class="hm-cell" data-dia="{{ d }}" data-hora="{{ h }}"></div>{% endfor %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div class="heatmap-legend"><span>Menos</span><div class="legend-bar"></div><span>Mais</span></div>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="card-base empty-state"><i class="bi bi-door-closed"></i><p>Nenhuma passagem encontrada com os filtros aplicados.</p></div>
+        {% endif %}
+    </div>
+
+    <!-- Por Aluno -->
+    <div id="rel-por_aluno" class="relatorio-section" style="display:none;">
+        {% if not filtro_aplicado %}
+        <div class="card-base empty-state"><i class="bi bi-funnel"></i><p>Selecione <strong>data início</strong> e <strong>data fim</strong> e clique em <strong>Filtrar</strong>.</p></div>
+        {% elif por_aluno %}
+        <div class="card-base">
+            <div class="total-badge"><i class="bi bi-people"></i> {{ por_aluno|length }} aluno{{ 's' if por_aluno|length != 1 else '' }} com passagem no período</div>
+            <table class="table table-borderless mb-0">
+                <thead><tr><th>Aluno</th><th>Plano</th><th>Passagens</th><th>Primeira entrada</th><th>Última entrada</th><th>Status</th></tr></thead>
+                <tbody>
+                    {% for item in por_aluno %}
+                    <tr>
+                        <td><a href="/alunos/{{ item.aluno.id }}" style="text-decoration:none; color:#1a1a2e; font-weight:500;">{{ item.aluno.nome }}</a></td>
+                        <td>{{ item.aluno.plano or '—' }}</td>
+                        <td><span style="font-weight:700; color:var(--cor-principal);">{{ item.total }}</span></td>
+                        <td style="color:#6c757d; font-size:13px;">{{ item.primeiro | local_time }}</td>
+                        <td style="color:#6c757d; font-size:13px;">{{ item.ultimo | local_time }}</td>
+                        <td>{% if item.aluno.ativo %}<span class="badge-ativo">Ativo</span>{% else %}<span class="badge-inativo">Inativo</span>{% endif %}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="card-base empty-state"><i class="bi bi-person-x"></i><p>Nenhum aluno encontrado com os filtros aplicados.</p></div>
+        {% endif %}
+    </div>
+
+    <!-- Vencimentos -->
+    <div id="rel-vencimentos" class="relatorio-section" style="display:none;">
+        {% if not filtro_aplicado %}
+        <div class="card-base empty-state"><i class="bi bi-funnel"></i><p>Selecione <strong>data início</strong> e <strong>data fim</strong> e clique em <strong>Filtrar</strong>.</p></div>
+        {% else %}
+        <div class="card-base">
+            <div class="total-badge"><i class="bi bi-calendar-x"></i> {{ vencimentos|length }} aluno{{ 's' if vencimentos|length != 1 else '' }}</div>
+            <table class="table table-borderless mb-0">
+                <thead><tr><th>Aluno</th><th>Plano</th><th>Vencimento</th><th>Situação</th></tr></thead>
+                <tbody>
+                    {% for aluno in vencimentos %}
+                    <tr>
+                        <td><a href="/alunos/{{ aluno.id }}" style="text-decoration:none; color:#1a1a2e; font-weight:500;">{{ aluno.nome }}</a></td>
+                        <td>{{ aluno.plano or '—' }}</td>
+                        <td>{{ aluno.vencimento.strftime('%d/%m/%Y') if aluno.vencimento else '—' }}</td>
+                        <td>
+                            {% if aluno.vencimento and aluno.vencimento < hoje %}<span class="badge-inativo">Vencido</span>
+                            {% elif aluno.vencimento and aluno.vencimento <= sete_dias %}<span class="badge-vencendo">Vence em breve</span>
+                            {% else %}<span class="badge-ativo">Em dia</span>{% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% if not vencimentos %}<tr><td colspan="4" style="text-align:center; color:#6c757d; padding:32px 0;">Nenhum resultado com os filtros aplicados</td></tr>{% endif %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Auditoria -->
+    <div id="rel-auditoria" class="relatorio-section" style="display:none;">
+        {% if not filtro_aplicado %}
+        <div class="card-base empty-state"><i class="bi bi-funnel"></i><p>Selecione <strong>data início</strong> e <strong>data fim</strong> e clique em <strong>Filtrar</strong>.</p></div>
+        {% elif auditoria %}
+        <div class="card-base">
+            <div class="total-badge"><i class="bi bi-shield-check"></i> {{ auditoria|length }} registro{{ 's' if auditoria|length != 1 else '' }}</div>
+            <table class="table table-borderless mb-0">
+                <thead><tr><th>Data/Hora</th><th>Usuário</th><th>Ação</th><th>Detalhes</th><th>IP</th></tr></thead>
+                <tbody>
+                    {% for log in auditoria %}
+                    <tr>
+                        <td style="color:#6c757d; font-size:13px;">{{ log.criado_em | local_time }}</td>
+                        <td><strong>{{ log.usuario }}</strong></td>
+                        <td>{{ log.acao }}</td>
+                        <td style="color:#6c757d; font-size:13px;">{{ log.detalhes or '—' }}</td>
+                        <td style="color:#6c757d; font-size:13px;">{{ log.ip or '—' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="card-base empty-state"><i class="bi bi-shield"></i><p>Nenhum log encontrado com os filtros aplicados.</p></div>
+        {% endif %}
+    </div>
+
+    <!-- Financeiro -->
+    <div id="rel-financeiro" class="relatorio-section" style="display:none;">
+        {% if not filtro_aplicado %}
+        <div class="card-base empty-state"><i class="bi bi-funnel"></i><p>Selecione <strong>data início</strong> e <strong>data fim</strong> e clique em <strong>Filtrar</strong>.</p></div>
+        {% elif fin_pagamentos is defined and fin_pagamentos %}
+        <div class="card-base">
+            <div class="fin-resumo-bar">
+                <div class="fin-resumo-item fin-pago"><i class="bi bi-check-circle me-1"></i>Recebido: <strong>R$ {{ '%.2f'|format(fin_resumo.recebido) }}</strong></div>
+                <div class="fin-resumo-item fin-pend"><i class="bi bi-clock me-1"></i>Pendente: <strong>R$ {{ '%.2f'|format(fin_resumo.pendente) }}</strong></div>
+                <div class="fin-resumo-item fin-vencido"><i class="bi bi-exclamation-circle me-1"></i>Vencido: <strong>R$ {{ '%.2f'|format(fin_resumo.vencido) }}</strong></div>
+                <div class="fin-resumo-item" style="background:#f8f9fa; color:#1a1a2e;"><i class="bi bi-receipt me-1"></i>Total: <strong>{{ fin_pagamentos|length }} lançamento{{ 's' if fin_pagamentos|length != 1 else '' }}</strong></div>
+            </div>
+            <table class="table table-borderless mb-0">
+                <thead><tr><th>Aluno</th><th>Plano</th><th>Valor</th><th>Vencimento</th><th>Pagamento</th><th>Forma</th><th>Status</th></tr></thead>
+                <tbody>
+                    {% for p in fin_pagamentos %}
+                    <tr>
+                        <td><a href="/alunos/{{ p.aluno_id }}" style="text-decoration:none; color:#1a1a2e; font-weight:500;">{{ p.aluno.nome }}</a></td>
+                        <td>{{ p.aluno.plano or '—' }}</td>
+                        <td><strong>R$ {{ '%.2f'|format(p.valor) }}</strong></td>
+                        <td style="font-size:13px; color:#6c757d;">{{ p.data_vencimento.strftime('%d/%m/%Y') }}</td>
+                        <td style="font-size:13px; color:#6c757d;">{{ p.data_pagamento.strftime('%d/%m/%Y') if p.data_pagamento else '—' }}</td>
+                        <td style="font-size:13px;">{{ p.forma_pagamento or '—' }}</td>
+                        <td>{% if p.status == 'pago' %}<span class="badge-ativo">Pago</span>{% elif p.status == 'vencido' %}<span class="badge-inativo">Vencido</span>{% else %}<span class="badge-vencendo">Pendente</span>{% endif %}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% elif filtro_aplicado %}
+        <div class="card-base mb-3">
+            <div style="font-size:15px; font-weight:600; color:#1a1a2e; margin-bottom:16px;"><i class="bi bi-cash-coin me-2" style="color:#2e7d32;"></i>Receita estimada por plano</div>
+            <div class="row g-3">
+                {% for item in financeiro %}
+                <div class="col-md-3">
+                    <div style="background:color-mix(in srgb, var(--cor-principal) 8%, white); border-radius:10px; padding:16px 20px;">
+                        <div style="font-size:13px; color:#6c757d; margin-bottom:4px;">{{ item.plano }}</div>
+                        <div style="font-size:22px; font-weight:700; color:var(--cor-principal);">R$ {{ '%.2f'|format(item.receita) }}</div>
+                        <div style="font-size:12px; color:#6c757d; margin-top:4px;">{{ item.total }} aluno(s) × R$ {{ '%.2f'|format(item.valor_plano) }}</div>
+                    </div>
+                </div>
+                {% endfor %}
+                <div class="col-md-3">
+                    <div style="background:#e8f5e9; border-radius:10px; padding:16px 20px;">
+                        <div style="font-size:13px; color:#2e7d32; margin-bottom:4px; font-weight:600;">Receita total</div>
+                        <div style="font-size:22px; font-weight:700; color:#2e7d32;">R$ {{ '%.2f'|format(financeiro|sum(attribute='receita')) }}</div>
+                        <div style="font-size:12px; color:#6c757d; margin-top:4px;">{{ financeiro|sum(attribute='total') }} aluno(s) ativos</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="card-base">
+            <p style="font-size:13px; color:#6c757d; margin-bottom:12px;"><i class="bi bi-info-circle me-1"></i>Use os <strong>Filtros avançados</strong> para ver pagamentos individuais.</p>
+            <table class="table table-borderless mb-0">
+                <thead><tr><th>Plano</th><th>Valor unitário</th><th>Alunos ativos</th><th>Receita estimada</th></tr></thead>
+                <tbody>
+                    {% for item in financeiro %}
+                    <tr>
+                        <td><strong>{{ item.plano }}</strong></td>
+                        <td>R$ {{ '%.2f'|format(item.valor_plano) }}</td>
+                        <td>{{ item.total }}</td>
+                        <td style="font-weight:600; color:var(--cor-principal);">R$ {{ '%.2f'|format(item.receita) }}</td>
+                    </tr>
+                    {% endfor %}
+                    <tr style="border-top:2px solid #f0f2f5;">
+                        <td colspan="2"><strong>Total</strong></td>
+                        <td><strong>{{ financeiro|sum(attribute='total') }}</strong></td>
+                        <td style="font-weight:700; color:#2e7d32; font-size:16px;">R$ {{ '%.2f'|format(financeiro|sum(attribute='receita')) }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="card-base empty-state"><i class="bi bi-cash-coin"></i><p>Nenhum lançamento encontrado com os filtros aplicados.</p></div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- ── Modal Exportar ─────────────────────────────────────────────────────── -->
+<div class="modal fade" id="modalExportar" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content" style="border-radius:14px; border:none;">
+            <div class="modal-header" style="background:#1a1a2e; border-radius:14px 14px 0 0; padding:20px 24px;">
+                <h5 class="modal-title" style="color:white; font-size:16px; font-weight:600;">
+                    <i class="bi bi-download me-2" style="color:var(--cor-principal);"></i>
+                    Exportar — <span id="modal-titulo-rel"></span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" style="filter:invert(1);"></button>
+            </div>
+            <div class="modal-body" style="padding:24px;">
+
+                <!-- Período -->
+                <div class="mb-4" style="background:#f8f9fa; border-radius:10px; padding:12px 16px; font-size:13px; color:#6c757d;">
+                    <i class="bi bi-calendar3 me-2" style="color:var(--cor-principal);"></i>
+                    Período: <strong id="modal-periodo"></strong>
+                </div>
+
+                <!-- Colunas dinâmicas por relatório -->
+                <div id="modal-colunas-wrap">
+                    <!-- passagens -->
+                    <div id="mcols-passagens" class="modal-cols" style="display:none;">
+                        <div class="col-section-title">Colunas</div>
+                        <div class="col-check">
+                            <span class="col-tag marcada" data-col="data_hora"   onclick="toggleColModal(event,this)">Data/Hora</span>
+                            <span class="col-tag marcada" data-col="aluno"       onclick="toggleColModal(event,this)">Aluno</span>
+                            <span class="col-tag"         data-col="cpf"         onclick="toggleColModal(event,this)">CPF</span>
+                            <span class="col-tag"         data-col="telefone"    onclick="toggleColModal(event,this)">Telefone</span>
+                            <span class="col-tag marcada" data-col="plano"       onclick="toggleColModal(event,this)">Plano</span>
+                            <span class="col-tag marcada" data-col="tipo"        onclick="toggleColModal(event,this)">Tipo</span>
+                            <span class="col-tag"         data-col="observacao"  onclick="toggleColModal(event,this)">Observação</span>
+                        </div>
+                    </div>
+                    <!-- por_aluno -->
+                    <div id="mcols-por_aluno" class="modal-cols" style="display:none;">
+                        <div class="col-section-title">Colunas</div>
+                        <div class="col-check">
+                            <span class="col-tag marcada" data-col="aluno"       onclick="toggleColModal(event,this)">Aluno</span>
+                            <span class="col-tag"         data-col="cpf"         onclick="toggleColModal(event,this)">CPF</span>
+                            <span class="col-tag"         data-col="telefone"    onclick="toggleColModal(event,this)">Telefone</span>
+                            <span class="col-tag marcada" data-col="plano"       onclick="toggleColModal(event,this)">Plano</span>
+                            <span class="col-tag marcada" data-col="total"       onclick="toggleColModal(event,this)">Total passagens</span>
+                            <span class="col-tag marcada" data-col="primeiro"    onclick="toggleColModal(event,this)">Primeira entrada</span>
+                            <span class="col-tag marcada" data-col="ultimo"      onclick="toggleColModal(event,this)">Última entrada</span>
+                            <span class="col-tag marcada" data-col="status"      onclick="toggleColModal(event,this)">Status</span>
+                        </div>
+                    </div>
+                    <!-- vencimentos -->
+                    <div id="mcols-vencimentos" class="modal-cols" style="display:none;">
+                        <div class="col-section-title">Colunas</div>
+                        <div class="col-check">
+                            <span class="col-tag marcada" data-col="aluno"       onclick="toggleColModal(event,this)">Aluno</span>
+                            <span class="col-tag"         data-col="cpf"         onclick="toggleColModal(event,this)">CPF</span>
+                            <span class="col-tag"         data-col="telefone"    onclick="toggleColModal(event,this)">Telefone</span>
+                            <span class="col-tag marcada" data-col="plano"       onclick="toggleColModal(event,this)">Plano</span>
+                            <span class="col-tag marcada" data-col="vencimento"  onclick="toggleColModal(event,this)">Vencimento</span>
+                            <span class="col-tag marcada" data-col="situacao"    onclick="toggleColModal(event,this)">Situação</span>
+                        </div>
+                    </div>
+                    <!-- auditoria -->
+                    <div id="mcols-auditoria" class="modal-cols" style="display:none;">
+                        <div class="col-section-title">Colunas</div>
+                        <div class="col-check">
+                            <span class="col-tag marcada" data-col="data_hora"   onclick="toggleColModal(event,this)">Data/Hora</span>
+                            <span class="col-tag marcada" data-col="usuario"     onclick="toggleColModal(event,this)">Usuário</span>
+                            <span class="col-tag marcada" data-col="acao"        onclick="toggleColModal(event,this)">Ação</span>
+                            <span class="col-tag marcada" data-col="detalhes"    onclick="toggleColModal(event,this)">Detalhes</span>
+                            <span class="col-tag"         data-col="ip"          onclick="toggleColModal(event,this)">IP</span>
+                        </div>
+                    </div>
+                    <!-- financeiro -->
+                    <div id="mcols-financeiro" class="modal-cols" style="display:none;">
+                        <div class="col-section-title">Colunas</div>
+                        <div class="col-check">
+                            <span class="col-tag marcada" data-col="aluno"       onclick="toggleColModal(event,this)">Aluno</span>
+                            <span class="col-tag"         data-col="cpf"         onclick="toggleColModal(event,this)">CPF</span>
+                            <span class="col-tag"         data-col="telefone"    onclick="toggleColModal(event,this)">Telefone</span>
+                            <span class="col-tag marcada" data-col="plano"       onclick="toggleColModal(event,this)">Plano</span>
+                            <span class="col-tag marcada" data-col="valor"       onclick="toggleColModal(event,this)">Valor</span>
+                            <span class="col-tag marcada" data-col="vencimento"  onclick="toggleColModal(event,this)">Vencimento</span>
+                            <span class="col-tag marcada" data-col="pagamento"   onclick="toggleColModal(event,this)">Data pagamento</span>
+                            <span class="col-tag marcada" data-col="forma"       onclick="toggleColModal(event,this)">Forma</span>
+                            <span class="col-tag marcada" data-col="status"      onclick="toggleColModal(event,this)">Status</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Formato -->
+                <div class="mt-4">
+                    <div class="col-section-title">Formato</div>
+                    <div class="d-flex gap-3">
+                        <button class="formato-btn ativo" id="efmt-pdf" onclick="selecionarFormatoExp('pdf')">
+                            <i class="bi bi-file-earmark-pdf" style="color:#c62828;"></i> PDF
+                        </button>
+                        <button class="formato-btn" id="efmt-csv" onclick="selecionarFormatoExp('csv')">
+                            <i class="bi bi-file-earmark-spreadsheet" style="color:#2e7d32;"></i> CSV / Excel
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer" style="border-top:1px solid #f0f2f5; padding:16px 24px;">
+                <button type="button" class="btn" data-bs-dismiss="modal"
+                    style="background:white; border:1px solid #dee2e6; color:#6c757d; padding:8px 20px; border-radius:8px;">Cancelar</button>
+                <button type="button" class="btn-principal" onclick="executarExporte()">
+                    <i class="bi bi-download me-1"></i> Gerar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Offcanvas filtros avançados -->
+<div class="offcanvas offcanvas-end offcanvas-filtros" tabindex="-1" id="offcanvasFiltros">
+    <div class="offcanvas-header">
+        <h5 class="offcanvas-title"><i class="bi bi-sliders me-2"></i>Filtros avançados</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+    </div>
+    <div class="offcanvas-body">
+        <div class="grupo-titulo">Geral</div>
+        <div class="filtro-grupo">
+            <label>Nome do aluno</label>
+            <input type="text" id="oc_f_nome" class="form-control" placeholder="Buscar por nome..." value="{{ f_nome }}">
+        </div>
+        <div class="filtro-grupo">
+            <label>Plano</label>
+            <select id="oc_f_plano" class="form-select">
+                <option value="">Todos os planos</option>
+                {% for p in planos_lista %}<option value="{{ p }}" {% if f_plano == p %}selected{% endif %}>{{ p }}</option>{% endfor %}
+            </select>
+        </div>
+        <div id="fc-passagens" class="filtro-contexto" style="display:none;">
+            <div class="grupo-titulo">Passagens</div>
+            <div class="filtro-grupo">
+                <label>Tipo de acesso</label>
+                <select id="oc_f_tipo_ac" class="form-select">
+                    <option value="">Todos</option>
+                    <option value="manual"    {% if f_tipo_ac == 'manual'    %}selected{% endif %}>Manual</option>
+                    <option value="biometria" {% if f_tipo_ac == 'biometria' %}selected{% endif %}>Biometria</option>
+                </select>
+            </div>
+        </div>
+        <div id="fc-por_aluno" class="filtro-contexto" style="display:none;">
+            <div class="grupo-titulo">Por Aluno</div>
+            <div class="filtro-grupo">
+                <label>Status do aluno</label>
+                <select id="oc_f_status" class="form-select">
+                    <option value="">Todos</option>
+                    <option value="ativo"   {% if f_status == 'ativo'   %}selected{% endif %}>Ativo</option>
+                    <option value="inativo" {% if f_status == 'inativo' %}selected{% endif %}>Inativo</option>
+                </select>
+            </div>
+            <div class="filtro-grupo">
+                <label>Ordenar por</label>
+                <select id="oc_f_ordem" class="form-select">
+                    <option value="">Nome (A-Z)</option>
+                    <option value="mais"  {% if f_ordem == 'mais'  %}selected{% endif %}>Mais acessos primeiro</option>
+                    <option value="menos" {% if f_ordem == 'menos' %}selected{% endif %}>Menos acessos primeiro</option>
+                </select>
+            </div>
+        </div>
+        <div id="fc-vencimentos" class="filtro-contexto" style="display:none;">
+            <div class="grupo-titulo">Vencimentos</div>
+            <div class="filtro-grupo">
+                <label>Situação</label>
+                <select id="oc_f_situacao" class="form-select">
+                    <option value="">Todas</option>
+                    <option value="em_dia"      {% if f_situacao == 'em_dia'      %}selected{% endif %}>Em dia</option>
+                    <option value="vence_breve" {% if f_situacao == 'vence_breve' %}selected{% endif %}>Vence em breve</option>
+                    <option value="vencido"     {% if f_situacao == 'vencido'     %}selected{% endif %}>Vencido</option>
+                </select>
+            </div>
+        </div>
+        <div id="fc-auditoria" class="filtro-contexto" style="display:none;">
+            <div class="grupo-titulo">Auditoria</div>
+            <div class="filtro-grupo">
+                <label>Usuário</label>
+                <select id="oc_f_usuario" class="form-select">
+                    <option value="">Todos</option>
+                    {% for u in usuarios_lista %}<option value="{{ u }}" {% if f_usuario == u %}selected{% endif %}>{{ u }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="filtro-grupo">
+                <label>Tipo de ação</label>
+                <select id="oc_f_acao" class="form-select">
+                    <option value="">Todas</option>
+                    {% for a in acoes_lista %}<option value="{{ a }}" {% if f_acao == a %}selected{% endif %}>{{ a }}</option>{% endfor %}
+                </select>
+            </div>
+        </div>
+        <div id="fc-financeiro" class="filtro-contexto" style="display:none;">
+            <div class="grupo-titulo">Financeiro</div>
+            <div class="filtro-grupo">
+                <label>Status do pagamento</label>
+                <select id="oc_f_pg_status" class="form-select">
+                    <option value="">Todos</option>
+                    <option value="pago"     {% if f_pg_status == 'pago'     %}selected{% endif %}>Pago</option>
+                    <option value="pendente" {% if f_pg_status == 'pendente' %}selected{% endif %}>Pendente</option>
+                    <option value="vencido"  {% if f_pg_status == 'vencido'  %}selected{% endif %}>Vencido</option>
+                </select>
+            </div>
+            <div class="filtro-grupo">
+                <label>Forma de pagamento</label>
+                <select id="oc_f_forma_pag" class="form-select">
+                    <option value="">Todas</option>
+                    <option value="dinheiro" {% if f_forma_pag == 'dinheiro' %}selected{% endif %}>Dinheiro</option>
+                    <option value="pix"      {% if f_forma_pag == 'pix'      %}selected{% endif %}>PIX</option>
+                </select>
+            </div>
+        </div>
+        <div class="mt-4 d-flex flex-column gap-2">
+            <button class="btn-aplicar-filtro" onclick="aplicarFiltros()"><i class="bi bi-funnel me-1"></i> Aplicar filtros</button>
+            <button class="btn-limpar-filtro"  onclick="limparFiltros()"><i class="bi bi-x-circle me-1"></i> Limpar todos os filtros</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let tipoAtivo    = '{{ tipo_ativo or "" }}';
+let formatoExp   = 'pdf';
+const filtroAplicado = {{ 'true' if filtro_aplicado else 'false' }};
+const temPassagens   = {{ 'true' if (filtro_aplicado and passagens) else 'false' }};
+
+const titulos = {
+    'passagens'  : 'Relatório de Passagens',
+    'por_aluno'  : 'Passagens por Aluno',
+    'vencimentos': 'Vencimentos de Planos',
+    'auditoria'  : 'Log de Auditoria',
+    'financeiro' : 'Relatório Financeiro'
+};
+const bannerInfo = {
+    'passagens'  : { icone: 'bi-door-open',        desc: 'Lista todas as entradas registradas no período. Inclui mapa de calor por hora e dia da semana.' },
+    'por_aluno'  : { icone: 'bi-person-lines-fill', desc: 'Agrupa passagens por aluno: total, primeira e última entrada no período.' },
+    'vencimentos': { icone: 'bi-calendar-x',        desc: 'Situação dos planos de todos os alunos ativos — em dia, vencendo em breve ou vencido.' },
+    'auditoria'  : { icone: 'bi-shield-check',      desc: 'Todas as ações realizadas no sistema: logins, cadastros, edições e exclusões.' },
+    'financeiro' : { icone: 'bi-cash-coin',         desc: 'Pagamentos por período, filtrados por status e forma de pagamento.' },
+};
+const heatmapData  = {{ heatmap_json | safe }};
+let heatmapVisivel = false;
+
+function mostrarRelatorio(tipo) {
+    tipoAtivo = tipo;
+    document.getElementById('area-relatorio').style.display = 'block';
+    document.querySelectorAll('.relatorio-section').forEach(s => s.style.display = 'none');
+    document.getElementById('rel-' + tipo).style.display = 'block';
+    document.getElementById('titulo-relatorio').textContent = titulos[tipo];
+    document.getElementById('input-tipo').value = tipo;
+
+    // Banner
+    const info = bannerInfo[tipo];
+    if (info) {
+        document.getElementById('banner-icone').innerHTML = `<i class="bi ${info.icone}"></i>`;
+        document.getElementById('banner-titulo').textContent = titulos[tipo];
+        document.getElementById('banner-desc').textContent   = info.desc;
+        document.getElementById('banner-relatorio').style.display = 'flex';
+    }
+
+    // Botão exportar — só quando filtro aplicado
+    document.getElementById('btn-exportar').style.display = filtroAplicado ? 'inline-flex' : 'none';
+
+    // Botão calor
+    const btnHeatmap = document.getElementById('btn-toggle-heatmap');
+    if (tipo === 'passagens' && filtroAplicado) {
+        btnHeatmap.style.display = 'inline-flex';
+        btnHeatmap.disabled      = !temPassagens;
+        btnHeatmap.style.opacity = temPassagens ? '1' : '0.45';
+    } else {
+        btnHeatmap.style.display = 'none';
+    }
+
+    if (tipo !== 'passagens' && heatmapVisivel) {
+        heatmapVisivel = false;
+        const t = document.getElementById('tabela-passagens');
+        const h = document.getElementById('heatmap-body');
+        if (t) t.style.display = 'block';
+        if (h) h.style.display = 'none';
+        document.getElementById('heatmap-icon').className = 'bi bi-grid-3x3-gap-fill';
+        document.getElementById('heatmap-btn-label').textContent = 'Calor';
+    }
+    document.getElementById('area-relatorio').scrollIntoView({ behavior: 'smooth' });
+}
+
+// ── Modal exportar ────────────────────────────────────────────────────────────
+function abrirModalExportar() {
+    const inicio = document.getElementById('filtro-inicio').value;
+    const fim    = document.getElementById('filtro-fim').value;
+    const fmt    = (inicio && fim)
+        ? `${inicio.split('-').reverse().join('/')} a ${fim.split('-').reverse().join('/')}`
+        : 'Período não informado';
+
+    document.getElementById('modal-titulo-rel').textContent = titulos[tipoAtivo] || '';
+    document.getElementById('modal-periodo').textContent    = fmt;
+
+    // Mostra somente colunas do relatório ativo
+    document.querySelectorAll('.modal-cols').forEach(el => el.style.display = 'none');
+    const mc = document.getElementById('mcols-' + tipoAtivo);
+    if (mc) mc.style.display = 'block';
+
+    // Reset formato
+    selecionarFormatoExp('pdf');
+    new bootstrap.Modal(document.getElementById('modalExportar')).show();
+}
+
+function toggleColModal(e, el) {
+    e.stopPropagation();
+    el.classList.toggle('marcada');
+}
+
+function selecionarFormatoExp(fmt) {
+    formatoExp = fmt;
+    document.getElementById('efmt-pdf').classList.toggle('ativo', fmt === 'pdf');
+    document.getElementById('efmt-csv').classList.toggle('ativo', fmt === 'csv');
+}
+
+function executarExporte() {
+    const inicio = document.getElementById('filtro-inicio').value;
+    const fim    = document.getElementById('filtro-fim').value;
+
+    // Coleta colunas marcadas do painel ativo
+    const colunas = [];
+    const mc = document.getElementById('mcols-' + tipoAtivo);
+    if (mc) mc.querySelectorAll('.col-tag.marcada').forEach(el => colunas.push(el.dataset.col));
+
+    if (colunas.length === 0) { alert('Selecione ao menos uma coluna.'); return; }
+
+    const qs = filtrosQueryString();
+    const url = `/relatorios/exportar/${formatoExp}?tipo=${tipoAtivo}&inicio=${inicio}&fim=${fim}&colunas=${colunas.join(',')}&${qs}`;
+    bootstrap.Modal.getInstance(document.getElementById('modalExportar')).hide();
+    window.location.href = url;
+}
+
+function filtrosQueryString() {
+    const campos = ['f_nome','f_plano','f_tipo_ac','f_status','f_ordem','f_situacao','f_usuario','f_acao','f_pg_status','f_forma_pag'];
+    return campos.map(c => { const el = document.getElementById('h_' + c); return el && el.value ? `${c}=${encodeURIComponent(el.value)}` : ''; }).filter(Boolean).join('&');
+}
+
+// ── Filtros avançados ─────────────────────────────────────────────────────────
+function abrirFiltros() {
+    document.querySelectorAll('.filtro-contexto').forEach(el => el.style.display = 'none');
+    const fc = document.getElementById('fc-' + tipoAtivo);
+    if (fc) fc.style.display = 'block';
+    new bootstrap.Offcanvas(document.getElementById('offcanvasFiltros')).show();
+}
+function aplicarFiltros() {
+    const map = { 'oc_f_nome':'h_f_nome','oc_f_plano':'h_f_plano','oc_f_tipo_ac':'h_f_tipo_ac','oc_f_status':'h_f_status','oc_f_ordem':'h_f_ordem','oc_f_situacao':'h_f_situacao','oc_f_usuario':'h_f_usuario','oc_f_acao':'h_f_acao','oc_f_pg_status':'h_f_pg_status','oc_f_forma_pag':'h_f_forma_pag' };
+    for (const [s,d] of Object.entries(map)) { const se=document.getElementById(s),de=document.getElementById(d); if(se&&de) de.value=se.value; }
+    bootstrap.Offcanvas.getInstance(document.getElementById('offcanvasFiltros'))?.hide();
+    document.getElementById('form-filtro').submit();
+}
+function limparFiltros() {
+    ['oc_f_nome','oc_f_plano','oc_f_tipo_ac','oc_f_status','oc_f_ordem','oc_f_situacao','oc_f_usuario','oc_f_acao','oc_f_pg_status','oc_f_forma_pag'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+    ['h_f_nome','h_f_plano','h_f_tipo_ac','h_f_status','h_f_ordem','h_f_situacao','h_f_usuario','h_f_acao','h_f_pg_status','h_f_forma_pag'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+    bootstrap.Offcanvas.getInstance(document.getElementById('offcanvasFiltros'))?.hide();
+    document.getElementById('form-filtro').submit();
+}
+
+// ── Heatmap ───────────────────────────────────────────────────────────────────
+function toggleHeatmap() {
+    heatmapVisivel = !heatmapVisivel;
+    const tabela=document.getElementById('tabela-passagens'), hm=document.getElementById('heatmap-body');
+    const icon=document.getElementById('heatmap-icon'), label=document.getElementById('heatmap-btn-label');
+    if (heatmapVisivel) { tabela.style.display='none'; hm.style.display='block'; icon.className='bi bi-table'; label.textContent='Ver lista'; renderHeatmap(); }
+    else { tabela.style.display='block'; hm.style.display='none'; icon.className='bi bi-grid-3x3-gap-fill'; label.textContent='Calor'; }
+}
+function renderHeatmap() {
+    let maxVal=0;
+    for(let d=0;d<7;d++) for(let h=0;h<24;h++) if(heatmapData[d][h]>maxVal) maxVal=heatmapData[d][h];
+    const dias=['Segunda','Terça','Quarta','Quinta','Sexta','Sábado','Domingo'];
+    document.querySelectorAll('.hm-cell').forEach(cell => {
+        const d=parseInt(cell.dataset.dia), h=parseInt(cell.dataset.hora), v=heatmapData[d][h];
+        cell.style.backgroundColor=interpolarCor(maxVal>0?v/maxVal:0);
+        cell.title=`${dias[d]}, ${String(h).padStart(2,'0')}h — ${v} acesso${v!==1?'s':''}`;
+    });
+}
+function interpolarCor(t) {
+    const stops=[{t:0,r:248,g:253,b:249},{t:.25,r:200,g:230,b:201},{t:.5,r:102,g:187,b:106},{t:.75,r:46,g:125,b:50},{t:1,r:27,g:94,b:32}];
+    let a=stops[0],b=stops[stops.length-1];
+    for(let i=0;i<stops.length-1;i++) if(t>=stops[i].t&&t<=stops[i+1].t){a=stops[i];b=stops[i+1];break;}
+    const f=a.t===b.t?0:(t-a.t)/(b.t-a.t);
+    return `rgb(${Math.round(a.r+(b.r-a.r)*f)},${Math.round(a.g+(b.g-a.g)*f)},${Math.round(a.b+(b.b-a.b)*f)})`;
+}
+function aplicarPeriodo(periodo) {
+    const hoje=new Date(); let inicio,fim=hoje;
+    if(periodo==='hoje'){inicio=new Date(hoje);}
+    else if(periodo==='semana'){const d=hoje.getDay();inicio=new Date(hoje);inicio.setDate(hoje.getDate()-(d===0?6:d-1));}
+    else if(periodo==='mes'){inicio=new Date(hoje.getFullYear(),hoje.getMonth(),1);}
+    else if(periodo==='mes_passado'){inicio=new Date(hoje.getFullYear(),hoje.getMonth()-1,1);fim=new Date(hoje.getFullYear(),hoje.getMonth(),0);}
+    else if(periodo==='ano'){inicio=new Date(hoje.getFullYear(),0,1);}
+    else return;
+    document.getElementById('filtro-inicio').value=inicio.toISOString().split('T')[0];
+    document.getElementById('filtro-fim').value=fim.toISOString().split('T')[0];
+}
+if (tipoAtivo) mostrarRelatorio(tipoAtivo);
+</script>
+{% endblock %}

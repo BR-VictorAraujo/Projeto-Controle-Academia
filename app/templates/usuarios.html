@@ -1,0 +1,264 @@
+{% extends 'base.html' %}
+
+{% block titulo %}Usuários{% endblock %}
+{% block titulo_pagina %}Gerenciamento de usuários{% endblock %}
+{% block subtitulo %}Controle de acesso ao sistema{% endblock %}
+
+{% set pagina_ativa = 'configuracoes' %}
+
+{% block topbar_direita %}
+<button class="btn-principal" data-bs-toggle="modal" data-bs-target="#modalNovoUsuario">
+    <i class="bi bi-person-plus"></i> Novo usuário
+</button>
+<span style="font-size:13px; color:#6c757d;">Olá, <strong>{{ session.get('usuario', 'Administrador') }}</strong></span>
+{% endblock %}
+
+{% block estilos %}
+.usuario-card {
+    background: white;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+.avatar-usuario {
+    width: 44px; height: 44px; border-radius: 50%;
+    background-color: color-mix(in srgb, var(--cor-principal) 15%, white);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; font-weight: 700; color: var(--cor-principal);
+    flex-shrink: 0;
+}
+.badge-admin    { background-color: color-mix(in srgb, var(--cor-principal) 15%, white); color: var(--cor-principal); padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+.badge-operador { background-color: #e3f2fd; color: #1565c0; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+.btn-acao { background: none; border: none; padding: 4px 8px; border-radius: 6px; cursor: pointer; font-size: 15px; }
+.btn-acao:hover { background-color: #f0f2f5; }
+{% endblock %}
+
+{% block conteudo %}
+<!-- Tabs configurações -->
+<div style="display:flex; gap:8px; margin-bottom:24px;">
+    <a href="/configuracoes" style="background:white; border:1px solid #dee2e6; color:#6c757d; padding:8px 20px; border-radius:8px; font-size:13px; text-decoration:none;">
+        <i class="bi bi-palette me-1"></i> Aparência
+    </a>
+    <a href="/usuarios" style="background: var(--cor-principal); border:none; color:white; padding:8px 20px; border-radius:8px; font-size:13px; text-decoration:none;">
+        <i class="bi bi-people me-1"></i> Usuários
+    </a>
+    <a href="/parametros" style="background:white; border:1px solid #dee2e6; color:#6c757d; padding:8px 20px; border-radius:8px; font-size:13px; text-decoration:none;">
+        <i class="bi bi-sliders me-1"></i> Parâmetros
+    </a>
+    <a href="/planos" style="background:white; border:1px solid #dee2e6; color:#6c757d; padding:8px 20px; border-radius:8px; font-size:13px; text-decoration:none;">
+        <i class="bi bi-tag me-1"></i> Planos
+    </a>
+</div>
+
+<div class="usuario-card">
+    <table class="table table-borderless mb-0">
+        <thead>
+            <tr>
+                <th>Usuário</th>
+                <th>Login</th>
+                <th>Perfil</th>
+                <th>Último acesso</th>
+                <th>Status</th>
+                <th>Ações</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% if usuarios %}
+                {% for u in usuarios %}
+                <tr>
+                    <td>
+                        <div style="display:flex; align-items:center; gap:12px;">
+                            <div class="avatar-usuario">{{ u.nome[0].upper() }}</div>
+                            <div>
+                                <div style="font-weight:500; color:#1a1a2e;">{{ u.nome }}</div>
+                                <div style="font-size:12px; color:#6c757d;">Cadastrado em {{ u.criado_em | local_date }}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td><code style="background:#f0f2f5; padding:3px 8px; border-radius:4px; font-size:13px;">{{ u.usuario }}</code></td>
+                    <td>
+                        {% if u.perfil == 'admin' %}
+                            <span class="badge-admin">Admin</span>
+                        {% else %}
+                            <span class="badge-operador">Operador</span>
+                        {% endif %}
+                    </td>
+                    <td style="font-size:13px; color:#6c757d;">
+                        {{ u.ultimo_acesso | local_time if u.ultimo_acesso else 'Nunca' }}
+                    </td>
+                    <td>
+                        {% if u.ativo %}
+                            <span class="badge-ativo">Ativo</span>
+                        {% else %}
+                            <span class="badge-inativo">Inativo</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <button class="btn-acao" title="Editar"
+                            onclick="abrirEdicao({{ u.id }}, '{{ u.nome }}', '{{ u.usuario }}', '{{ u.perfil }}', {{ 'true' if u.ativo else 'false' }})">
+                            <i class="bi bi-pencil" style="color: var(--cor-principal);"></i>
+                        </button>
+                        {% if u.usuario != 'admin' %}
+                        <button class="btn-acao" title="Desativar/Ativar"
+                            onclick="confirmarToggle({{ u.id }}, '{{ u.nome }}', {{ 'true' if u.ativo else 'false' }})">
+                            <i class="bi bi-{{ 'toggle-on' if u.ativo else 'toggle-off' }}" style="color:{% if u.ativo %}#c62828{% else %}#2e7d32{% endif %}; font-size:18px;"></i>
+                        </button>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            {% else %}
+                <tr>
+                    <td colspan="6" style="text-align:center; color:#6c757d; padding:40px 0;">
+                        Nenhum usuário cadastrado
+                    </td>
+                </tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Modal novo usuário -->
+<div class="modal fade" id="modalNovoUsuario" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border-radius:12px; border:none;">
+            <div class="modal-header" style="border-bottom:1px solid #f0f2f5; padding:20px 24px;">
+                <h5 class="modal-title" style="font-size:16px; font-weight:600;">Novo usuário</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="/usuarios/novo">
+                <div class="modal-body" style="padding:24px;">
+                    <div class="mb-3">
+                        <label class="form-label" style="font-size:13px; font-weight:500;">Nome completo *</label>
+                        <input type="text" name="nome" class="form-control" placeholder="Nome do usuário" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" style="font-size:13px; font-weight:500;">Login (usuário) *</label>
+                        <input type="text" name="usuario" class="form-control" placeholder="ex: joao.silva" required>
+                        <div class="form-text">Sem espaços ou caracteres especiais</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" style="font-size:13px; font-weight:500;">Senha *</label>
+                        <input type="password" name="senha" class="form-control" placeholder="••••••••" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" style="font-size:13px; font-weight:500;">Confirmar senha *</label>
+                        <input type="password" name="confirmar_senha" class="form-control" placeholder="••••••••" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" style="font-size:13px; font-weight:500;">Perfil *</label>
+                        <select name="perfil" class="form-select" required>
+                            <option value="operador">Operador — acesso básico</option>
+                            <option value="admin">Admin — acesso total</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer" style="border-top:1px solid #f0f2f5; padding:16px 24px;">
+                    <button type="button" class="btn" data-bs-dismiss="modal"
+                        style="background:white; border:1px solid #dee2e6; color:#6c757d; padding:8px 20px; border-radius:8px;">
+                        Cancelar
+                    </button>
+                    <button type="submit" class="btn-principal">
+                        <i class="bi bi-check-lg me-1"></i> Criar usuário
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal editar usuário -->
+<div class="modal fade" id="modalEditarUsuario" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border-radius:12px; border:none;">
+            <div class="modal-header" style="border-bottom:1px solid #f0f2f5; padding:20px 24px;">
+                <h5 class="modal-title" style="font-size:16px; font-weight:600;">Editar usuário</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" id="form-editar" action="">
+                <div class="modal-body" style="padding:24px;">
+                    <div class="mb-3">
+                        <label class="form-label" style="font-size:13px; font-weight:500;">Nome completo *</label>
+                        <input type="text" name="nome" id="edit-nome" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" style="font-size:13px; font-weight:500;">Login (usuário) *</label>
+                        <input type="text" name="usuario" id="edit-usuario" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" style="font-size:13px; font-weight:500;">Nova senha</label>
+                        <input type="password" name="senha" class="form-control" placeholder="Deixe em branco para manter">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" style="font-size:13px; font-weight:500;">Perfil *</label>
+                        <select name="perfil" id="edit-perfil" class="form-select" required>
+                            <option value="operador">Operador</option>
+                            <option value="admin">Admin</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" style="font-size:13px; font-weight:500;">Status</label>
+                        <select name="ativo" id="edit-ativo" class="form-select">
+                            <option value="1">Ativo</option>
+                            <option value="0">Inativo</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer" style="border-top:1px solid #f0f2f5; padding:16px 24px;">
+                    <button type="button" class="btn" data-bs-dismiss="modal"
+                        style="background:white; border:1px solid #dee2e6; color:#6c757d; padding:8px 20px; border-radius:8px;">
+                        Cancelar
+                    </button>
+                    <button type="submit" class="btn-principal">
+                        <i class="bi bi-check-lg me-1"></i> Salvar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal toggle -->
+<div class="modal fade" id="modalToggle" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border-radius:12px; border:none;">
+            <div class="modal-body p-4 text-center">
+                <i class="bi bi-exclamation-triangle" style="font-size:40px; color: var(--cor-principal);"></i>
+                <h5 class="mt-3 mb-1" id="toggle-titulo">Desativar usuário?</h5>
+                <p class="text-muted mb-4" id="toggle-msg" style="font-size:14px;"></p>
+                <div class="d-flex gap-2 justify-content-center">
+                    <button class="btn" data-bs-dismiss="modal"
+                        style="background:white; border:1px solid #dee2e6; color:#6c757d; padding:8px 20px; border-radius:8px;">
+                        Cancelar
+                    </button>
+                    <a id="btn-confirmar-toggle" href="#" class="btn-principal">Confirmar</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function abrirEdicao(id, nome, usuario, perfil, ativo) {
+    document.getElementById('edit-nome').value    = nome;
+    document.getElementById('edit-usuario').value = usuario;
+    document.getElementById('edit-perfil').value  = perfil;
+    document.getElementById('edit-ativo').value   = ativo ? '1' : '0';
+    document.getElementById('form-editar').action = `/usuarios/${id}/editar`;
+    new bootstrap.Modal(document.getElementById('modalEditarUsuario')).show();
+}
+
+function confirmarToggle(id, nome, ativo) {
+    const titulo = ativo ? 'Desativar usuário?' : 'Ativar usuário?';
+    const msg    = ativo
+        ? `${nome} não conseguirá mais fazer login no sistema.`
+        : `${nome} voltará a ter acesso ao sistema.`;
+    document.getElementById('toggle-titulo').textContent = titulo;
+    document.getElementById('toggle-msg').textContent    = msg;
+    document.getElementById('btn-confirmar-toggle').href = `/usuarios/${id}/toggle`;
+    new bootstrap.Modal(document.getElementById('modalToggle')).show();
+}
+</script>
+{% endblock %}

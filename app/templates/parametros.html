@@ -1,0 +1,461 @@
+{% extends 'base.html' %}
+
+{% block titulo %}Parâmetros{% endblock %}
+{% block titulo_pagina %}Parâmetros do sistema{% endblock %}
+{% block subtitulo %}Configurações avançadas{% endblock %}
+
+{% set pagina_ativa = 'configuracoes' %}
+
+{% block estilos %}
+.param-card {
+    background: white; border-radius: 12px; padding: 28px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 24px;
+}
+.param-section-title {
+    font-size: 14px; font-weight: 600; color: #1a1a2e;
+    margin-bottom: 20px; padding-bottom: 12px;
+    border-bottom: 1px solid #f0f2f5;
+    display: flex; align-items: center; gap: 8px;
+}
+.form-label { font-size: 13px; font-weight: 500; color: #1a1a2e; }
+.form-text  { font-size: 12px; color: #6c757d; }
+.toggle-switch {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 0; border-bottom: 1px solid #f0f2f5;
+}
+.toggle-switch:last-child { border-bottom: none; }
+.toggle-info { flex: 1; }
+.toggle-titulo { font-size: 14px; font-weight: 500; color: #1a1a2e; }
+.toggle-desc   { font-size: 12px; color: #6c757d; margin-top: 2px; }
+.form-check-input:checked {
+    background-color: var(--cor-principal);
+    border-color: var(--cor-principal);
+}
+
+/* Formas de pagamento */
+.forma-row {
+    display: flex; align-items: center; gap: 16px;
+    padding: 14px 0; border-bottom: 1px solid #f0f2f5;
+    flex-wrap: wrap;
+}
+.forma-row:last-child { border-bottom: none; }
+.forma-icone {
+    width: 40px; height: 40px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; flex-shrink: 0;
+}
+.forma-info { flex: 1; min-width: 140px; }
+.forma-nome { font-size: 14px; font-weight: 600; color: #1a1a2e; }
+.forma-desc { font-size: 12px; color: #6c757d; margin-top: 2px; }
+.taxa-wrap {
+    display: flex; align-items: center; gap: 8px;
+    opacity: 0.4; transition: opacity 0.2s; pointer-events: none;
+}
+.taxa-wrap.ativo { opacity: 1; pointer-events: all; }
+.taxa-input {
+    width: 90px; border: 1.5px solid #dee2e6; border-radius: 8px;
+    padding: 6px 10px; font-size: 13px; font-weight: 500; outline: none;
+    text-align: right;
+}
+.taxa-input:focus { border-color: var(--cor-principal); }
+.taxa-label { font-size: 13px; color: #6c757d; white-space: nowrap; }
+.preview-valor {
+    font-size: 12px; color: #2e7d32; font-weight: 600;
+    background: #e8f5e9; padding: 4px 10px; border-radius: 20px;
+    white-space: nowrap;
+}
+{% endblock %}
+
+{% block conteudo %}
+<!-- Tabs -->
+<div style="display:flex; gap:8px; margin-bottom:24px; flex-wrap:wrap;">
+    <a href="/configuracoes" style="background:white; border:1px solid #dee2e6; color:#6c757d; padding:8px 20px; border-radius:8px; font-size:13px; text-decoration:none;">
+        <i class="bi bi-palette me-1"></i> Aparência
+    </a>
+    <a href="/usuarios" style="background:white; border:1px solid #dee2e6; color:#6c757d; padding:8px 20px; border-radius:8px; font-size:13px; text-decoration:none;">
+        <i class="bi bi-people me-1"></i> Usuários
+    </a>
+    <a href="/parametros" style="background: var(--cor-principal); border:none; color:white; padding:8px 20px; border-radius:8px; font-size:13px; text-decoration:none;">
+        <i class="bi bi-sliders me-1"></i> Parâmetros
+    </a>
+    <a href="/planos" style="background:white; border:1px solid #dee2e6; color:#6c757d; padding:8px 20px; border-radius:8px; font-size:13px; text-decoration:none;">
+        <i class="bi bi-tag me-1"></i> Planos
+    </a>
+</div>
+
+<form method="POST" action="/parametros">
+
+    <!-- Política de senhas -->
+    <div class="param-card">
+        <div class="param-section-title">
+            <i class="bi bi-shield-lock" style="color: var(--cor-principal);"></i> Política de senhas dos usuários
+        </div>
+        <div class="row g-3 mb-4">
+            <div class="col-md-3">
+                <label class="form-label">Tamanho mínimo</label>
+                <select name="senha_tamanho_minimo" class="form-select">
+                    <option value="4"  {% if params.senha_tamanho_minimo == '4'  %}selected{% endif %}>4 caracteres</option>
+                    <option value="6"  {% if params.senha_tamanho_minimo == '6'  %}selected{% endif %}>6 caracteres</option>
+                    <option value="8"  {% if params.senha_tamanho_minimo == '8'  %}selected{% endif %}>8 caracteres</option>
+                    <option value="10" {% if params.senha_tamanho_minimo == '10' %}selected{% endif %}>10 caracteres</option>
+                    <option value="12" {% if params.senha_tamanho_minimo == '12' %}selected{% endif %}>12 caracteres</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Validade da senha</label>
+                <select name="senha_validade_dias" class="form-select">
+                    <option value="0"   {% if params.senha_validade_dias == '0'   %}selected{% endif %}>Nunca expira</option>
+                    <option value="30"  {% if params.senha_validade_dias == '30'  %}selected{% endif %}>30 dias</option>
+                    <option value="60"  {% if params.senha_validade_dias == '60'  %}selected{% endif %}>60 dias</option>
+                    <option value="90"  {% if params.senha_validade_dias == '90'  %}selected{% endif %}>90 dias</option>
+                    <option value="180" {% if params.senha_validade_dias == '180' %}selected{% endif %}>180 dias</option>
+                    <option value="365" {% if params.senha_validade_dias == '365' %}selected{% endif %}>1 ano</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Avisar antes de expirar</label>
+                <select name="senha_aviso_dias" class="form-select">
+                    <option value="3"  {% if params.senha_aviso_dias == '3'  %}selected{% endif %}>3 dias antes</option>
+                    <option value="5"  {% if params.senha_aviso_dias == '5'  %}selected{% endif %}>5 dias antes</option>
+                    <option value="7"  {% if params.senha_aviso_dias == '7'  %}selected{% endif %}>7 dias antes</option>
+                    <option value="15" {% if params.senha_aviso_dias == '15' %}selected{% endif %}>15 dias antes</option>
+                    <option value="30" {% if params.senha_aviso_dias == '30' %}selected{% endif %}>30 dias antes</option>
+                </select>
+            </div>
+        </div>
+        <div class="toggle-switch">
+            <div class="toggle-info">
+                <div class="toggle-titulo">Exigir número na senha</div>
+                <div class="toggle-desc">A senha deve conter pelo menos um número</div>
+            </div>
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" name="senha_exigir_numero"
+                    {% if params.senha_exigir_numero == '1' %}checked{% endif %}
+                    style="width:44px; height:22px; cursor:pointer;">
+            </div>
+        </div>
+        <div class="toggle-switch">
+            <div class="toggle-info">
+                <div class="toggle-titulo">Exigir letra maiúscula</div>
+                <div class="toggle-desc">A senha deve conter pelo menos uma letra maiúscula</div>
+            </div>
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" name="senha_exigir_maiuscula"
+                    {% if params.senha_exigir_maiuscula == '1' %}checked{% endif %}
+                    style="width:44px; height:22px; cursor:pointer;">
+            </div>
+        </div>
+        <div class="toggle-switch">
+            <div class="toggle-info">
+                <div class="toggle-titulo">Exigir caractere especial</div>
+                <div class="toggle-desc">A senha deve conter pelo menos um caractere especial (!@#$%)</div>
+            </div>
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" name="senha_exigir_especial"
+                    {% if params.senha_exigir_especial == '1' %}checked{% endif %}
+                    style="width:44px; height:22px; cursor:pointer;">
+            </div>
+        </div>
+        <div class="toggle-switch">
+            <div class="toggle-info">
+                <div class="toggle-titulo">Alertar vencimento de senha no dashboard</div>
+                <div class="toggle-desc">Exibe aviso no dashboard quando a senha está próxima de expirar</div>
+            </div>
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" name="alertar_senha_vencimento"
+                    {% if params.alertar_senha_vencimento == '1' %}checked{% endif %}
+                    style="width:44px; height:22px; cursor:pointer;">
+            </div>
+        </div>
+    </div>
+
+    <!-- Controle de acesso -->
+    <div class="param-card">
+        <div class="param-section-title">
+            <i class="bi bi-door-open" style="color: var(--cor-principal);"></i> Controle de acesso dos alunos
+        </div>
+        <div class="toggle-switch">
+            <div class="toggle-info">
+                <div class="toggle-titulo">Permitir documentos duplicados</div>
+                <div class="toggle-desc">Permite cadastrar dois alunos com o mesmo CPF, RG ou passaporte</div>
+            </div>
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" name="permitir_doc_duplicado"
+                    {% if params.permitir_doc_duplicado == '1' %}checked{% endif %}
+                    style="width:44px; height:22px; cursor:pointer;">
+            </div>
+        </div>
+        <div class="toggle-switch">
+            <div class="toggle-info">
+                <div class="toggle-titulo">Bloquear acesso de plano vencido</div>
+                <div class="toggle-desc">Impede o registro de acesso para alunos com plano vencido</div>
+            </div>
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" name="bloquear_plano_vencido"
+                    {% if params.bloquear_plano_vencido == '1' %}checked{% endif %}
+                    style="width:44px; height:22px; cursor:pointer;">
+            </div>
+        </div>
+        <div class="toggle-switch">
+            <div class="toggle-info">
+                <div class="toggle-titulo">Alertar vencimento de plano no dashboard</div>
+                <div class="toggle-desc">Exibe aviso no dashboard quando planos estão próximos do vencimento</div>
+            </div>
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" name="alertar_plano_vencimento"
+                    {% if params.alertar_plano_vencimento == '1' %}checked{% endif %}
+                    style="width:44px; height:22px; cursor:pointer;">
+            </div>
+        </div>
+        <div class="row g-3 mt-2">
+            <div class="col-md-3">
+                <label class="form-label">Alertar plano com quantos dias de antecedência</label>
+                <select name="dias_alerta_vencimento" class="form-select">
+                    <option value="3"  {% if params.dias_alerta_vencimento == '3'  %}selected{% endif %}>3 dias</option>
+                    <option value="5"  {% if params.dias_alerta_vencimento == '5'  %}selected{% endif %}>5 dias</option>
+                    <option value="7"  {% if params.dias_alerta_vencimento == '7'  %}selected{% endif %}>7 dias</option>
+                    <option value="15" {% if params.dias_alerta_vencimento == '15' %}selected{% endif %}>15 dias</option>
+                    <option value="30" {% if params.dias_alerta_vencimento == '30' %}selected{% endif %}>30 dias</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Formas de pagamento ──────────────────────────────────────────────── -->
+    <div class="param-card">
+        <div class="param-section-title">
+            <i class="bi bi-credit-card-2-front" style="color: var(--cor-principal);"></i> Formas de pagamento
+            <span style="font-size:12px; font-weight:400; color:#6c757d; margin-left:4px;">— ative as formas aceitas pela academia</span>
+        </div>
+
+        <!-- Dinheiro -->
+        <div class="forma-row">
+            <div class="forma-icone" style="background:#e8f5e9; color:#2e7d32;"><i class="bi bi-cash"></i></div>
+            <div class="forma-info">
+                <div class="forma-nome">Dinheiro</div>
+                <div class="forma-desc">Pagamento em espécie, sem acréscimo</div>
+            </div>
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" name="forma_dinheiro"
+                    id="sw-dinheiro"
+                    {% if params.forma_dinheiro == '1' %}checked{% endif %}
+                    style="width:44px; height:22px; cursor:pointer;">
+            </div>
+        </div>
+
+        <!-- PIX -->
+        <div class="forma-row">
+            <div class="forma-icone" style="background:#e3f2fd; color:#1565c0;"><i class="bi bi-qr-code"></i></div>
+            <div class="forma-info">
+                <div class="forma-nome">PIX</div>
+                <div class="forma-desc">Transferência instantânea, sem acréscimo</div>
+            </div>
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" name="forma_pix"
+                    id="sw-pix"
+                    {% if params.forma_pix == '1' %}checked{% endif %}
+                    style="width:44px; height:22px; cursor:pointer;">
+            </div>
+        </div>
+
+        <!-- Cartão de Crédito -->
+        <div class="forma-row">
+            <div class="forma-icone" style="background:#fff3e8; color:var(--cor-principal);"><i class="bi bi-credit-card"></i></div>
+            <div class="forma-info">
+                <div class="forma-nome">Cartão de Crédito</div>
+                <div class="forma-desc">Acréscimo da maquineta aplicado automaticamente</div>
+            </div>
+            <div class="form-check form-switch me-3">
+                <input class="form-check-input" type="checkbox" name="forma_credito"
+                    id="sw-credito"
+                    {% if params.forma_credito == '1' %}checked{% endif %}
+                    onchange="toggleTaxa('credito', this.checked)"
+                    style="width:44px; height:22px; cursor:pointer;">
+            </div>
+            <div class="taxa-wrap {% if params.forma_credito == '1' %}ativo{% endif %}" id="taxa-credito-wrap">
+                <span class="taxa-label">Taxa:</span>
+                <input type="number" name="taxa_credito" class="taxa-input"
+                       id="taxa-credito"
+                       value="{{ params.taxa_credito or '0' }}"
+                       min="0" max="100" step="0.1"
+                       oninput="recalcularTodos()">
+                <span class="taxa-label">%</span>
+                <span class="preview-valor" id="preview-credito">
+                    + R$ 0,00
+                </span>
+            </div>
+        </div>
+
+        <!-- Cartão de Débito -->
+        <div class="forma-row">
+            <div class="forma-icone" style="background:#f3e5f5; color:#6a1b9a;"><i class="bi bi-credit-card-2-back"></i></div>
+            <div class="forma-info">
+                <div class="forma-nome">Cartão de Débito</div>
+                <div class="forma-desc">Acréscimo da maquineta aplicado automaticamente</div>
+            </div>
+            <div class="form-check form-switch me-3">
+                <input class="form-check-input" type="checkbox" name="forma_debito"
+                    id="sw-debito"
+                    {% if params.forma_debito == '1' %}checked{% endif %}
+                    onchange="toggleTaxa('debito', this.checked)"
+                    style="width:44px; height:22px; cursor:pointer;">
+            </div>
+            <div class="taxa-wrap {% if params.forma_debito == '1' %}ativo{% endif %}" id="taxa-debito-wrap">
+                <span class="taxa-label">Taxa:</span>
+                <input type="number" name="taxa_debito" class="taxa-input"
+                       id="taxa-debito"
+                       value="{{ params.taxa_debito or '0' }}"
+                       min="0" max="100" step="0.1"
+                       oninput="recalcularTodos()">
+                <span class="taxa-label">%</span>
+                <span class="preview-valor" id="preview-debito">
+                    + R$ 0,00
+                </span>
+            </div>
+        </div>
+
+        <!-- Boleto -->
+        <div class="forma-row">
+            <div class="forma-icone" style="background:#fdecea; color:#c62828;"><i class="bi bi-receipt"></i></div>
+            <div class="forma-info">
+                <div class="forma-nome">Boleto Bancário</div>
+                <div class="forma-desc">Pagamento via boleto, sem acréscimo</div>
+            </div>
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" name="forma_boleto"
+                    id="sw-boleto"
+                    {% if params.forma_boleto == '1' %}checked{% endif %}
+                    style="width:44px; height:22px; cursor:pointer;">
+            </div>
+        </div>
+
+        <!-- Simulação por plano -->
+        <div class="mt-4 p-3" style="background:#f8f9fa; border-radius:10px;">
+            <div style="font-size:12px; color:#6c757d; margin-bottom:12px; font-weight:500;">
+                <i class="bi bi-calculator me-1"></i> Simulação de acréscimo por plano cadastrado
+            </div>
+            {% if planos_ativos %}
+            <div style="overflow-x:auto;">
+                <table class="table table-borderless mb-0" style="font-size:12px;" id="tabela-simulacao">
+                    <thead>
+                        <tr>
+                            <th style="color:#6c757d; font-weight:600; padding:4px 12px;">Plano</th>
+                            <th style="color:#6c757d; font-weight:600; padding:4px 12px;">Valor original</th>
+                            <th id="th-credito" style="color:#2e7d32; font-weight:600; padding:4px 12px; display:none;">
+                                <i class="bi bi-credit-card me-1"></i>Com Crédito
+                            </th>
+                            <th id="th-debito" style="color:#6a1b9a; font-weight:600; padding:4px 12px; display:none;">
+                                <i class="bi bi-credit-card-2-back me-1"></i>Com Débito
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for plano in planos_ativos %}
+                        <tr>
+                            <td style="padding:4px 12px; font-weight:500; color:#1a1a2e;">{{ plano.nome }}</td>
+                            <td style="padding:4px 12px; color:#6c757d;">R$ {{ '%.2f'|format(plano.valor) }}</td>
+                            <td id="sim-cred-{{ loop.index }}" style="padding:4px 12px; display:none;">
+                                <span class="preview-valor">R$ {{ '%.2f'|format(plano.valor) }}</span>
+                            </td>
+                            <td id="sim-deb-{{ loop.index }}" style="padding:4px 12px; display:none;">
+                                <span class="preview-valor" style="background:#f3e5f5; color:#6a1b9a;">R$ {{ '%.2f'|format(plano.valor) }}</span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <!-- Dados dos planos para JS -->
+            <script>
+            const PLANOS = [
+                {% for plano in planos_ativos %}
+                { nome: "{{ plano.nome }}", valor: {{ plano.valor }}, idx: {{ loop.index }} }{% if not loop.last %},{% endif %}
+                {% endfor %}
+            ];
+            </script>
+            {% else %}
+            <p style="font-size:12px; color:#6c757d; margin:0;">Nenhum plano cadastrado. Adicione planos em <a href="/planos">Planos</a>.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Sistema -->
+    <div class="param-card">
+        <div class="param-section-title">
+            <i class="bi bi-gear" style="color: var(--cor-principal);"></i> Sistema
+        </div>
+        <div class="row g-3">
+            <div class="col-md-3">
+                <label class="form-label">Timeout de sessão</label>
+                <select name="timeout_sessao" class="form-select">
+                    <option value="30"  {% if params.timeout_sessao == '30'  %}selected{% endif %}>30 minutos</option>
+                    <option value="60"  {% if params.timeout_sessao == '60'  %}selected{% endif %}>1 hora</option>
+                    <option value="120" {% if params.timeout_sessao == '120' %}selected{% endif %}>2 horas</option>
+                    <option value="240" {% if params.timeout_sessao == '240' %}selected{% endif %}>4 horas</option>
+                    <option value="480" {% if params.timeout_sessao == '480' %}selected{% endif %}>8 horas</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Fuso horário (GMT)</label>
+                <select name="fuso_horario" class="form-select">
+                    <option value="-5"  {% if params.fuso_horario == '-5'  %}selected{% endif %}>GMT-5 (Acre)</option>
+                    <option value="-4"  {% if params.fuso_horario == '-4'  %}selected{% endif %}>GMT-4 (Amazônia)</option>
+                    <option value="-3"  {% if params.fuso_horario == '-3'  %}selected{% endif %}>GMT-3 (Brasília)</option>
+                    <option value="-2"  {% if params.fuso_horario == '-2'  %}selected{% endif %}>GMT-2 (Fernando de Noronha)</option>
+                    <option value="0"   {% if params.fuso_horario == '0'   %}selected{% endif %}>GMT+0 (UTC)</option>
+                    <option value="1"   {% if params.fuso_horario == '1'   %}selected{% endif %}>GMT+1</option>
+                    <option value="2"   {% if params.fuso_horario == '2'   %}selected{% endif %}>GMT+2</option>
+                </select>
+                <div class="form-text">Afeta todos os horários exibidos no sistema</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-end">
+        <button type="submit" class="btn-principal">
+            <i class="bi bi-check-lg"></i> Salvar parâmetros
+        </button>
+    </div>
+
+</form>
+
+<script>
+function toggleTaxa(forma, ativo) {
+    const wrap = document.getElementById('taxa-' + forma + '-wrap');
+    ativo ? wrap.classList.add('ativo') : wrap.classList.remove('ativo');
+    recalcularTodos();
+}
+
+function recalcularTodos() {
+    ['credito', 'debito'].forEach(forma => {
+        const ativo = document.getElementById('sw-' + forma).checked;
+        const taxa  = parseFloat(document.getElementById('taxa-' + forma).value) || 0;
+
+        // Preview inline no campo de taxa (acréscimo sobre R$100 como exemplo)
+        const prev = document.getElementById('preview-' + forma);
+        if (prev) prev.textContent = '+ R$ ' + (100 * taxa / 100).toFixed(2).replace('.', ',');
+
+
+
+        // Células da tabela de planos
+        if (typeof PLANOS !== 'undefined') {
+            const prefixo = forma === 'credito' ? 'cred' : 'deb';
+            PLANOS.forEach(p => {
+                const cell = document.getElementById('sim-' + prefixo + '-' + p.idx);
+                if (!cell) return;
+                cell.style.display = ativo ? '' : 'none';
+                const total = p.valor * (1 + taxa / 100);
+                const span  = cell.querySelector('span');
+                if (span) span.textContent = 'R$ ' + total.toFixed(2).replace('.', ',');
+            });
+        }
+        // Cabeçalho da coluna
+        const th2 = document.getElementById('th-' + forma);
+        if (th2) th2.style.display = ativo ? '' : 'none';
+    });
+}
+
+// Inicializa ao carregar
+recalcularTodos();
+</script>
+{% endblock %}

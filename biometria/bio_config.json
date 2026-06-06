@@ -1,0 +1,8 @@
+{
+  "host": "localhost",
+  "port": "5432",
+  "dbname": "academia_teste",
+  "user": "postgres",
+  "password": "nwaypro",
+  "simulado": false
+}

@@ -1,0 +1,247 @@
+{% extends 'base.html' %}
+
+{% block titulo %}Configurações{% endblock %}
+{% block titulo_pagina %}Configurações{% endblock %}
+{% block subtitulo %}Personalize o sistema{% endblock %}
+
+{% set pagina_ativa = 'configuracoes' %}
+
+{% block estilos %}
+.config-card {
+    background: white;
+    border-radius: 12px;
+    padding: 28px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    margin-bottom: 24px;
+}
+.config-section-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #1a1a2e;
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #f0f2f5;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.form-label { font-size: 13px; font-weight: 500; color: #1a1a2e; }
+.form-text  { font-size: 12px; color: #6c757d; }
+.paleta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
+.cor-opcao {
+    width: 40px; height: 40px; border-radius: 10px;
+    cursor: pointer; border: 3px solid transparent;
+    transition: all 0.2s; position: relative;
+}
+.cor-opcao:hover { transform: scale(1.1); }
+.cor-opcao.selecionada { border-color: white; box-shadow: 0 0 0 2px #1a1a2e; }
+.cor-opcao.selecionada::after {
+    content: '✓'; position: absolute;
+    top: 50%; left: 50%; transform: translate(-50%, -50%);
+    color: white; font-size: 16px; font-weight: 700;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+}
+.preview-sidebar {
+    width: 160px; height: 260px; border-radius: 12px;
+    padding: 16px; display: flex; flex-direction: column; gap: 8px;
+}
+.preview-logo { font-size: 13px; font-weight: 700; margin-bottom: 8px; }
+.preview-item {
+    height: 28px; border-radius: 6px; background: rgba(255,255,255,0.1);
+    display: flex; align-items: center; padding: 0 8px;
+    font-size: 11px; color: rgba(255,255,255,0.6);
+}
+.preview-item.ativo { color: white; font-weight: 600; background: rgba(255,255,255,0.15); }
+.logo-preview {
+    width: 80px; height: 80px; border-radius: 12px;
+    border: 2px dashed #dee2e6; display: flex; align-items: center;
+    justify-content: center; overflow: hidden; background: #f8f9fa;
+}
+.logo-preview img { width: 100%; height: 100%; object-fit: contain; }
+{% endblock %}
+
+{% block conteudo %}
+<!-- Tabs configurações -->
+<div style="display:flex; gap:8px; margin-bottom:24px;">
+    <a href="/configuracoes" style="background: var(--cor-principal); border:none; color:white; padding:8px 20px; border-radius:8px; font-size:13px; text-decoration:none;">
+        <i class="bi bi-palette me-1"></i> Aparência
+    </a>
+    <a href="/usuarios" style="background:white; border:1px solid #dee2e6; color:#6c757d; padding:8px 20px; border-radius:8px; font-size:13px; text-decoration:none;">
+        <i class="bi bi-people me-1"></i> Usuários
+    </a>
+    <a href="/parametros" style="background:white; border:1px solid #dee2e6; color:#6c757d; padding:8px 20px; border-radius:8px; font-size:13px; text-decoration:none;">
+        <i class="bi bi-sliders me-1"></i> Parâmetros
+    </a>
+    <a href="/planos" style="background:white; border:1px solid #dee2e6; color:#6c757d; padding:8px 20px; border-radius:8px; font-size:13px; text-decoration:none;">
+        <i class="bi bi-tag me-1"></i> Planos
+    </a>
+</div>
+
+<form method="POST" action="/configuracoes" enctype="multipart/form-data">
+
+    <!-- Identidade -->
+    <div class="config-card">
+        <div class="config-section-title">
+            <i class="bi bi-building" style="color: var(--cor-principal);"></i> Identidade da academia
+        </div>
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label class="form-label">Nome da academia</label>
+                <input type="text" name="nome_academia" class="form-control"
+                    value="{{ config.nome_academia }}" placeholder="Ex: Academia Power Fit">
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Logo</label>
+                <div class="d-flex align-items-center gap-3">
+                    <div class="logo-preview">
+                        {% if config.logo_url %}
+                            <img src="{{ config.logo_url }}" id="logo-img-preview">
+                        {% else %}
+                            <i class="bi bi-image" style="font-size:24px; color:#dee2e6;" id="logo-placeholder"></i>
+                        {% endif %}
+                    </div>
+                    <div>
+                        <input type="file" name="logo" accept="image/*"
+                            class="form-control" style="width:220px;"
+                            onchange="previewLogo(this)">
+                        <div class="form-text">PNG ou JPG, máx 2MB. Recomendado: 200x200px</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Telefone</label>
+                <input type="text" name="telefone" class="form-control"
+                    value="{{ config.telefone }}" placeholder="(00) 00000-0000">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">E-mail</label>
+                <input type="email" name="email" class="form-control"
+                    value="{{ config.email }}" placeholder="contato@academia.com">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Endereço</label>
+                <input type="text" name="endereco" class="form-control"
+                    value="{{ config.endereco }}" placeholder="Rua, número, bairro">
+            </div>
+        </div>
+    </div>
+
+    <!-- Cores -->
+    <div class="config-card">
+        <div class="config-section-title">
+            <i class="bi bi-palette" style="color: var(--cor-principal);"></i> Tema e cores
+        </div>
+        <div class="row g-4">
+            <div class="col-md-6">
+                <label class="form-label">Cor principal</label>
+                <div class="form-text mb-2">Afeta botões, links ativos e destaques</div>
+                <div class="paleta" id="paleta-principal">
+                    {% set cores = [
+                        ('#FF6B00','Laranja'), ('#1565C0','Azul'), ('#2E7D32','Verde'),
+                        ('#6A1B9A','Roxo'),    ('#C62828','Vermelho'), ('#00838F','Ciano'),
+                        ('#F9A825','Amarelo'), ('#AD1457','Rosa'), ('#4E342E','Marrom'),
+                        ('#37474F','Cinza escuro')
+                    ] %}
+                    {% for hex, nome in cores %}
+                    <div class="cor-opcao {% if config.cor_principal == hex %}selecionada{% endif %}"
+                         style="background-color: {{ hex }};" title="{{ nome }}"
+                         onclick="selecionarCor('principal', '{{ hex }}', this)">
+                    </div>
+                    {% endfor %}
+                </div>
+                <input type="hidden" name="cor_principal" id="input-cor-principal" value="{{ config.cor_principal }}">
+            </div>
+
+            <div class="col-md-6">
+                <label class="form-label">Cor do menu lateral</label>
+                <div class="form-text mb-2">Afeta o fundo do sidebar</div>
+                <div class="paleta" id="paleta-sidebar">
+                    {% set cores_sidebar = [
+                        ('#1a1a2e','Azul escuro'), ('#0f0f0f','Preto'), ('#1B2631','Azul petróleo'),
+                        ('#1B4332','Verde escuro'), ('#4A235A','Roxo escuro'), ('#7B241C','Vermelho escuro'),
+                        ('#1A237E','Azul marinho'), ('#212121','Grafite'), ('#004D40','Verde teal'),
+                        ('#263238','Azul acinzentado')
+                    ] %}
+                    {% for hex, nome in cores_sidebar %}
+                    <div class="cor-opcao {% if config.cor_sidebar == hex %}selecionada{% endif %}"
+                         style="background-color: {{ hex }};" title="{{ nome }}"
+                         onclick="selecionarCor('sidebar', '{{ hex }}', this)">
+                    </div>
+                    {% endfor %}
+                </div>
+                <input type="hidden" name="cor_sidebar" id="input-cor-sidebar" value="{{ config.cor_sidebar }}">
+            </div>
+
+            <!-- Preview -->
+            <div class="col-md-12">
+                <label class="form-label">Preview</label>
+                <div style="display:flex; gap:16px; align-items:flex-start;">
+                    <div class="preview-sidebar" id="preview-sidebar-box"
+                         style="background-color: {{ config.cor_sidebar }};">
+                        <div class="preview-logo" id="preview-logo-text"
+                             style="color: {{ config.cor_principal }};">
+                            💪 {{ config.nome_academia[:12] }}
+                        </div>
+                        <div class="preview-item ativo">Dashboard</div>
+                        <div class="preview-item">Alunos</div>
+                        <div class="preview-item">Relatórios</div>
+                        <div class="preview-item">Configurações</div>
+                    </div>
+                    <div style="padding-top:8px;">
+                        <div style="font-size:13px; color:#6c757d; margin-bottom:12px;">Botões e destaques:</div>
+                        <button type="button" id="preview-btn"
+                            style="background-color: {{ config.cor_principal }}; border:none; color:white; padding:10px 20px; border-radius:8px; font-weight:500; margin-bottom:8px; display:block;">
+                            Salvar alterações
+                        </button>
+                        <div style="display:flex; gap:8px;">
+                            <span id="preview-badge-1" style="background-color: {{ config.cor_principal }}20; color: {{ config.cor_principal }}; padding:4px 12px; border-radius:20px; font-size:13px;">Ativo</span>
+                            <span id="preview-badge-2" style="background-color: {{ config.cor_principal }}20; color: {{ config.cor_principal }}; padding:4px 12px; border-radius:20px; font-size:13px;">Menu selecionado</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Botão salvar -->
+    <div class="d-flex justify-content-end">
+        <button type="submit" class="btn-principal">
+            <i class="bi bi-check-lg"></i> Salvar configurações
+        </button>
+    </div>
+
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function selecionarCor(tipo, hex, el) {
+    const paleta = tipo === 'principal' ? 'paleta-principal' : 'paleta-sidebar';
+    document.querySelectorAll(`#${paleta} .cor-opcao`).forEach(c => c.classList.remove('selecionada'));
+    el.classList.add('selecionada');
+    document.getElementById(`input-cor-${tipo}`).value = hex;
+
+    if (tipo === 'principal') {
+        document.getElementById('preview-logo-text').style.color = hex;
+        document.getElementById('preview-btn').style.backgroundColor = hex;
+        document.getElementById('preview-badge-1').style.color = hex;
+        document.getElementById('preview-badge-1').style.backgroundColor = hex + '20';
+        document.getElementById('preview-badge-2').style.color = hex;
+        document.getElementById('preview-badge-2').style.backgroundColor = hex + '20';
+    } else {
+        document.getElementById('preview-sidebar-box').style.backgroundColor = hex;
+    }
+}
+
+function previewLogo(input) {
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const preview = document.querySelector('.logo-preview');
+            preview.innerHTML = `<img src="${e.target.result}" style="width:100%; height:100%; object-fit:contain;">`;
+        };
+        reader.readAsDataURL(input.files[0]);
+    }
+}
+</script>
+{% endblock %}

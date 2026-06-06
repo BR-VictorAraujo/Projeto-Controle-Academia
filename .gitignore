@@ -1,0 +1,21 @@
+cd "C:\Academia_teste"
+@"
+# Ambiente virtual
+venv/
+
+# Variáveis de ambiente
+.env
+
+# Cache Python
+__pycache__/
+*.pyc
+*.pyo
+
+# DLLs e binários
+*.dll
+*.bat
+
+# Banco de dados local
+*.db
+*.sqlite3
+"@ | Out-File -Encoding utf8 .gitignore

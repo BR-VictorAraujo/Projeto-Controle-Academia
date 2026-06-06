@@ -1,0 +1,264 @@
+{% extends 'base.html' %}
+
+{% block titulo %}Detalhes do Aluno{% endblock %}
+{% block titulo_pagina %}Detalhes do aluno{% endblock %}
+{% block subtitulo %}Informações completas{% endblock %}
+
+{% set pagina_ativa = 'alunos' %}
+
+{% block estilos %}
+.perfil-card {
+    background: white;
+    border-radius: 12px;
+    padding: 32px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+.avatar {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    background-color: color-mix(in srgb, var(--cor-principal) 15%, white);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 40px;
+    font-weight: 700;
+    color: var(--cor-principal);
+    margin-bottom: 16px;
+    overflow: hidden;
+}
+.avatar img { width: 100%; height: 100%; object-fit: cover; }
+.aluno-nome { font-size: 22px; font-weight: 600; color: #1a1a2e; margin-bottom: 4px; }
+.info-section { border-top: 1px solid #f0f2f5; padding-top: 24px; margin-top: 24px; }
+.info-section-title {
+    font-size: 13px; font-weight: 600; text-transform: uppercase;
+    color: #6c757d; letter-spacing: 0.5px; margin-bottom: 16px;
+}
+.info-row { display: flex; gap: 8px; margin-bottom: 12px; font-size: 14px; }
+.info-label { color: #6c757d; min-width: 140px; }
+.info-value { color: #1a1a2e; font-weight: 500; }
+.plano-card {
+    background: color-mix(in srgb, var(--cor-principal) 10%, white);
+    border-radius: 10px; padding: 16px 20px;
+    display: flex; justify-content: space-between; align-items: center;
+}
+.plano-nome { font-size: 16px; font-weight: 600; color: var(--cor-principal); }
+.plano-venc { font-size: 13px; color: #6c757d; margin-top: 2px; }
+.bio-card { display: flex; gap: 12px; margin-top: 8px; }
+.bio-item {
+    flex: 1; display: flex; align-items: center; gap: 10px;
+    padding: 12px; border-radius: 10px;
+    background: #f8f9fa; border: 2px dashed #dee2e6;
+}
+.bio-item.cadastrada { background: #e8f5e9; border-color: #2e7d32; border-style: solid; }
+.acesso-card {
+    background: white; border-radius: 12px;
+    padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+.acesso-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 0; border-bottom: 1px solid #f0f2f5; font-size: 14px;
+}
+.acesso-item:last-child { border-bottom: none; }
+.acesso-icon {
+    width: 36px; height: 36px; border-radius: 8px;
+    background-color: #e3f2fd; display: flex;
+    align-items: center; justify-content: center;
+    color: #1565c0; font-size: 16px;
+}
+.btn-voltar {
+    background-color: white; border: 1px solid #dee2e6;
+    color: #6c757d; padding: 10px 24px; border-radius: 8px;
+    font-weight: 500; font-size: 14px; text-decoration: none;
+}
+.btn-voltar:hover { background-color: #f8f9fa; color: #6c757d; }
+.doc-card {
+    background: #f8f9fa; border-radius: 10px;
+    padding: 12px 16px; display: flex;
+    align-items: center; gap: 12px;
+    margin-bottom: 8px; border: 1px solid #dee2e6;
+}
+.doc-icon {
+    width: 40px; height: 40px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px; flex-shrink: 0;
+}
+.doc-pdf { background-color: #fdecea; color: #c62828; }
+.doc-img { background-color: #e3f2fd; color: #1565c0; }
+.doc-info { flex: 1; min-width: 0; }
+.doc-tipo { font-size: 12px; font-weight: 600; color: #6c757d; text-transform: uppercase; }
+.doc-nome { font-size: 13px; font-weight: 500; color: #1a1a2e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.doc-data { font-size: 11px; color: #adb5bd; }
+{% endblock %}
+
+{% block conteudo %}
+<div class="row g-4">
+    <!-- Coluna esquerda -->
+    <div class="col-md-7">
+        <div class="perfil-card">
+
+            <!-- Foto e nome -->
+            <div class="avatar">
+                {% if aluno.foto %}
+                    <img src="{{ aluno.foto }}" alt="{{ aluno.nome }}">
+                {% else %}
+                    {{ aluno.nome[0].upper() }}
+                {% endif %}
+            </div>
+            <div class="aluno-nome">{{ aluno.nome }}</div>
+            <div class="mb-3">
+                {% if aluno.ativo %}
+                    <span class="badge-ativo">Ativo</span>
+                {% else %}
+                    <span class="badge-inativo">Inativo</span>
+                {% endif %}
+            </div>
+
+            <!-- Dados pessoais -->
+            <div class="info-section">
+                <div class="info-section-title">Dados pessoais</div>
+                <div class="info-row">
+                    <span class="info-label">
+                        <i class="bi bi-person me-1"></i>
+                        {% if aluno.tipo_documento == 'cpf' %}CPF
+                        {% elif aluno.tipo_documento == 'rg' %}RG
+                        {% else %}Passaporte{% endif %}
+                    </span>
+                    <span class="info-value">{{ aluno.documento }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label"><i class="bi bi-telephone me-1"></i> Telefone</span>
+                    <span class="info-value">{{ aluno.telefone or '—' }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label"><i class="bi bi-envelope me-1"></i> E-mail</span>
+                    <span class="info-value">{{ aluno.email or '—' }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label"><i class="bi bi-cake me-1"></i> Nascimento</span>
+                    <span class="info-value">
+                        {{ aluno.data_nascimento.strftime('%d/%m/%Y') if aluno.data_nascimento else '—' }}
+                    </span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label"><i class="bi bi-calendar me-1"></i> Cadastrado em</span>
+                    <span class="info-value">{{ aluno.criado_em | local_date }}</span>
+                </div>
+            </div>
+
+            <!-- Plano -->
+            <div class="info-section">
+                <div class="info-section-title">Plano</div>
+                <div class="plano-card">
+                    <div>
+                        <div class="plano-nome">{{ aluno.plano or '—' }}</div>
+                        <div class="plano-venc">
+                            Vencimento: {{ aluno.vencimento.strftime('%d/%m/%Y') if aluno.vencimento else '—' }}
+                        </div>
+                    </div>
+                    <i class="bi bi-award" style="font-size:28px; color: var(--cor-principal); opacity:0.5;"></i>
+                </div>
+            </div>
+
+            <!-- Biometria -->
+            <div class="info-section">
+                <div class="info-section-title">Biometria digital</div>
+                <div class="bio-card">
+                    <div class="bio-item {% if aluno.biometria_status == 'cadastrada' %}cadastrada{% endif %}">
+                        <i class="bi bi-fingerprint"
+                            style="font-size:24px; color:{% if aluno.biometria_status == 'cadastrada' %}#2e7d32{% else %}#adb5bd{% endif %};"></i>
+                        <div>
+                            <div style="font-size:12px; color:#6c757d; font-weight:600;">Digital 1</div>
+                            <div style="font-size:13px; font-weight:500; color:{% if aluno.biometria_status == 'cadastrada' %}#2e7d32{% else %}#6c757d{% endif %};">
+                                {% if aluno.biometria_status == 'cadastrada' %}✅ Cadastrada{% else %}⚠️ Pendente{% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bio-item {% if aluno.biometria_2_status == 'cadastrada' %}cadastrada{% endif %}">
+                        <i class="bi bi-fingerprint"
+                            style="font-size:24px; color:{% if aluno.biometria_2_status == 'cadastrada' %}#2e7d32{% else %}#adb5bd{% endif %};"></i>
+                        <div>
+                            <div style="font-size:12px; color:#6c757d; font-weight:600;">Digital 2</div>
+                            <div style="font-size:13px; font-weight:500; color:{% if aluno.biometria_2_status == 'cadastrada' %}#2e7d32{% else %}#6c757d{% endif %};">
+                                {% if aluno.biometria_2_status == 'cadastrada' %}✅ Cadastrada{% else %}⚠️ Pendente{% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div style="font-size:12px; color:#6c757d; margin-top:8px;">
+                    <i class="bi bi-info-circle me-1"></i>
+                    {{ [aluno.biometria_status, aluno.biometria_2_status]|select('equalto', 'cadastrada')|list|length }}/2 digitais cadastradas
+                </div>
+            </div>
+
+            <!-- Documentos -->
+            <div class="info-section">
+                <div class="info-section-title">Documentos anexados</div>
+                {% if documentos %}
+                    {% for doc in documentos %}
+                    <div class="doc-card">
+                        <div class="doc-icon {% if doc.caminho.endswith('.pdf') %}doc-pdf{% else %}doc-img{% endif %}">
+                            <i class="bi bi-{% if doc.caminho.endswith('.pdf') %}file-earmark-pdf{% else %}file-earmark-image{% endif %}"></i>
+                        </div>
+                        <div class="doc-info">
+                            <div class="doc-tipo">{{ doc.tipo }}</div>
+                            <div class="doc-nome">{{ doc.nome_arquivo }}</div>
+                            <div class="doc-data">Enviado em {{ doc.criado_em | local_time }}</div>
+                        </div>
+                        <a href="{{ doc.caminho }}" target="_blank"
+                            style="background:#e3f2fd; color:#1565c0; padding:6px 12px; border-radius:8px; font-size:13px; text-decoration:none;">
+                            <i class="bi bi-eye me-1"></i> Ver
+                        </a>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div style="text-align:center; padding:24px 0; color:#6c757d;">
+                        <i class="bi bi-file-earmark" style="font-size:28px; display:block; margin-bottom:8px;"></i>
+                        Nenhum documento anexado
+                    </div>
+                {% endif %}
+            </div>
+
+            <!-- Botões -->
+            <div class="d-flex gap-2 mt-4">
+                <a href="/alunos" class="btn-voltar">
+                    <i class="bi bi-arrow-left me-1"></i> Voltar
+                </a>
+                <a href="/alunos/{{ aluno.id }}/editar" class="btn-principal">
+                    <i class="bi bi-pencil"></i> Editar aluno
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Coluna direita -->
+    <div class="col-md-5">
+        <div class="acesso-card">
+            <div style="font-size:15px; font-weight:600; color:#1a1a2e; margin-bottom:4px;">
+                Histórico de acessos
+            </div>
+            <div style="font-size:13px; color:#6c757d; margin-bottom:16px;">
+                Total: <strong>{{ acessos|length }}</strong> visita(s)
+            </div>
+            {% if acessos %}
+                {% for acesso in acessos %}
+                <div class="acesso-item">
+                    <div class="acesso-icon"><i class="bi bi-door-open"></i></div>
+                    <div>
+                        <div style="font-weight:500;">{{ acesso.entrada_em | local_date }}</div>
+                        <div style="font-size:12px; color:#6c757d;">
+                            {{ acesso.entrada_em | local_time }} — {{ acesso.tipo }}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div style="text-align:center; padding:32px 0; color:#6c757d;">
+                    <i class="bi bi-door-closed" style="font-size:32px; display:block; margin-bottom:8px;"></i>
+                    Nenhum acesso registrado ainda
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

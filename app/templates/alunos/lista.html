@@ -1,0 +1,171 @@
+{% extends 'base.html' %}
+
+{% block titulo %}Alunos{% endblock %}
+{% block titulo_pagina %}Alunos{% endblock %}
+{% block subtitulo %}{{ alunos|length }} aluno(s) cadastrado(s){% endblock %}
+
+{% set pagina_ativa = 'alunos' %}
+
+{% block topbar_direita %}
+<a href="/alunos/novo" class="btn-principal">
+    <i class="bi bi-person-plus"></i> Novo aluno
+</a>
+<span style="font-size:13px; color:#6c757d;">Olá, <strong>{{ session.get('usuario', 'Administrador') }}</strong></span>
+{% endblock %}
+
+{% block estilos %}
+.search-box {
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 8px 14px 8px 36px;
+    font-size: 14px;
+    width: 260px;
+    outline: none;
+}
+.search-box:focus { border-color: var(--cor-principal); box-shadow: 0 0 0 3px color-mix(in srgb, var(--cor-principal) 20%, transparent); }
+.btn-acao {
+    background: none; border: none;
+    padding: 4px 8px; border-radius: 6px;
+    cursor: pointer; font-size: 15px;
+}
+.btn-acao:hover { background-color: #f0f2f5; }
+.badge-doc {
+    background-color: #f0f2f5; color: #6c757d;
+    padding: 2px 8px; border-radius: 4px;
+    font-size: 11px; font-weight: 600; margin-right: 4px;
+}
+.avatar-lista {
+    width: 38px; height: 38px; border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid var(--cor-principal);
+    flex-shrink: 0;
+}
+.avatar-inicial {
+    width: 38px; height: 38px; border-radius: 50%;
+    background: color-mix(in srgb, var(--cor-principal) 15%, white);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px; font-weight: 700; color: var(--cor-principal);
+    flex-shrink: 0;
+}
+{% endblock %}
+
+{% block conteudo %}
+<div class="card-base">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div style="position:relative;">
+            <i class="bi bi-search" style="position:absolute; left:10px; top:50%; transform:translateY(-50%); color:#adb5bd;"></i>
+            <input type="text" class="search-box" id="busca" placeholder="Buscar aluno...">
+        </div>
+        <span style="font-size:13px; color:#6c757d;">Total: <strong>{{ alunos|length }}</strong></span>
+    </div>
+
+    <table class="table table-borderless mb-0" id="tabela-alunos">
+        <thead>
+            <tr>
+                <th>Nome</th>
+                <th>Documento</th>
+                <th>Telefone</th>
+                <th>Plano</th>
+                <th>Vencimento</th>
+                <th>Status</th>
+                <th>Ações</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% if alunos %}
+                {% for aluno in alunos %}
+                <tr>
+                    <td>
+                        <div style="display:flex; align-items:center; gap:10px;">
+                            {% if aluno.foto %}
+                                <img src="{{ aluno.foto }}" alt="{{ aluno.nome }}" class="avatar-lista">
+                            {% else %}
+                                <div class="avatar-inicial">{{ aluno.nome[0].upper() }}</div>
+                            {% endif %}
+                            <strong>{{ aluno.nome }}</strong>
+                        </div>
+                    </td>
+                    <td>
+                        <span class="badge-doc">
+                            {% if aluno.tipo_documento == 'cpf' %}CPF
+                            {% elif aluno.tipo_documento == 'rg' %}RG
+                            {% else %}PASSAPORTE{% endif %}
+                        </span>
+                        {{ aluno.documento }}
+                    </td>
+                    <td>{{ aluno.telefone or '—' }}</td>
+                    <td>{{ aluno.plano or '—' }}</td>
+                    <td>{{ aluno.vencimento.strftime('%d/%m/%Y') if aluno.vencimento else '—' }}</td>
+                    <td>
+                        {% if aluno.ativo %}
+                            <span class="badge-ativo">Ativo</span>
+                        {% else %}
+                            <span class="badge-inativo">Inativo</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <a href="/alunos/{{ aluno.id }}/editar" class="btn-acao" title="Editar">
+                            <i class="bi bi-pencil" style="color: var(--cor-principal);"></i>
+                        </a>
+                        <a href="/alunos/{{ aluno.id }}" class="btn-acao" title="Ver detalhes">
+                            <i class="bi bi-eye" style="color:#1565c0;"></i>
+                        </a>
+                        <button class="btn-acao" title="Excluir"
+                            onclick="confirmarExclusao({{ aluno.id }}, '{{ aluno.nome }}')">
+                            <i class="bi bi-trash" style="color:#c62828;"></i>
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+            {% else %}
+                <tr>
+                    <td colspan="7" style="text-align:center; color:#6c757d; padding:40px 0;">
+                        <i class="bi bi-people" style="font-size:32px; display:block; margin-bottom:8px;"></i>
+                        Nenhum aluno cadastrado ainda
+                    </td>
+                </tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Modal exclusão -->
+<div class="modal fade" id="modalExcluir" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border-radius:12px; border:none;">
+            <div class="modal-body p-4 text-center">
+                <i class="bi bi-exclamation-triangle" style="font-size:40px; color: var(--cor-principal);"></i>
+                <h5 class="mt-3 mb-1">Excluir aluno?</h5>
+                <p class="text-muted mb-4" id="modal-nome-aluno" style="font-size:14px;"></p>
+                <div class="d-flex gap-2 justify-content-center">
+                    <button class="btn" data-bs-dismiss="modal"
+                        style="background:white; border:1px solid #dee2e6; color:#6c757d; padding:8px 20px; border-radius:8px;">
+                        Cancelar
+                    </button>
+                    <a id="btn-confirmar-exclusao" href="#"
+                        style="background:#c62828; color:white; padding:10px 24px; border-radius:8px; text-decoration:none; font-weight:500;">
+                        <i class="bi bi-trash me-1"></i> Sim, excluir
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('busca').addEventListener('input', function() {
+    const termo = this.value.toLowerCase();
+    document.querySelectorAll('#tabela-alunos tbody tr').forEach(linha => {
+        linha.style.display = linha.textContent.toLowerCase().includes(termo) ? '' : 'none';
+    });
+});
+
+function confirmarExclusao(id, nome) {
+    document.getElementById('modal-nome-aluno').textContent = 'Esta ação não pode ser desfeita. Deseja excluir ' + nome + '?';
+    document.getElementById('btn-confirmar-exclusao').href = '/alunos/' + id + '/excluir';
+    new bootstrap.Modal(document.getElementById('modalExcluir')).show();
+}
+</script>
+{% endblock %}

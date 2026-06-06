@@ -1,0 +1,726 @@
+{% extends 'base.html' %}
+
+{% block titulo %}Financeiro{% endblock %}
+{% block titulo_pagina %}Financeiro{% endblock %}
+{% block subtitulo %}Gestão de pagamentos{% endblock %}
+
+{% set pagina_ativa = 'financeiro' %}
+
+{% block topbar_direita %}
+<button class="btn-principal" data-bs-toggle="modal" data-bs-target="#modalRelatorioMensal"
+    style="background:white; color:#1a1a2e; border:1.5px solid #dee2e6;"
+    onclick="sincronizarMesRelatorio()">
+    <i class="bi bi-file-earmark-text" style="color:var(--cor-principal);"></i> Relatório
+</button>
+<button class="btn-principal" data-bs-toggle="modal" data-bs-target="#modalNovoPagamento">
+    <i class="bi bi-plus-lg"></i> Registrar pagamento
+</button>
+<span style="font-size:13px; color:#6c757d;">Olá, <strong>{{ session.get('usuario', 'Administrador') }}</strong></span>
+{% endblock %}
+
+{% block estilos %}
+.fin-card { background: white; border-radius: 12px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+.stat-card {
+    background: white; border-radius: 12px; padding: 20px 24px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05); display: flex; align-items: center; gap: 16px;
+}
+.stat-icon { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0; }
+.icon-green  { background-color: #e8f5e9; color: #2e7d32; }
+.icon-red    { background-color: #fdecea; color: #c62828; }
+.icon-orange { background-color: color-mix(in srgb, var(--cor-principal) 15%, white); color: var(--cor-principal); }
+.icon-blue   { background-color: #e3f2fd; color: #1565c0; }
+.stat-label  { font-size: 13px; color: #6c757d; }
+.stat-value  { font-size: 24px; font-weight: 700; color: #1a1a2e; line-height: 1.2; }
+.badge-pago      { background-color: #e8f5e9; color: #2e7d32; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 500; }
+.badge-pendente  { background-color: #fff3e8; color: #e65100; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 500; }
+.badge-vencido   { background-color: #fdecea; color: #c62828; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 500; }
+.badge-cancelado { background-color: #f0f2f5; color: #6c757d; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 500; }
+.btn-acao { background: none; border: none; padding: 4px 8px; border-radius: 6px; cursor: pointer; font-size: 15px; }
+.btn-acao:hover { background-color: #f0f2f5; }
+.search-box { border: 1px solid #dee2e6; border-radius: 8px; padding: 8px 14px; font-size: 14px; width: 220px; outline: none; }
+.search-box:focus { border-color: var(--cor-principal); }
+.tab-btn {
+    padding: 7px 16px; border-radius: 8px; font-size: 13px; font-weight: 500;
+    cursor: pointer; border: 1px solid #dee2e6; background: white; color: #6c757d; text-decoration: none;
+    white-space: nowrap;
+}
+.tab-btn.ativo { background: var(--cor-principal); color: white; border-color: var(--cor-principal); }
+
+/* Filtros rápidos de data */
+.periodo-rapido-wrap { display: flex; gap: 6px; flex-wrap: wrap; }
+.periodo-btn {
+    padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 500;
+    cursor: pointer; border: 1px solid #dee2e6; background: white; color: #6c757d;
+    white-space: nowrap; transition: all 0.15s;
+}
+.periodo-btn:hover { border-color: var(--cor-principal); color: var(--cor-principal); }
+.periodo-btn.ativo { background: color-mix(in srgb, var(--cor-principal) 12%, white); color: var(--cor-principal); border-color: var(--cor-principal); font-weight: 600; }
+
+/* Indicador período ativo */
+.periodo-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: color-mix(in srgb, var(--cor-principal) 10%, white);
+    color: var(--cor-principal); border: 1px solid color-mix(in srgb, var(--cor-principal) 25%, white);
+    font-size: 12px; font-weight: 600; padding: 4px 12px; border-radius: 20px;
+}
+
+/* Modal relatório mensal */
+.rel-secao { border: 1.5px solid #dee2e6; border-radius: 10px; padding: 16px; margin-bottom: 12px; cursor: pointer; transition: all 0.15s; }
+.rel-secao:hover { border-color: var(--cor-principal); background: color-mix(in srgb, var(--cor-principal) 3%, white); }
+.rel-secao.selecionada { border-color: var(--cor-principal); background: color-mix(in srgb, var(--cor-principal) 6%, white); }
+.rel-secao-titulo { font-size: 14px; font-weight: 600; color: #1a1a2e; margin-bottom: 2px; }
+.rel-secao-desc   { font-size: 12px; color: #6c757d; }
+.col-check { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.col-tag { display: inline-block; font-size: 12px; font-weight: 500; padding: 5px 14px; border-radius: 20px; border: 1.5px solid #dee2e6; background: white; color: #6c757d; cursor: pointer; user-select: none; transition: all 0.15s; }
+.col-tag:hover { border-color: var(--cor-principal); color: var(--cor-principal); }
+.col-tag.marcada { background: var(--cor-principal) !important; color: white !important; border-color: var(--cor-principal) !important; }
+.formato-btn { flex: 1; padding: 12px; border-radius: 10px; border: 1.5px solid #dee2e6; background: white; cursor: pointer; text-align: center; font-size: 13px; font-weight: 600; color: #6c757d; transition: all 0.15s; }
+.formato-btn:hover { border-color: var(--cor-principal); color: var(--cor-principal); }
+.formato-btn.ativo { border-color: var(--cor-principal); background: color-mix(in srgb, var(--cor-principal) 8%, white); color: var(--cor-principal); }
+.formato-btn i { font-size: 22px; display: block; margin-bottom: 4px; }
+{% endblock %}
+
+{% block conteudo %}
+
+<!-- Cards resumo -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon icon-green"><i class="bi bi-check-circle-fill"></i></div>
+            <div>
+                <div class="stat-label">Recebido no período</div>
+                <div class="stat-value">R$ {{ '%.2f'|format(total_recebido) }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon icon-orange"><i class="bi bi-clock-fill"></i></div>
+            <div>
+                <div class="stat-label">Pendente no período</div>
+                <div class="stat-value">R$ {{ '%.2f'|format(total_pendente) }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon icon-red"><i class="bi bi-exclamation-circle-fill"></i></div>
+            <div>
+                <div class="stat-label">Inadimplentes</div>
+                <div class="stat-value">{{ total_inadimplentes }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon icon-blue"><i class="bi bi-people-fill"></i></div>
+            <div>
+                <div class="stat-label">Pagamentos no período</div>
+                <div class="stat-value">{{ total_pagamentos_mes }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filtros -->
+<div class="fin-card mb-3">
+    <div class="row g-3 align-items-end">
+
+        <!-- Filtros rápidos -->
+        <div class="col-12">
+            <label class="form-label" style="font-size:13px; font-weight:500; margin-bottom:8px; display:block;">
+                <i class="bi bi-lightning-fill me-1" style="color:var(--cor-principal);"></i> Período rápido
+            </label>
+            <div class="periodo-rapido-wrap">
+                <button class="periodo-btn {% if periodo_ativo == 'hoje' %}ativo{% endif %}"
+                        onclick="aplicarPeriodoRapido('hoje')">Hoje</button>
+                <button class="periodo-btn {% if periodo_ativo == 'ontem' %}ativo{% endif %}"
+                        onclick="aplicarPeriodoRapido('ontem')">Ontem</button>
+                <button class="periodo-btn {% if periodo_ativo == 'semana_atual' %}ativo{% endif %}"
+                        onclick="aplicarPeriodoRapido('semana_atual')">Semana atual</button>
+                <button class="periodo-btn {% if periodo_ativo == 'semana_passada' %}ativo{% endif %}"
+                        onclick="aplicarPeriodoRapido('semana_passada')">Semana passada</button>
+                <button class="periodo-btn {% if periodo_ativo == 'mes_atual' %}ativo{% endif %}"
+                        onclick="aplicarPeriodoRapido('mes_atual')">Mês atual</button>
+                <button class="periodo-btn {% if periodo_ativo == 'mes_passado' %}ativo{% endif %}"
+                        onclick="aplicarPeriodoRapido('mes_passado')">Mês passado</button>
+                <span style="width:1px; background:#dee2e6; margin:0 4px;"></span>
+                <button class="periodo-btn {% if periodo_ativo == 'personalizado' %}ativo{% endif %}"
+                        onclick="togglePersonalizado()" id="btn-personalizado">
+                    <i class="bi bi-calendar3 me-1"></i> Personalizado
+                </button>
+            </div>
+        </div>
+
+        <!-- Datas personalizadas (oculto por padrão) -->
+        <div class="col-12" id="wrap-personalizado"
+             style="display:{% if periodo_ativo == 'personalizado' %}block{% else %}none{% endif %};">
+            <div class="row g-2 align-items-end">
+                <div class="col-md-2">
+                    <label class="form-label" style="font-size:12px; font-weight:500; color:#6c757d;">Data início</label>
+                    <input type="date" id="data-inicio-custom" class="form-control form-control-sm"
+                           value="{{ data_inicio or '' }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label" style="font-size:12px; font-weight:500; color:#6c757d;">Data fim</label>
+                    <input type="date" id="data-fim-custom" class="form-control form-control-sm"
+                           value="{{ data_fim or '' }}">
+                </div>
+                <div class="col-auto">
+                    <button class="btn-filtrar" onclick="aplicarPersonalizado()">
+                        <i class="bi bi-funnel"></i> Filtrar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Período ativo badge + busca + tabs -->
+        <div class="col-md-4">
+            <label class="form-label" style="font-size:13px; font-weight:500;">Buscar aluno</label>
+            <input type="text" class="search-box w-100" id="busca" placeholder="🔍 Nome do aluno...">
+        </div>
+        <div class="col-md-8 d-flex gap-2 align-items-end flex-wrap">
+            <a href="?status=todos&periodo={{ periodo_ativo }}&inicio={{ data_inicio }}&fim={{ data_fim }}"
+               class="tab-btn {% if status_filtro == 'todos' %}ativo{% endif %}">Todos</a>
+            <a href="?status=pago&periodo={{ periodo_ativo }}&inicio={{ data_inicio }}&fim={{ data_fim }}"
+               class="tab-btn {% if status_filtro == 'pago' %}ativo{% endif %}">Pagos</a>
+            <a href="?status=pendente&periodo={{ periodo_ativo }}&inicio={{ data_inicio }}&fim={{ data_fim }}"
+               class="tab-btn {% if status_filtro == 'pendente' %}ativo{% endif %}">Pendentes</a>
+            <a href="?status=vencido&periodo={{ periodo_ativo }}&inicio={{ data_inicio }}&fim={{ data_fim }}"
+               class="tab-btn {% if status_filtro == 'vencido' %}ativo{% endif %}">Vencidos</a>
+            <a href="?status=inadimplentes&periodo={{ periodo_ativo }}&inicio={{ data_inicio }}&fim={{ data_fim }}"
+               class="tab-btn {% if status_filtro == 'inadimplentes' %}ativo{% endif %}"
+               style="{% if status_filtro != 'inadimplentes' %}color:#c62828; border-color:#fdecea;{% endif %}">
+                ⚠️ Inadimplentes
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Indicador de período -->
+{% if data_inicio and data_fim %}
+<div class="mb-3">
+    <span class="periodo-badge">
+        <i class="bi bi-calendar3"></i>
+        {{ data_inicio.replace('-', '/').split('/')[::-1]|join('/') if data_inicio else '' }}
+        {% if data_inicio != data_fim %}
+        a {{ data_fim.replace('-', '/').split('/')[::-1]|join('/') if data_fim else '' }}
+        {% endif %}
+        — {{ total_registros }} registro{{ 's' if total_registros != 1 else '' }}
+    </span>
+</div>
+{% endif %}
+
+<!-- Tabela de pagamentos -->
+<div class="fin-card">
+    <table class="table table-borderless mb-0" id="tabela-pagamentos">
+        <thead>
+            <tr>
+                <th>Aluno</th><th>Plano</th><th>Valor</th><th>Vencimento</th>
+                <th>Pagamento</th><th>Forma</th><th>Status</th><th>Ações</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% if status_filtro == 'inadimplentes' %}
+                {% if inadimplentes %}
+                    {% for aluno in inadimplentes %}
+                    <tr>
+                        <td>
+                            <div style="display:flex; align-items:center; gap:10px;">
+                                {% if aluno.foto %}
+                                    <img src="{{ aluno.foto }}" style="width:32px; height:32px; border-radius:50%; object-fit:cover; border:2px solid #c62828;">
+                                {% else %}
+                                    <div style="width:32px; height:32px; border-radius:50%; background:#fdecea; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:700; color:#c62828;">{{ aluno.nome[0].upper() }}</div>
+                                {% endif %}
+                                <a href="/alunos/{{ aluno.id }}" style="text-decoration:none; color:#1a1a2e; font-weight:500;">{{ aluno.nome }}</a>
+                            </div>
+                        </td>
+                        <td>{{ aluno.plano or '—' }}</td>
+                        <td><strong style="color:#c62828;">R$ {{ '%.2f'|format(planos_valores.get(aluno.plano, 0)) }}</strong></td>
+                        <td>{{ aluno.vencimento.strftime('%d/%m/%Y') if aluno.vencimento else '—' }}</td>
+                        <td>—</td><td>—</td>
+                        <td><span class="badge-vencido">⚠️ Inadimplente</span></td>
+                        <td>
+                            <button class="btn-acao" title="Registrar pagamento"
+                                onclick="document.getElementById('select-aluno').value='{{ aluno.id }}'; preencherValor(document.getElementById('select-aluno')); new bootstrap.Modal(document.getElementById('modalNovoPagamento')).show();">
+                                <i class="bi bi-cash-coin" style="color:#2e7d32;"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr><td colspan="8" style="text-align:center; color:#6c757d; padding:40px 0;">
+                        <i class="bi bi-emoji-smile" style="font-size:32px; display:block; margin-bottom:8px; color:#2e7d32;"></i>
+                        Nenhum inadimplente no período! 🎉
+                    </td></tr>
+                {% endif %}
+            {% else %}
+                {% if pagamentos %}
+                    {% for pag in pagamentos %}
+                    <tr>
+                        <td>
+                            <div style="display:flex; align-items:center; gap:10px;">
+                                {% if pag.aluno.foto %}
+                                    <img src="{{ pag.aluno.foto }}" style="width:32px; height:32px; border-radius:50%; object-fit:cover; border:2px solid var(--cor-principal);">
+                                {% else %}
+                                    <div style="width:32px; height:32px; border-radius:50%; background:color-mix(in srgb, var(--cor-principal) 15%, white); display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:700; color:var(--cor-principal);">{{ pag.aluno.nome[0].upper() }}</div>
+                                {% endif %}
+                                <a href="/alunos/{{ pag.aluno_id }}" style="text-decoration:none; color:#1a1a2e; font-weight:500;">{{ pag.aluno.nome }}</a>
+                            </div>
+                        </td>
+                        <td>{{ pag.aluno.plano or '—' }}</td>
+                        <td><strong>R$ {{ '%.2f'|format(pag.valor|float) }}</strong></td>
+                        <td>{{ pag.data_vencimento.strftime('%d/%m/%Y') }}</td>
+                        <td>{{ pag.data_pagamento.strftime('%d/%m/%Y') if pag.data_pagamento else '—' }}</td>
+                        <td>
+                            {% if pag.forma_pagamento == 'dinheiro' %}
+                                <span style="font-size:13px;"><i class="bi bi-cash me-1"></i>Dinheiro</span>
+                            {% elif pag.forma_pagamento == 'pix' %}
+                                <span style="font-size:13px;"><i class="bi bi-qr-code me-1"></i>PIX</span>
+                            {% elif pag.forma_pagamento == 'credito' %}
+                                <span style="font-size:13px;"><i class="bi bi-credit-card me-1"></i>Crédito</span>
+                            {% elif pag.forma_pagamento == 'debito' %}
+                                <span style="font-size:13px;"><i class="bi bi-credit-card-2-back me-1"></i>Débito</span>
+                            {% elif pag.forma_pagamento == 'boleto' %}
+                                <span style="font-size:13px;"><i class="bi bi-receipt me-1"></i>Boleto</span>
+                            {% else %}{{ pag.forma_pagamento or '—' }}{% endif %}
+                        </td>
+                        <td>
+                            {% if pag.status == 'pago' %}<span class="badge-pago">✅ Pago</span>
+                            {% elif pag.status == 'vencido' %}<span class="badge-vencido">⚠️ Vencido</span>
+                            {% elif pag.status == 'cancelado' %}<span class="badge-cancelado">Cancelado</span>
+                            {% else %}<span class="badge-pendente">⏳ Pendente</span>{% endif %}
+                        </td>
+                        <td>
+                            {% if pag.status != 'pago' %}
+                            <button class="btn-acao" title="Confirmar pagamento"
+                                onclick="abrirPagamento({{ pag.id }}, '{{ pag.aluno.nome }}', {{ pag.valor }})">
+                                <i class="bi bi-check-circle" style="color:#2e7d32;"></i>
+                            </button>
+                            {% endif %}
+                            <button class="btn-acao" title="Excluir"
+                                onclick="confirmarExclusao({{ pag.id }}, '{{ pag.aluno.nome }}')">
+                                <i class="bi bi-trash" style="color:#c62828;"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr><td colspan="8" style="text-align:center; color:#6c757d; padding:40px 0;">
+                        <i class="bi bi-cash-coin" style="font-size:32px; display:block; margin-bottom:8px;"></i>
+                        Nenhum pagamento encontrado no período
+                    </td></tr>
+                {% endif %}
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+
+<!-- MODAL RELATÓRIO MENSAL -->
+<div class="modal fade" id="modalRelatorioMensal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content" style="border-radius:14px; border:none;">
+            <div class="modal-header" style="background:#1a1a2e; border-radius:14px 14px 0 0; padding:20px 24px;">
+                <h5 class="modal-title" style="color:white; font-size:16px; font-weight:600;">
+                    <i class="bi bi-file-earmark-text me-2" style="color:var(--cor-principal);"></i>
+                    Configurar Relatório
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" style="filter:invert(1);"></button>
+            </div>
+            <div class="modal-body" style="padding:24px;">
+                <div class="mb-4">
+                    <label class="form-label" style="font-size:13px; font-weight:600; color:#1a1a2e;">
+                        <i class="bi bi-calendar3 me-1" style="color:var(--cor-principal);"></i> Período do relatório
+                    </label>
+                    <div class="d-flex gap-2 align-items-center flex-wrap">
+                        <div>
+                            <div style="font-size:11px; color:#6c757d; margin-bottom:4px;">Data início</div>
+                            <input type="date" id="rel-inicio" class="form-control" style="max-width:160px;" value="{{ data_inicio }}">
+                        </div>
+                        <div style="color:#6c757d; margin-top:16px;">até</div>
+                        <div>
+                            <div style="font-size:11px; color:#6c757d; margin-bottom:4px;">Data fim</div>
+                            <input type="date" id="rel-fim" class="form-control" style="max-width:160px;" value="{{ data_fim }}">
+                        </div>
+                    </div>
+                </div>
+                <div class="mb-4">
+                    <div style="font-size:13px; font-weight:600; color:#1a1a2e; margin-bottom:12px;">
+                        <i class="bi bi-layout-text-window me-1" style="color:var(--cor-principal);"></i> Seções do relatório
+                    </div>
+                    <div class="rel-secao selecionada" id="secao-resumo" onclick="toggleSecao('resumo')">
+                        <div style="display:flex; align-items:center; justify-content:space-between;">
+                            <div>
+                                <div class="rel-secao-titulo">📊 Resumo financeiro do mês</div>
+                                <div class="rel-secao-desc">Total recebido, pendente, vencido, quantidade por forma de pagamento e inadimplentes</div>
+                            </div>
+                            <i class="bi bi-check-circle-fill" id="icon-resumo" style="color:var(--cor-principal); font-size:20px;"></i>
+                        </div>
+                    </div>
+                    <div class="rel-secao selecionada" id="secao-pagamentos" onclick="toggleSecao('pagamentos')">
+                        <div style="display:flex; align-items:center; justify-content:space-between;">
+                            <div>
+                                <div class="rel-secao-titulo">💳 Lista de pagamentos</div>
+                                <div class="rel-secao-desc">Todos os lançamentos do mês com as colunas selecionadas abaixo</div>
+                            </div>
+                            <i class="bi bi-check-circle-fill" id="icon-pagamentos" style="color:var(--cor-principal); font-size:20px;"></i>
+                        </div>
+                        <div class="col-check" id="cols-pagamentos" onclick="event.stopPropagation()">
+                            <span class="col-tag marcada" data-col="nome"       onclick="toggleCol(event,this)">Nome</span>
+                            <span class="col-tag marcada" data-col="plano"      onclick="toggleCol(event,this)">Plano</span>
+                            <span class="col-tag"         data-col="cpf"        onclick="toggleCol(event,this)">CPF</span>
+                            <span class="col-tag"         data-col="telefone"   onclick="toggleCol(event,this)">Telefone</span>
+                            <span class="col-tag marcada" data-col="valor"      onclick="toggleCol(event,this)">Valor</span>
+                            <span class="col-tag marcada" data-col="vencimento" onclick="toggleCol(event,this)">Vencimento</span>
+                            <span class="col-tag marcada" data-col="pagamento"  onclick="toggleCol(event,this)">Data pagamento</span>
+                            <span class="col-tag marcada" data-col="forma"      onclick="toggleCol(event,this)">Forma pagamento</span>
+                            <span class="col-tag marcada" data-col="status"     onclick="toggleCol(event,this)">Status</span>
+                            <span class="col-tag"         data-col="observacao" onclick="toggleCol(event,this)">Observação</span>
+                        </div>
+                    </div>
+                    <div class="rel-secao selecionada" id="secao-inadimplentes" onclick="toggleSecao('inadimplentes')">
+                        <div style="display:flex; align-items:center; justify-content:space-between;">
+                            <div>
+                                <div class="rel-secao-titulo">⚠️ Inadimplentes</div>
+                                <div class="rel-secao-desc">Alunos ativos sem pagamento registrado ou com pagamento vencido no mês</div>
+                            </div>
+                            <i class="bi bi-check-circle-fill" id="icon-inadimplentes" style="color:var(--cor-principal); font-size:20px;"></i>
+                        </div>
+                        <div class="col-check" id="cols-inadimplentes" onclick="event.stopPropagation()">
+                            <span class="col-tag marcada" data-col="nome"        onclick="toggleCol(event,this)">Nome</span>
+                            <span class="col-tag marcada" data-col="plano"       onclick="toggleCol(event,this)">Plano</span>
+                            <span class="col-tag"         data-col="cpf"         onclick="toggleCol(event,this)">CPF</span>
+                            <span class="col-tag"         data-col="telefone"    onclick="toggleCol(event,this)">Telefone</span>
+                            <span class="col-tag marcada" data-col="venc_plano"  onclick="toggleCol(event,this)">Vencimento do plano</span>
+                            <span class="col-tag marcada" data-col="valor_plano" onclick="toggleCol(event,this)">Valor do plano</span>
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <div style="font-size:13px; font-weight:600; color:#1a1a2e; margin-bottom:12px;">
+                        <i class="bi bi-download me-1" style="color:var(--cor-principal);"></i> Formato de exportação
+                    </div>
+                    <div class="d-flex gap-3">
+                        <button class="formato-btn ativo" id="fmt-pdf" onclick="selecionarFormato('pdf')">
+                            <i class="bi bi-file-earmark-pdf" style="color:#c62828;"></i> PDF
+                        </button>
+                        <button class="formato-btn" id="fmt-csv" onclick="selecionarFormato('csv')">
+                            <i class="bi bi-file-earmark-spreadsheet" style="color:#2e7d32;"></i> CSV / Excel
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer" style="border-top:1px solid #f0f2f5; padding:16px 24px; justify-content:space-between; align-items:center;">
+                <span style="font-size:12px; color:#6c757d;"><i class="bi bi-info-circle me-1"></i>O relatório será gerado com base no período selecionado</span>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn" data-bs-dismiss="modal"
+                        style="background:white; border:1px solid #dee2e6; color:#6c757d; padding:8px 20px; border-radius:8px;">Cancelar</button>
+                    <button type="button" class="btn-principal" onclick="gerarRelatorio()">
+                        <i class="bi bi-download me-1"></i> Gerar relatório
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal novo pagamento -->
+<div class="modal fade" id="modalNovoPagamento" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border-radius:12px; border:none;">
+            <div class="modal-header" style="border-bottom:1px solid #f0f2f5; padding:20px 24px;">
+                <h5 class="modal-title" style="font-size:16px; font-weight:600;">Registrar pagamento</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="/financeiro/registrar">
+                                <input type="hidden" name="_periodo" value="{{ periodo_ativo }}">
+                <input type="hidden" name="_status"  value="{{ status_filtro }}">
+                <input type="hidden" name="_inicio"  value="{{ data_inicio }}">
+                <input type="hidden" name="_fim"     value="{{ data_fim }}">
+                <div class="modal-body" style="padding:24px;">
+                    <div class="mb-3">
+                        <label class="form-label" style="font-size:13px; font-weight:500;">Aluno *</label>
+                        <select name="aluno_id" class="form-select" required id="select-aluno" onchange="preencherValor(this)">
+                            <option value="">Selecione o aluno...</option>
+                            {% for aluno in alunos_ativos %}
+                            <option value="{{ aluno.id }}" data-plano="{{ aluno.plano }}" data-valor="{{ planos_valores.get(aluno.plano, 0) }}">
+                                {{ aluno.nome }} — {{ aluno.plano or 'Sem plano' }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" style="font-size:13px; font-weight:500;">Valor (R$) *</label>
+                        <div style="position:relative;">
+                            <span style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:#6c757d; font-weight:500;">R$</span>
+                            <input type="number" name="valor" id="input-valor" class="form-control" style="padding-left:36px;" step="0.01" min="0" required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" style="font-size:13px; font-weight:500;">Forma de pagamento *</label>
+                        <select name="forma_pagamento" class="form-select" required id="select-forma-novo"
+                                onchange="calcularAcrescimo('novo')">
+                            {% if formas_ativas.dinheiro %}<option value="dinheiro">💵 Dinheiro</option>{% endif %}
+                            {% if formas_ativas.pix      %}<option value="pix">📱 PIX</option>{% endif %}
+                            {% if formas_ativas.credito  %}<option value="credito">💳 Cartão de Crédito</option>{% endif %}
+                            {% if formas_ativas.debito   %}<option value="debito">💳 Cartão de Débito</option>{% endif %}
+                            {% if formas_ativas.boleto   %}<option value="boleto">🧾 Boleto</option>{% endif %}
+                        </select>
+                        <div id="info-acrescimo-novo" style="display:none; margin-top:6px; padding:8px 12px; background:#fff3e8; border-radius:8px; font-size:12px; color:#e65100;">
+                            <i class="bi bi-info-circle me-1"></i>
+                            <span id="txt-acrescimo-novo"></span>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" style="font-size:13px; font-weight:500;">Data de vencimento *</label>
+                        <input type="date" name="data_vencimento" class="form-control" required value="{{ hoje }}">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" style="font-size:13px; font-weight:500;">Data de pagamento</label>
+                        <input type="date" name="data_pagamento" class="form-control">
+                        <div class="form-text">Deixe em branco se ainda não foi pago</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" style="font-size:13px; font-weight:500;">Observação</label>
+                        <input type="text" name="observacao" class="form-control" placeholder="Ex: Referência mês 01/2026...">
+                    </div>
+                </div>
+                <div class="modal-footer" style="border-top:1px solid #f0f2f5; padding:16px 24px;">
+                    <button type="button" class="btn" data-bs-dismiss="modal"
+                        style="background:white; border:1px solid #dee2e6; color:#6c757d; padding:8px 20px; border-radius:8px;">Cancelar</button>
+                    <button type="submit" class="btn-principal"><i class="bi bi-check-lg me-1"></i> Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal confirmar pagamento -->
+<div class="modal fade" id="modalConfirmarPagamento" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border-radius:12px; border:none;">
+            <div class="modal-header" style="border-bottom:1px solid #f0f2f5; padding:20px 24px;">
+                <h5 class="modal-title" style="font-size:16px; font-weight:600;">Confirmar pagamento</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" id="form-confirmar-pag" action="">
+                                <input type="hidden" name="_periodo" value="{{ periodo_ativo }}">
+                <input type="hidden" name="_status"  value="{{ status_filtro }}">
+                <input type="hidden" name="_inicio"  value="{{ data_inicio }}">
+                <input type="hidden" name="_fim"     value="{{ data_fim }}">
+                <div class="modal-body" style="padding:24px;">
+                    <p style="font-size:14px; color:#6c757d;" id="msg-confirmar-pag"></p>
+                    <div class="mb-3">
+                        <label class="form-label" style="font-size:13px; font-weight:500;">Forma de pagamento *</label>
+                        <select name="forma_pagamento" class="form-select" required id="select-forma-conf"
+                                onchange="calcularAcrescimo('conf')">
+                            {% if formas_ativas.dinheiro %}<option value="dinheiro">💵 Dinheiro</option>{% endif %}
+                            {% if formas_ativas.pix      %}<option value="pix">📱 PIX</option>{% endif %}
+                            {% if formas_ativas.credito  %}<option value="credito">💳 Cartão de Crédito</option>{% endif %}
+                            {% if formas_ativas.debito   %}<option value="debito">💳 Cartão de Débito</option>{% endif %}
+                            {% if formas_ativas.boleto   %}<option value="boleto">🧾 Boleto</option>{% endif %}
+                        </select>
+                        <div id="info-acrescimo-conf" style="display:none; margin-top:6px; padding:8px 12px; background:#fff3e8; border-radius:8px; font-size:12px; color:#e65100;">
+                            <i class="bi bi-info-circle me-1"></i>
+                            <span id="txt-acrescimo-conf"></span>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" style="font-size:13px; font-weight:500;">Data de pagamento *</label>
+                        <input type="date" name="data_pagamento" class="form-control" value="{{ hoje }}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" style="font-size:13px; font-weight:500;">Observação</label>
+                        <input type="text" name="observacao" class="form-control" placeholder="Ex: Pago em dinheiro...">
+                    </div>
+                </div>
+                <div class="modal-footer" style="border-top:1px solid #f0f2f5; padding:16px 24px;">
+                    <button type="button" class="btn" data-bs-dismiss="modal"
+                        style="background:white; border:1px solid #dee2e6; color:#6c757d; padding:8px 20px; border-radius:8px;">Cancelar</button>
+                    <button type="submit" class="btn-principal"><i class="bi bi-check-lg me-1"></i> Confirmar pagamento</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal exclusão -->
+<div class="modal fade" id="modalExcluir" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border-radius:12px; border:none;">
+            <div class="modal-body p-4 text-center">
+                <i class="bi bi-exclamation-triangle" style="font-size:40px; color:var(--cor-principal);"></i>
+                <h5 class="mt-3 mb-1">Excluir pagamento?</h5>
+                <p class="text-muted mb-4" id="msg-excluir" style="font-size:14px;"></p>
+                <div class="d-flex gap-2 justify-content-center">
+                    <button class="btn" data-bs-dismiss="modal"
+                        style="background:white; border:1px solid #dee2e6; color:#6c757d; padding:8px 20px; border-radius:8px;">Cancelar</button>
+                    <a id="btn-confirmar-excluir" href="#"
+                        style="background:#c62828; color:white; padding:10px 24px; border-radius:8px; text-decoration:none; font-weight:500;">
+                        <i class="bi bi-trash me-1"></i> Excluir
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Taxas de acréscimo configuradas nos parâmetros
+const TAXAS = {
+    credito: {{ taxas.credito }},
+    debito:  {{ taxas.debito }},
+};
+
+function preencherValor(select) {
+    const valor = select.options[select.selectedIndex].dataset.valor;
+    if (valor) {
+        document.getElementById('input-valor').value = parseFloat(valor).toFixed(2);
+        calcularAcrescimo('novo');
+    }
+}
+
+function calcularAcrescimo(ctx) {
+    const formaEl = document.getElementById('select-forma-' + ctx);
+    const infoEl  = document.getElementById('info-acrescimo-' + ctx);
+    const txtEl   = document.getElementById('txt-acrescimo-' + ctx);
+    if (!formaEl || !infoEl || !txtEl) return;
+
+    const forma = formaEl.value;
+    const taxa  = TAXAS[forma] || 0;
+
+    if (taxa > 0) {
+        let valorBase = 0;
+        if (ctx === 'novo') {
+            valorBase = parseFloat(document.getElementById('input-valor').value) || 0;
+        } else {
+            // Extrai valor da mensagem de confirmação
+            const msg = document.getElementById('msg-confirmar-pag').textContent;
+            const match = msg.match(/R\$ ([\d.,]+)/);
+            if (match) valorBase = parseFloat(match[1].replace(',', '.')) || 0;
+        }
+        const acresc = valorBase * taxa / 100;
+        const total  = valorBase + acresc;
+        txtEl.textContent = `Taxa de ${taxa}%: +R$ ${acresc.toFixed(2).replace('.', ',')} — Total: R$ ${total.toFixed(2).replace('.', ',')}`;
+        infoEl.style.display = 'block';
+    } else {
+        infoEl.style.display = 'none';
+    }
+}
+function abrirPagamento(id, nome, valor) {
+    document.getElementById('msg-confirmar-pag').textContent =
+        `Confirmar pagamento de R$ ${parseFloat(valor).toFixed(2)} para ${nome}?`;
+    document.getElementById('form-confirmar-pag').action = `/financeiro/${id}/pagar`;
+    // Reseta aviso de acréscimo
+    const info = document.getElementById('info-acrescimo-conf');
+    if (info) info.style.display = 'none';
+    new bootstrap.Modal(document.getElementById('modalConfirmarPagamento')).show();
+}
+function confirmarExclusao(id, nome) {
+    document.getElementById('msg-excluir').textContent =
+        `Deseja excluir o pagamento de ${nome}? Esta ação não pode ser desfeita.`;
+    const periodo = '{{ periodo_ativo }}';
+    const status  = '{{ status_filtro }}';
+    const inicio  = '{{ data_inicio }}';
+    const fim     = '{{ data_fim }}';
+    document.getElementById('btn-confirmar-excluir').href =
+        `/financeiro/${id}/excluir?periodo=${periodo}&status=${status}&inicio=${inicio}&fim=${fim}`;
+    new bootstrap.Modal(document.getElementById('modalExcluir')).show();
+}
+
+document.getElementById('busca').addEventListener('input', function() {
+    const termo = this.value.toLowerCase();
+    document.querySelectorAll('#tabela-pagamentos tbody tr').forEach(linha => {
+        linha.style.display = linha.textContent.toLowerCase().includes(termo) ? '' : 'none';
+    });
+});
+
+// ── Filtros rápidos de período ────────────────────────────────────────────────
+function aplicarPeriodoRapido(periodo) {
+    const url = new URL(window.location.href);
+    url.searchParams.set('periodo', periodo);
+    url.searchParams.delete('inicio');
+    url.searchParams.delete('fim');
+    url.searchParams.set('status', '{{ status_filtro }}');
+    window.location.href = url.toString();
+}
+
+function togglePersonalizado() {
+    const wrap = document.getElementById('wrap-personalizado');
+    wrap.style.display = wrap.style.display === 'none' ? 'block' : 'none';
+    document.getElementById('btn-personalizado').classList.toggle('ativo');
+}
+
+function aplicarPersonalizado() {
+    const inicio = document.getElementById('data-inicio-custom').value;
+    const fim    = document.getElementById('data-fim-custom').value;
+    if (!inicio || !fim) { alert('Informe data início e data fim.'); return; }
+    const url = new URL(window.location.href);
+    url.searchParams.set('periodo', 'personalizado');
+    url.searchParams.set('inicio', inicio);
+    url.searchParams.set('fim', fim);
+    url.searchParams.set('status', '{{ status_filtro }}');
+    window.location.href = url.toString();
+}
+
+// ── Modal relatório mensal ────────────────────────────────────────────────────
+const secoesAtivas = { resumo: true, pagamentos: true, inadimplentes: true };
+let formatoAtivo = 'pdf';
+
+function toggleSecao(nome) {
+    secoesAtivas[nome] = !secoesAtivas[nome];
+    const el   = document.getElementById('secao-' + nome);
+    const icon = document.getElementById('icon-' + nome);
+    if (secoesAtivas[nome]) {
+        el.classList.add('selecionada');
+        icon.className = 'bi bi-check-circle-fill';
+        icon.style.color = 'var(--cor-principal)';
+        if (nome === 'pagamentos')    document.getElementById('cols-pagamentos').style.opacity = '1';
+        if (nome === 'inadimplentes') document.getElementById('cols-inadimplentes').style.opacity = '1';
+    } else {
+        el.classList.remove('selecionada');
+        icon.className = 'bi bi-circle';
+        icon.style.color = '#dee2e6';
+        if (nome === 'pagamentos')    document.getElementById('cols-pagamentos').style.opacity = '0.4';
+        if (nome === 'inadimplentes') document.getElementById('cols-inadimplentes').style.opacity = '0.4';
+    }
+}
+function toggleCol(e, el) { e.stopPropagation(); el.classList.toggle('marcada'); }
+function selecionarFormato(fmt) {
+    formatoAtivo = fmt;
+    document.getElementById('fmt-pdf').classList.toggle('ativo', fmt === 'pdf');
+    document.getElementById('fmt-csv').classList.toggle('ativo', fmt === 'csv');
+}
+// Sincroniza o mês do modal com o período ativo na tela
+function sincronizarMesRelatorio() {
+    // Preenche datas do modal com o período ativo na tela
+    const inicio = document.getElementById('rel-inicio');
+    const fim    = document.getElementById('rel-fim');
+    if (inicio) inicio.value = '{{ data_inicio }}';
+    if (fim)    fim.value    = '{{ data_fim }}';
+}
+
+function gerarRelatorio() {
+    const inicio = document.getElementById('rel-inicio').value;
+    const fim    = document.getElementById('rel-fim').value;
+    if (!inicio || !fim) { alert('Informe a data início e a data fim.'); return; }
+    const colunas = [];
+    document.querySelectorAll('#cols-pagamentos .col-tag.marcada').forEach(el => colunas.push(el.dataset.col));
+    const secoes = Object.entries(secoesAtivas).filter(([,v]) => v).map(([k]) => k).join(',');
+    if (!secoes) { alert('Selecione ao menos uma seção.'); return; }
+    if (secoesAtivas.pagamentos && colunas.length === 0) { alert('Selecione ao menos uma coluna para a lista de pagamentos.'); return; }
+    const colsInad = [];
+    document.querySelectorAll('#cols-inadimplentes .col-tag.marcada').forEach(el => colsInad.push(el.dataset.col));
+    const url = `/financeiro/relatorio-mensal?inicio=${inicio}&fim=${fim}&formato=${formatoAtivo}&secoes=${secoes}&colunas=${colunas.join(',')}&colunas_inad=${colsInad.join(',')}`;
+    bootstrap.Modal.getInstance(document.getElementById('modalRelatorioMensal')).hide();
+    window.location.href = url;
+}
+
+// CSS helper
+const style = document.createElement('style');
+style.textContent = `.btn-filtrar { background-color: var(--cor-principal); color: white; padding: 7px 18px; border-radius: 8px; font-size: 13px; font-weight: 500; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; }`;
+document.head.appendChild(style);
+</script>
+{% endblock %}

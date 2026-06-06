@@ -1,0 +1,155 @@
+{% extends 'base.html' %}
+
+{% block titulo %}Planos{% endblock %}
+{% block titulo_pagina %}Planos{% endblock %}
+{% block subtitulo %}Gerenciamento de planos e valores{% endblock %}
+
+{% set pagina_ativa = 'configuracoes' %}
+
+{% block estilos %}
+.plano-card {
+    background: white;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+.badge-ativo   { background-color: #e8f5e9; color: #2e7d32; padding: 3px 10px; border-radius: 20px; font-size: 12px; }
+.badge-inativo { background-color: #fdecea; color: #c62828; padding: 3px 10px; border-radius: 20px; font-size: 12px; }
+.btn-acao { background: none; border: none; padding: 4px 8px; border-radius: 6px; cursor: pointer; font-size: 15px; }
+.btn-acao:hover { background-color: #f0f2f5; }
+.valor-destaque { font-size: 20px; font-weight: 700; color: var(--cor-principal); }
+{% endblock %}
+
+{% block conteudo %}
+<!-- Tabs -->
+<div style="display:flex; gap:8px; margin-bottom:24px;">
+    <a href="/configuracoes" style="background:white; border:1px solid #dee2e6; color:#6c757d; padding:8px 20px; border-radius:8px; font-size:13px; text-decoration:none;">
+        <i class="bi bi-palette me-1"></i> Aparência
+    </a>
+    <a href="/usuarios" style="background:white; border:1px solid #dee2e6; color:#6c757d; padding:8px 20px; border-radius:8px; font-size:13px; text-decoration:none;">
+        <i class="bi bi-people me-1"></i> Usuários
+    </a>
+    <a href="/parametros" style="background:white; border:1px solid #dee2e6; color:#6c757d; padding:8px 20px; border-radius:8px; font-size:13px; text-decoration:none;">
+        <i class="bi bi-sliders me-1"></i> Parâmetros
+    </a>
+    <a href="/planos" style="background: var(--cor-principal); border:none; color:white; padding:8px 20px; border-radius:8px; font-size:13px; text-decoration:none;">
+        <i class="bi bi-tag me-1"></i> Planos
+    </a>
+</div>
+
+<div class="plano-card">
+    <table class="table table-borderless mb-0">
+        <thead>
+            <tr>
+                <th>Plano</th>
+                <th>Descrição</th>
+                <th>Dias de validade</th>
+                <th>Valor</th>
+                <th>Status</th>
+                <th>Ações</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% if planos %}
+                {% for plano in planos %}
+                <tr>
+                    <td><strong>{{ plano.nome }}</strong></td>
+                    <td style="color:#6c757d; font-size:13px;">{{ plano.descricao or '—' }}</td>
+                    <td>{{ plano.dias_validade }} dias</td>
+                    <td><span class="valor-destaque">R$ {{ '%.2f'|format(plano.valor|float) }}</span></td>
+                    <td>
+                        {% if plano.ativo %}
+                            <span class="badge-ativo">Ativo</span>
+                        {% else %}
+                            <span class="badge-inativo">Inativo</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <button class="btn-acao" title="Editar"
+                            onclick="abrirEdicao({{ plano.id }}, '{{ plano.nome }}', '{{ plano.descricao or '' }}', {{ plano.dias_validade }}, {{ plano.valor }}, {{ 'true' if plano.ativo else 'false' }})">
+                            <i class="bi bi-pencil" style="color: var(--cor-principal);"></i>
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+            {% else %}
+                <tr>
+                    <td colspan="6" style="text-align:center; color:#6c757d; padding:40px 0;">
+                        Nenhum plano cadastrado
+                    </td>
+                </tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Modal editar plano -->
+<div class="modal fade" id="modalEditarPlano" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border-radius:12px; border:none;">
+            <div class="modal-header" style="border-bottom:1px solid #f0f2f5; padding:20px 24px;">
+                <h5 class="modal-title" style="font-size:16px; font-weight:600;">Editar plano</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" id="form-editar-plano" action="">
+                <div class="modal-body" style="padding:24px;">
+                    <div class="mb-3">
+                        <label class="form-label" style="font-size:13px; font-weight:500;">Nome do plano</label>
+                        <input type="text" name="nome" id="edit-plano-nome" class="form-control" readonly
+                            style="background:#f8f9fa;">
+                        <div class="form-text">O nome do plano não pode ser alterado</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" style="font-size:13px; font-weight:500;">Descrição</label>
+                        <input type="text" name="descricao" id="edit-plano-descricao" class="form-control"
+                            placeholder="Ex: Acesso ilimitado por 30 dias">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" style="font-size:13px; font-weight:500;">Dias de validade</label>
+                        <input type="number" name="dias_validade" id="edit-plano-dias" class="form-control"
+                            min="1" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" style="font-size:13px; font-weight:500;">Valor (R$)</label>
+                        <div style="position:relative;">
+                            <span style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:#6c757d; font-weight:500;">R$</span>
+                            <input type="number" name="valor" id="edit-plano-valor" class="form-control"
+                                style="padding-left:36px;" step="0.01" min="0" required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" style="font-size:13px; font-weight:500;">Status</label>
+                        <select name="ativo" id="edit-plano-ativo" class="form-select">
+                            <option value="1">Ativo</option>
+                            <option value="0">Inativo</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer" style="border-top:1px solid #f0f2f5; padding:16px 24px;">
+                    <button type="button" class="btn" data-bs-dismiss="modal"
+                        style="background:white; border:1px solid #dee2e6; color:#6c757d; padding:8px 20px; border-radius:8px;">
+                        Cancelar
+                    </button>
+                    <button type="submit" class="btn-principal">
+                        <i class="bi bi-check-lg me-1"></i> Salvar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function abrirEdicao(id, nome, descricao, dias, valor, ativo) {
+    document.getElementById('edit-plano-nome').value     = nome;
+    document.getElementById('edit-plano-descricao').value= descricao;
+    document.getElementById('edit-plano-dias').value     = dias;
+    document.getElementById('edit-plano-valor').value    = valor;
+    document.getElementById('edit-plano-ativo').value    = ativo ? '1' : '0';
+    document.getElementById('form-editar-plano').action  = `/planos/${id}/editar`;
+    new bootstrap.Modal(document.getElementById('modalEditarPlano')).show();
+}
+</script>
+{% endblock %}

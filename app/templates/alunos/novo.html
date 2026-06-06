@@ -1,0 +1,382 @@
+{% extends 'base.html' %}
+
+{% block titulo %}Novo Aluno{% endblock %}
+{% block titulo_pagina %}Novo aluno{% endblock %}
+{% block subtitulo %}Preencha os dados para cadastrar{% endblock %}
+
+{% set pagina_ativa = 'alunos' %}
+
+{% block estilos %}
+.form-card {
+    background: white;
+    border-radius: 12px;
+    padding: 32px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+.form-section-title {
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: #6c757d;
+    letter-spacing: 0.5px;
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #f0f2f5;
+}
+.form-label { font-size: 13px; font-weight: 500; color: #1a1a2e; }
+.btn-cancelar {
+    background-color: white;
+    border: 1px solid #dee2e6;
+    color: #6c757d;
+    padding: 10px 28px;
+    border-radius: 8px;
+    font-weight: 500;
+    font-size: 14px;
+    text-decoration: none;
+}
+.btn-cancelar:hover { background-color: #f8f9fa; color: #6c757d; }
+.btn-webcam {
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.btn-ligar    { background-color: #e3f2fd; color: #1565c0; }
+.btn-capturar { background-color: var(--cor-principal); color: white; }
+.btn-refazer  { background-color: #fdecea; color: #c62828; }
+.foto-placeholder {
+    width: 200px; height: 200px; border-radius: 12px;
+    background: #f8f9fa; border: 2px dashed #dee2e6;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    color: #adb5bd; gap: 8px;
+}
+#video-preview {
+    width: 200px; height: 200px; border-radius: 12px;
+    object-fit: cover; display: none;
+    border: 3px solid var(--cor-principal);
+}
+#foto-capturada {
+    width: 200px; height: 200px; border-radius: 12px;
+    object-fit: cover; display: none;
+    border: 3px solid #2e7d32;
+}
+.bio-status {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px; background: #f8f9fa;
+    border-radius: 10px; border: 2px dashed #dee2e6;
+    margin-bottom: 8px;
+}
+{% endblock %}
+
+{% block conteudo %}
+<form method="POST" action="/alunos/novo" enctype="multipart/form-data">
+    <input type="hidden" name="foto_base64" id="foto_base64">
+
+    <!-- ==================== FOTO E BIOMETRIA ==================== -->
+    <div class="form-card mb-4">
+        <div class="form-section-title">Foto e Biometria</div>
+        <div class="row g-3">
+
+            <!-- Foto via webcam ou upload -->
+            <div class="col-md-4">
+                <label class="form-label">Foto do aluno</label>
+                <div style="display:flex; flex-direction:column; align-items:center; gap:12px;">
+                    <div class="foto-placeholder" id="foto-placeholder">
+                        <i class="bi bi-person-bounding-box" style="font-size:36px;"></i>
+                        <span style="font-size:12px;">Sem foto</span>
+                    </div>
+                    <video id="video-preview" autoplay playsinline></video>
+                    <img id="foto-capturada" src="" alt="Foto capturada">
+                    <canvas id="canvas-foto" style="display:none;"></canvas>
+                    <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:center;">
+                        <button type="button" class="btn-webcam btn-ligar" id="btn-ligar-camera"
+                            onclick="ligarCamera()">
+                            <i class="bi bi-camera-video"></i> Ligar câmera
+                        </button>
+                        <label for="input-foto" class="btn-webcam"
+                            style="background:#e8f5e9; color:#2e7d32; cursor:pointer;">
+                            <i class="bi bi-upload"></i> Upload
+                        </label>
+                        <input type="file" id="input-foto" accept="image/*"
+                            style="display:none;" onchange="previewFoto(this)">
+                        <button type="button" class="btn-webcam btn-capturar" id="btn-capturar"
+                            onclick="capturarFoto()" style="display:none;">
+                            <i class="bi bi-camera"></i> Capturar
+                        </button>
+                        <button type="button" class="btn-webcam btn-refazer" id="btn-refazer"
+                            onclick="refazerFoto()" style="display:none;">
+                            <i class="bi bi-arrow-counterclockwise"></i> Refazer
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Biometria -->
+            <div class="col-md-4">
+                <label class="form-label">Biometria digital</label>
+                <div class="bio-status">
+                    <i class="bi bi-fingerprint" style="font-size:28px; color:#adb5bd;"></i>
+                    <div>
+                        <div style="font-size:12px; color:#6c757d; font-weight:600;">Digital 1</div>
+                        <div style="font-weight:500; color:#6c757d;">⚠️ Pendente</div>
+                    </div>
+                </div>
+                <div class="bio-status">
+                    <i class="bi bi-fingerprint" style="font-size:28px; color:#adb5bd;"></i>
+                    <div>
+                        <div style="font-size:12px; color:#6c757d; font-weight:600;">Digital 2</div>
+                        <div style="font-weight:500; color:#6c757d;">⚠️ Pendente</div>
+                    </div>
+                </div>
+                <input type="hidden" name="biometria_status" value="pendente">
+                <input type="hidden" name="biometria_2_status" value="pendente">
+                <div style="font-size:12px; color:#6c757d; margin-top:8px;">
+                    <i class="bi bi-info-circle me-1"></i>
+                    0/2 digitais — cadastre após salvar o aluno
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== DADOS PESSOAIS ==================== -->
+    <div class="form-card mb-4">
+        <div class="form-section-title">Dados pessoais</div>
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label class="form-label">Nome completo *</label>
+                <input type="text" name="nome" class="form-control" placeholder="Nome do aluno" required>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Tipo de documento *</label>
+                <select name="tipo_documento" class="form-select" id="tipo_documento"
+                    onchange="atualizarMascara()" required>
+                    <option value="cpf">CPF</option>
+                    <option value="rg">RG</option>
+                    <option value="passaporte">Passaporte</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label" id="label_documento">Número do CPF *</label>
+                <input type="text" name="documento" id="campo_documento" class="form-control"
+                    placeholder="000.000.000-00" maxlength="20" required>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Data de nascimento</label>
+                <input type="date" name="data_nascimento" class="form-control">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Telefone</label>
+                <input type="text" name="telefone" class="form-control" placeholder="(00) 00000-0000">
+            </div>
+            <div class="col-md-5">
+                <label class="form-label">E-mail</label>
+                <input type="email" name="email" class="form-control" placeholder="aluno@email.com">
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== PLANO ==================== -->
+    <div class="form-card mb-4">
+        <div class="form-section-title">Plano</div>
+        <div class="row g-3">
+            <div class="col-md-4">
+                <label class="form-label">Plano *</label>
+                <select name="plano" class="form-select" required>
+                    <option value="">Selecione...</option>
+                    {% for plano in planos %}
+                    <option value="{{ plano.nome }}">{{ plano.nome }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Vencimento *</label>
+                <input type="date" name="vencimento" class="form-control" required>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Status</label>
+                <select name="ativo" class="form-select">
+                    <option value="1">Ativo</option>
+                    <option value="0">Inativo</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== DOCUMENTOS ==================== -->
+    <div class="form-card mb-4">
+        <div class="form-section-title">Documentos</div>
+        <div style="font-size:13px; color:#6c757d; margin-bottom:16px;">
+            <i class="bi bi-info-circle me-1"></i>
+            Opcional — você pode anexar documentos agora ou depois na edição do aluno
+        </div>
+
+        <div id="lista-docs">
+            <div class="row g-2 mb-2" id="doc-0">
+                <div class="col-md-4">
+                    <input type="text" name="doc_tipo[]" class="form-control"
+                        placeholder="Tipo (ex: ASO, RG...)">
+                </div>
+                <div class="col-md-6">
+                    <input type="file" name="doc_arquivo[]" class="form-control"
+                        accept=".pdf,.jpg,.jpeg,.png">
+                </div>
+                <div class="col-md-2">
+                    <button type="button" class="btn w-100"
+                        style="background:#fdecea; color:#c62828; border:none; border-radius:8px;"
+                        onclick="removerDoc(0)">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <button type="button" onclick="adicionarDoc()"
+            style="background:white; border:1px solid var(--cor-principal); color:var(--cor-principal);
+                   padding:8px 16px; border-radius:8px; font-size:13px; font-weight:500; cursor:pointer;">
+            <i class="bi bi-plus-lg me-1"></i> Adicionar documento
+        </button>
+    </div>
+
+    <!-- ==================== BOTÕES ==================== -->
+    <div class="d-flex gap-2 justify-content-end mb-4">
+        <a href="/alunos" class="btn-cancelar">Cancelar</a>
+        <button type="submit" class="btn-principal">
+            <i class="bi bi-check-lg"></i> Salvar aluno
+        </button>
+    </div>
+
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let stream   = null;
+let docCount = 1;
+
+// ==================== CÂMERA ====================
+function ligarCamera() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        alert('Seu navegador não suporta acesso à câmera.');
+        return;
+    }
+    navigator.mediaDevices.getUserMedia({ video: true })
+        .then(s => {
+            stream = s;
+            const video = document.getElementById('video-preview');
+            video.srcObject = stream;
+            video.style.display = 'block';
+            document.getElementById('foto-placeholder').style.display  = 'none';
+            document.getElementById('foto-capturada').style.display    = 'none';
+            document.getElementById('btn-ligar-camera').style.display  = 'none';
+            document.getElementById('btn-capturar').style.display      = 'inline-flex';
+            document.getElementById('btn-refazer').style.display       = 'none';
+        })
+        .catch(err => {
+            console.error('Erro câmera:', err);
+            alert('Não foi possível acessar a câmera: ' + err.message);
+        });
+}
+
+function capturarFoto() {
+    const video  = document.getElementById('video-preview');
+    const canvas = document.getElementById('canvas-foto');
+    const foto   = document.getElementById('foto-capturada');
+    canvas.width  = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d').drawImage(video, 0, 0);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+    foto.src = dataUrl;
+    foto.style.display   = 'block';
+    video.style.display  = 'none';
+    document.getElementById('foto_base64').value           = dataUrl;
+    document.getElementById('btn-capturar').style.display  = 'none';
+    document.getElementById('btn-refazer').style.display   = 'inline-flex';
+    if (stream) stream.getTracks().forEach(t => t.stop());
+}
+
+function refazerFoto() {
+    document.getElementById('foto-capturada').style.display    = 'none';
+    document.getElementById('foto-placeholder').style.display  = 'flex';
+    document.getElementById('foto_base64').value               = '';
+    document.getElementById('btn-refazer').style.display       = 'none';
+    document.getElementById('btn-ligar-camera').style.display  = 'inline-flex';
+    document.getElementById('input-foto').value                = '';
+}
+
+function previewFoto(input) {
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            document.getElementById('foto-placeholder').style.display  = 'none';
+            document.getElementById('video-preview').style.display     = 'none';
+            document.getElementById('foto-capturada').src              = e.target.result;
+            document.getElementById('foto-capturada').style.display    = 'block';
+            document.getElementById('foto_base64').value               = e.target.result;
+            document.getElementById('btn-refazer').style.display       = 'inline-flex';
+            document.getElementById('btn-ligar-camera').style.display  = 'none';
+            document.getElementById('btn-capturar').style.display      = 'none';
+            if (stream) stream.getTracks().forEach(t => t.stop());
+        };
+        reader.readAsDataURL(input.files[0]);
+    }
+}
+
+// ==================== DOCUMENTO ====================
+function adicionarDoc() {
+    const id  = docCount++;
+    const div = document.createElement('div');
+    div.className = 'row g-2 mb-2';
+    div.id = `doc-${id}`;
+    div.innerHTML = `
+        <div class="col-md-4">
+            <input type="text" name="doc_tipo[]" class="form-control"
+                placeholder="Tipo (ex: ASO, RG...)">
+        </div>
+        <div class="col-md-6">
+            <input type="file" name="doc_arquivo[]" class="form-control"
+                accept=".pdf,.jpg,.jpeg,.png">
+        </div>
+        <div class="col-md-2">
+            <button type="button" class="btn w-100"
+                style="background:#fdecea; color:#c62828; border:none; border-radius:8px;"
+                onclick="removerDoc(${id})">
+                <i class="bi bi-trash"></i>
+            </button>
+        </div>
+    `;
+    document.getElementById('lista-docs').appendChild(div);
+}
+
+function removerDoc(id) {
+    const el = document.getElementById(`doc-${id}`);
+    if (el) el.remove();
+}
+
+// ==================== DOCUMENTO ====================
+function atualizarMascara() {
+    const tipo  = document.getElementById('tipo_documento').value;
+    const campo = document.getElementById('campo_documento');
+    const label = document.getElementById('label_documento');
+    if (tipo === 'cpf') {
+        label.textContent = 'Número do CPF *';
+        campo.placeholder = '000.000.000-00';
+        campo.maxLength   = 14;
+    } else if (tipo === 'rg') {
+        label.textContent = 'Número do RG *';
+        campo.placeholder = '00.000.000-0';
+        campo.maxLength   = 12;
+    } else {
+        label.textContent = 'Número do passaporte *';
+        campo.placeholder = 'AB123456';
+        campo.maxLength   = 20;
+    }
+    campo.value = '';
+}
+</script>
+{% endblock %}

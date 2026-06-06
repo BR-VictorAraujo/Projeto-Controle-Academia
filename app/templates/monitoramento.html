@@ -1,0 +1,289 @@
+{% extends 'base.html' %}
+
+{% block titulo %}Monitoramento{% endblock %}
+{% block titulo_pagina %}Monitoramento{% endblock %}
+{% block subtitulo %}Entradas em tempo real{% endblock %}
+
+{% set pagina_ativa = 'monitoramento' %}
+
+{% block topbar_direita %}
+<div class="relogio-lg" id="relogio"></div>
+<span style="font-size:13px; color:#6c757d;">Olá, <strong>{{ session.get('usuario', 'Administrador') }}</strong></span>
+{% endblock %}
+
+{% block estilos %}
+.painel-principal {
+    background: white; border-radius: 16px; padding: 32px 40px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05); border-top: 6px solid #dee2e6;
+    transition: border-color 0.4s;
+}
+.painel-ok      { border-top-color: #2e7d32 !important; }
+.painel-vencido { border-top-color: #c62828 !important; }
+
+.avatar-lg {
+    width: 90px; height: 90px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 36px; font-weight: 700; flex-shrink: 0;
+    background-color: #f0f2f5; color: #adb5bd; transition: all 0.4s;
+}
+.avatar-ok      { background-color: #e8f5e9 !important; color: #2e7d32 !important; }
+.avatar-vencido { background-color: #fdecea !important; color: #c62828 !important; }
+
+.aluno-nome-lg  { font-size: 28px; font-weight: 700; color: #1a1a2e; margin-bottom: 4px; }
+.aluno-plano    { font-size: 14px; color: #6c757d; margin-bottom: 12px; }
+.status-badge-lg {
+    padding: 6px 20px; border-radius: 30px;
+    font-size: 14px; font-weight: 600; display: inline-block; margin-bottom: 16px;
+}
+.badge-ok         { background-color: #e8f5e9; color: #2e7d32; }
+.badge-vencido    { background-color: #fdecea; color: #c62828; }
+.badge-aguardando { background-color: #f0f2f5; color: #adb5bd; }
+
+.info-grid {
+    display: grid; grid-template-columns: 1fr 1fr 1fr;
+    gap: 12px; margin-top: 16px; width: 100%;
+}
+.info-item {
+    background: #f8f9fa; border-radius: 10px; padding: 12px 16px;
+}
+.info-label { font-size: 11px; color: #6c757d; font-weight: 600;
+              text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+.info-value { font-size: 14px; color: #1a1a2e; font-weight: 500; }
+
+.tipo-badge {
+    font-size: 11px; font-weight: 600; padding: 2px 10px;
+    border-radius: 20px; display: inline-block;
+}
+.tipo-bio    { background: #e3f2fd; color: #1565c0; }
+.tipo-manual { background: #f3e5f5; color: #6a1b9a; }
+
+.recentes-card  {
+    background: white; border-radius: 12px;
+    padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+.recentes-title {
+    font-size: 14px; font-weight: 600; color: #1a1a2e;
+    margin-bottom: 16px; display: flex;
+    justify-content: space-between; align-items: center;
+}
+.recente-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 0; border-bottom: 1px solid #f0f2f5; font-size: 13px;
+}
+.recente-item:last-child { border-bottom: none; }
+.avatar-sm {
+    width: 36px; height: 36px; border-radius: 50%;
+    background-color: color-mix(in srgb, var(--cor-principal) 15%, white);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700; color: var(--cor-principal); flex-shrink: 0;
+}
+.recente-nome { font-weight: 500; color: #1a1a2e; }
+.recente-hora { font-size: 12px; color: #6c757d; }
+.mini-card {
+    background: white; border-radius: 12px; padding: 16px 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    display: flex; align-items: center; gap: 12px;
+}
+.mini-icon {
+    width: 40px; height: 40px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; flex-shrink: 0;
+}
+.icon-blue   { background-color: #e3f2fd; color: #1565c0; }
+.icon-green  { background-color: #e8f5e9; color: #2e7d32; }
+.icon-orange { background-color: color-mix(in srgb, var(--cor-principal) 15%, white); color: var(--cor-principal); }
+.mini-label  { font-size: 12px; color: #6c757d; }
+.mini-value  { font-size: 20px; font-weight: 700; color: #1a1a2e; line-height: 1.2; }
+.relogio-lg  { font-size: 24px; font-weight: 700; color: #1a1a2e; letter-spacing: 2px; }
+{% endblock %}
+
+{% block conteudo %}
+<div class="row g-4">
+    <!-- Painel principal -->
+    <div class="col-md-8">
+        <div class="painel-principal" id="painel">
+            <div class="d-flex align-items-center gap-4 mb-3">
+                <div class="avatar-lg" id="avatar">
+                    <i class="bi bi-person"></i>
+                </div>
+                <div>
+                    <div class="aluno-nome-lg" id="aluno-nome">Aguardando...</div>
+                    <div class="aluno-plano" id="aluno-plano">Nenhum acesso registrado ainda</div>
+                    <span class="status-badge-lg badge-aguardando" id="status-badge">Sistema pronto</span>
+                </div>
+            </div>
+
+            <div class="info-grid" id="info-grid" style="display:none !important;">
+                <div class="info-item">
+                    <div class="info-label">CPF</div>
+                    <div class="info-value" id="info-cpf">—</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Telefone</div>
+                    <div class="info-value" id="info-tel">—</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Cadastrado em</div>
+                    <div class="info-value" id="info-cad">—</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Horário de entrada</div>
+                    <div class="info-value" id="horario-acesso">—</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Tipo de acesso</div>
+                    <div class="info-value" id="info-tipo">—</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Vencimento</div>
+                    <div class="info-value" id="info-venc">—</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Acessos recentes -->
+    <div class="col-md-4">
+        <div class="recentes-card">
+            <div class="recentes-title">
+                <span>Últimas entradas</span>
+                <span style="font-size:12px; color:#6c757d;" id="ultima-att"></span>
+            </div>
+            <div id="lista-recentes">
+                {% if acessos_recentes %}
+                {% for acesso in acessos_recentes %}
+                {% set vencido = acesso.aluno.vencimento and acesso.aluno.vencimento < hoje %}
+                <div class="recente-item" style="border-left:3px solid {{ '#c62828' if vencido else '#2e7d32' }}; padding-left:10px;">
+                    <div class="avatar-sm" style="background:{{ '#fdecea' if vencido else '#e8f5e9' }}; color:{{ '#c62828' if vencido else '#2e7d32' }};">
+                        {{ acesso.aluno.nome[0].upper() }}
+                    </div>
+                    <div style="flex:1;">
+                        <div class="recente-nome">{{ acesso.aluno.nome }}</div>
+                        <div class="recente-hora">{{ acesso.entrada_em | local_time }} — {{ acesso.aluno.plano or 'sem plano' }}</div>
+                    </div>
+                    <span style="font-size:11px; font-weight:600; padding:2px 8px; border-radius:20px;
+                        background:{{ '#fdecea' if vencido else '#e8f5e9' }};
+                        color:{{ '#c62828' if vencido else '#2e7d32' }};">
+                        {{ 'Vencido' if vencido else 'OK' }}
+                    </span>
+                </div>
+                {% endfor %}
+                {% else %}
+                <div style="text-align:center; padding:24px 0; color:#6c757d; font-size:13px;">
+                    Nenhuma entrada hoje
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function atualizarRelogio() {
+    const agora = new Date();
+    document.getElementById('relogio').textContent =
+        agora.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+}
+atualizarRelogio();
+setInterval(atualizarRelogio, 1000);
+
+let ultimoAcessoId = {{ ultimo_id or 0 }};
+
+function verificarNovoAcesso() {
+    fetch('/monitoramento/ultimo')
+        .then(r => r.json())
+        .then(data => {
+            if (data.id && data.id !== ultimoAcessoId) {
+                ultimoAcessoId = data.id;
+                mostrarAcesso(data);
+                atualizarRecentes();
+                atualizarContadores();
+            }
+            const agora = new Date();
+            document.getElementById('ultima-att').textContent =
+                agora.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
+        });
+}
+
+function mostrarAcesso(data) {
+    const painel = document.getElementById('painel');
+    const avatar = document.getElementById('avatar');
+
+    document.getElementById('aluno-nome').textContent  = data.nome;
+    document.getElementById('aluno-plano').textContent = data.plano || 'Sem plano';
+    document.getElementById('info-cpf').textContent    = data.cpf || '—';
+    document.getElementById('info-tel').textContent    = data.telefone || '—';
+    document.getElementById('info-cad').textContent    = data.cadastro || '—';
+    document.getElementById('horario-acesso').textContent = 'Entrada às ' + data.hora;
+    document.getElementById('info-venc').textContent   = data.vencimento || '—';
+
+    const tipoBadge = data.tipo === 'biometria'
+        ? '<span class="tipo-badge tipo-bio">🔑 Biometria</span>'
+        : '<span class="tipo-badge tipo-manual">✋ Manual</span>';
+    document.getElementById('info-tipo').innerHTML = tipoBadge;
+
+    // Mostra grid de informacoes
+    document.getElementById('info-grid').style.display = 'grid';
+
+    if (data.foto) {
+        avatar.innerHTML = `<img src="${data.foto}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+    } else {
+        avatar.innerHTML = data.nome[0].toUpperCase();
+    }
+
+    if (data.vencido) {
+        painel.className  = 'painel-principal painel-vencido';
+        avatar.className  = 'avatar-lg avatar-vencido';
+        document.getElementById('status-badge').className   = 'status-badge-lg badge-vencido';
+        document.getElementById('status-badge').textContent = '⚠️ Plano vencido desde ' + data.vencimento;
+    } else {
+        painel.className  = 'painel-principal painel-ok';
+        avatar.className  = 'avatar-lg avatar-ok';
+        document.getElementById('status-badge').className   = 'status-badge-lg badge-ok';
+        document.getElementById('status-badge').textContent = '✅ Plano ativo até ' + data.vencimento;
+    }
+}
+
+function atualizarRecentes() {
+    fetch('/monitoramento/recentes')
+        .then(r => r.json())
+        .then(data => {
+            const lista = document.getElementById('lista-recentes');
+            if (data.length === 0) {
+                lista.innerHTML = '<div style="text-align:center;padding:24px 0;color:#6c757d;font-size:13px;">Nenhuma entrada hoje</div>';
+                return;
+            }
+            lista.innerHTML = data.map(a => `
+                <div class="recente-item" style="border-left:3px solid ${a.vencido?'#c62828':'#2e7d32'};padding-left:10px;">
+                    <div class="avatar-sm" style="background:${a.vencido?'#fdecea':'#e8f5e9'};color:${a.vencido?'#c62828':'#2e7d32'};">
+                        ${a.nome[0].toUpperCase()}
+                    </div>
+                    <div style="flex:1;">
+                        <div class="recente-nome">${a.nome}</div>
+                        <div class="recente-hora">${a.hora} — ${a.plano}</div>
+                    </div>
+                    <span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px;
+                        background:${a.vencido?'#fdecea':'#e8f5e9'};color:${a.vencido?'#c62828':'#2e7d32'};">
+                        ${a.vencido?'Vencido':'OK'}
+                    </span>
+                </div>
+            `).join('');
+        });
+}
+
+function atualizarContadores() {
+    fetch('/monitoramento/contadores')
+        .then(r => r.json())
+        .then(data => {
+            document.getElementById('total-acessos').textContent = data.total;
+            document.getElementById('total-bio').textContent     = data.biometria;
+            document.getElementById('total-manual').textContent  = data.manual;
+        });
+}
+
+setInterval(verificarNovoAcesso, 1000);
+verificarNovoAcesso();
+</script>
+{% endblock %}

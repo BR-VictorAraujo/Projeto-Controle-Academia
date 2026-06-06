@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block titulo %}Academia{% endblock %} — {{ config.nome_academia }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        :root {
+            --cor-principal: {{ config.cor_principal }};
+            --cor-sidebar:   {{ config.cor_sidebar }};
+        }
+        body { background-color: #f0f2f5; margin: 0; overflow-x: hidden; }
+
+        /* ==================== SIDEBAR ==================== */
+        .sidebar {
+            width: 240px; height: 100vh;
+            background-color: var(--cor-sidebar);
+            position: fixed; top: 0; left: 0;
+            display: flex; flex-direction: column;
+            z-index: 1000; overflow-y: auto;
+        }
+        .sidebar-logo {
+            padding: 20px; color: var(--cor-principal);
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+            display: flex; flex-direction: column;
+            align-items: center; text-align: center; gap: 8px;
+        }
+        .sidebar-logo img { width: 80px; height: 80px; object-fit: contain; border-radius: 10px; }
+        .sidebar-logo .logo-emoji { font-size: 40px; line-height: 1; }
+        .sidebar-logo .logo-nome  { font-size: 15px; font-weight: 700; color: var(--cor-principal); }
+        .sidebar-menu { padding: 16px 0; flex: 1; }
+
+        /* Item normal */
+        .sidebar-menu a {
+            display: flex; align-items: center; gap: 10px;
+            padding: 12px 20px;
+            color: rgba(255,255,255,0.65);
+            text-decoration: none; font-size: 14px; transition: all 0.2s;
+        }
+        .sidebar-menu a:hover,
+        .sidebar-menu a.active {
+            background-color: rgba(255,255,255,0.08);
+            color: var(--cor-principal);
+            border-right: 3px solid var(--cor-principal);
+        }
+        .sidebar-menu a i { font-size: 16px; }
+
+        /* ── Submenu Relatórios ── */
+        .sidebar-submenu-toggle {
+            display: flex; align-items: center; gap: 10px;
+            padding: 12px 20px; width: 100%;
+            color: rgba(255,255,255,0.65);
+            background: none; border: none;
+            font-size: 14px; text-align: left; cursor: pointer;
+            transition: all 0.2s; position: relative;
+        }
+        .sidebar-submenu-toggle:hover,
+        .sidebar-submenu-toggle.active {
+            background-color: rgba(255,255,255,0.08);
+            color: var(--cor-principal);
+            border-right: 3px solid var(--cor-principal);
+        }
+        .sidebar-submenu-toggle .chevron {
+            position: absolute; right: 18px;
+            font-size: 12px; transition: transform 0.25s;
+        }
+        .sidebar-submenu-toggle.aberto .chevron { transform: rotate(180deg); }
+        .sidebar-submenu-toggle i:first-child { font-size: 16px; }
+
+        .sidebar-submenu {
+            overflow: hidden;
+            max-height: 0;
+            transition: max-height 0.3s ease;
+            background: rgba(0,0,0,0.15);
+        }
+        .sidebar-submenu.aberto { max-height: 300px; }
+
+        .sidebar-submenu a {
+            padding: 9px 20px 9px 48px;
+            font-size: 13px;
+            color: rgba(255,255,255,0.55);
+            border-right: none !important;
+        }
+        .sidebar-submenu a:hover,
+        .sidebar-submenu a.active {
+            color: var(--cor-principal);
+            background-color: rgba(255,255,255,0.06);
+            border-right: 3px solid var(--cor-principal) !important;
+        }
+        .sidebar-submenu a i { font-size: 13px; }
+
+        .sidebar-footer {
+            padding: 16px 20px;
+            border-top: 1px solid rgba(255,255,255,0.08);
+        }
+        .sidebar-footer a {
+            display: flex; align-items: center; gap: 10px;
+            color: rgba(255,255,255,0.45); text-decoration: none; font-size: 13px;
+        }
+        .sidebar-footer a:hover { color: #ff4444; }
+
+        /* ==================== CONTEÚDO ==================== */
+        .main-content { margin-left: 240px; padding: 32px; }
+        .topbar {
+            display: flex; justify-content: space-between;
+            align-items: center; margin-bottom: 32px;
+        }
+        .topbar h1 { font-size: 22px; font-weight: 600; margin: 0; color: #1a1a2e; }
+
+        /* ==================== COMPONENTES ==================== */
+        .form-control:focus, .form-select:focus {
+            border-color: var(--cor-principal);
+            box-shadow: 0 0 0 3px color-mix(in srgb, var(--cor-principal) 20%, transparent);
+        }
+        .btn-principal {
+            background-color: var(--cor-principal); border: none;
+            color: white; padding: 10px 24px; border-radius: 8px;
+            font-weight: 500; font-size: 14px; cursor: pointer;
+            text-decoration: none; display: inline-flex; align-items: center; gap: 6px;
+        }
+        .btn-principal:hover { opacity: 0.9; color: white; }
+        .badge-ativo    { background-color: #e8f5e9; color: #2e7d32; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 500; }
+        .badge-inativo  { background-color: #fdecea; color: #c62828; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 500; }
+        .badge-vencendo { background-color: #fff3e8; color: #e65100; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 500; }
+        .card-base { background: white; border-radius: 12px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+        .table th { font-size: 12px; text-transform: uppercase; color: #6c757d; font-weight: 600; border-bottom: 1px solid #f0f2f5; }
+        .table td { font-size: 14px; vertical-align: middle; }
+        .table tbody tr:hover { background-color: #fafafa; }
+
+        /* ==================== OVERLAY ==================== */
+        .overlay-mobile {
+            display: none; position: fixed; top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            background: rgba(0,0,0,0.5); z-index: 999;
+        }
+
+        /* ==================== RESPONSIVO MOBILE ==================== */
+        @media (max-width: 768px) {
+            .sidebar { transform: translateX(-240px); transition: transform 0.3s ease; height: 100dvh; display: flex; flex-direction: column; }
+            .sidebar.aberta { transform: translateX(0); }
+            .sidebar-menu  { flex: 1; overflow-y: auto; }
+            .sidebar-footer { margin-top: auto; }
+            .main-content { margin-left: 0 !important; padding: 16px; }
+            .topbar { margin-bottom: 16px; flex-wrap: wrap; gap: 12px; }
+            .topbar h1 { font-size: 18px; }
+            .btn-hamburger {
+                display: flex !important; align-items: center; justify-content: center;
+                width: 36px; height: 36px; background: white;
+                border: 1px solid #dee2e6; border-radius: 8px;
+                cursor: pointer; font-size: 18px; color: #1a1a2e;
+            }
+            .table-responsive-mobile { overflow-x: auto; }
+            .row > [class*="col-md"] { margin-bottom: 12px; }
+            .topbar-oculto-mobile { display: none !important; }
+            .oculto-mobile { display: none !important; }
+        }
+        @media (min-width: 769px) { .btn-hamburger { display: none !important; } }
+
+        {% block estilos %}{% endblock %}
+    </style>
+</head>
+<body>
+
+<div class="overlay-mobile" id="overlay-mobile"></div>
+
+<!-- Sidebar -->
+<div class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+        {% if config.logo_url %}
+            <img src="{{ config.logo_url }}" alt="logo">
+        {% else %}
+            <span class="logo-emoji">💪</span>
+        {% endif %}
+        <span class="logo-nome">{{ config.nome_academia }}</span>
+    </div>
+    <div class="sidebar-menu">
+
+        <a href="/dashboard" class="{% if pagina_ativa == 'dashboard' %}active{% endif %}">
+            <i class="bi bi-grid"></i> Dashboard
+        </a>
+
+        <!-- Relatórios com submenu -->
+        <button class="sidebar-submenu-toggle {% if pagina_ativa == 'relatorios' %}active aberto{% endif %}"
+                id="btn-rel-toggle" onclick="toggleRelatorios()">
+            <i class="bi bi-bar-chart"></i> Relatórios
+            <i class="bi bi-chevron-down chevron"></i>
+        </button>
+        <div class="sidebar-submenu {% if pagina_ativa == 'relatorios' %}aberto{% endif %}" id="submenu-relatorios">
+            <a href="/relatorios?tipo=passagens"   class="{% if relatorio_ativo == 'passagens'   %}active{% endif %}">
+                <i class="bi bi-door-open"></i> Passagens
+            </a>
+            <a href="/relatorios?tipo=por_aluno"   class="{% if relatorio_ativo == 'por_aluno'   %}active{% endif %}">
+                <i class="bi bi-person-lines-fill"></i> Por Aluno
+            </a>
+            <a href="/relatorios?tipo=vencimentos" class="{% if relatorio_ativo == 'vencimentos' %}active{% endif %}">
+                <i class="bi bi-calendar-x"></i> Vencimentos
+            </a>
+            <a href="/relatorios?tipo=auditoria"   class="{% if relatorio_ativo == 'auditoria'   %}active{% endif %}">
+                <i class="bi bi-shield-check"></i> Auditoria
+            </a>
+            <a href="/relatorios?tipo=financeiro"  class="{% if relatorio_ativo == 'financeiro'  %}active{% endif %}">
+                <i class="bi bi-cash-coin"></i> Financeiro
+            </a>
+        </div>
+
+        <a href="/alunos" class="oculto-mobile {% if pagina_ativa == 'alunos' %}active{% endif %}">
+            <i class="bi bi-people"></i> Alunos
+        </a>
+        <a href="/acessos" class="oculto-mobile {% if pagina_ativa == 'acessos' %}active{% endif %}">
+            <i class="bi bi-door-open"></i> Controle de acesso
+        </a>
+        <a href="/monitoramento" class="oculto-mobile {% if pagina_ativa == 'monitoramento' %}active{% endif %}">
+            <i class="bi bi-display"></i> Monitoramento
+        </a>
+        <a href="/financeiro" class="oculto-mobile {% if pagina_ativa == 'financeiro' %}active{% endif %}">
+            <i class="bi bi-cash-coin"></i> Financeiro
+        </a>
+        <a href="/configuracoes" class="oculto-mobile {% if pagina_ativa == 'configuracoes' %}active{% endif %}">
+            <i class="bi bi-gear"></i> Configurações
+        </a>
+    </div>
+    <div class="sidebar-footer">
+        <a href="/logout"><i class="bi bi-box-arrow-left"></i> Sair do sistema</a>
+    </div>
+</div>
+
+<!-- Conteúdo principal -->
+<div class="main-content">
+    <div class="topbar">
+        <div style="display:flex; align-items:center; gap:12px;">
+            <button class="btn-hamburger" onclick="abrirMenu()">
+                <i class="bi bi-list"></i>
+            </button>
+            <div>
+                <h1>{% block titulo_pagina %}{% endblock %}</h1>
+                <span style="font-size:13px; color:#6c757d;">{% block subtitulo %}{% endblock %}</span>
+            </div>
+        </div>
+        <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap;">
+            {% block topbar_direita %}
+            <span style="font-size:13px; color:#6c757d;">Olá, <strong>{{ session.get('usuario', 'Administrador') }}</strong></span>
+            {% endblock %}
+        </div>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }} py-2 mb-3">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    {% block conteudo %}{% endblock %}
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+const sidebar = document.getElementById('sidebar');
+const overlay = document.getElementById('overlay-mobile');
+
+function abrirMenu() {
+    sidebar.classList.add('aberta');
+    overlay.style.display = 'block';
+}
+function fecharMenu() {
+    sidebar.classList.remove('aberta');
+    overlay.style.display = 'none';
+}
+
+overlay.addEventListener('click', fecharMenu);
+
+document.querySelectorAll('.sidebar-menu a').forEach(link => {
+    link.addEventListener('click', () => { if (window.innerWidth <= 768) fecharMenu(); });
+});
+
+window.addEventListener('resize', () => { if (window.innerWidth > 768) fecharMenu(); });
+
+// ── Submenu Relatórios ────────────────────────────────────────────────────
+function toggleRelatorios() {
+    const btn    = document.getElementById('btn-rel-toggle');
+    const submenu = document.getElementById('submenu-relatorios');
+    btn.classList.toggle('aberto');
+    submenu.classList.toggle('aberto');
+}
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

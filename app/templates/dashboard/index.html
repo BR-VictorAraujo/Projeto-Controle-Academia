@@ -1,0 +1,192 @@
+{% extends 'base.html' %}
+
+{% block titulo %}Dashboard{% endblock %}
+{% block titulo_pagina %}Dashboard{% endblock %}
+{% block subtitulo %}Visão geral da academia{% endblock %}
+
+{% block topbar_direita %}
+<span style="font-size:12px; color:#6c757d;" id="ultima-atualizacao"></span>
+<button onclick="atualizarDashboard()" class="btn-principal" style="padding:8px 16px; font-size:13px; background:white; color:#6c757d; border:1px solid #dee2e6;">
+    <i class="bi bi-arrow-clockwise" id="icone-refresh"></i> Atualizar
+</button>
+<span style="font-size:13px; color:#6c757d;">Olá, <strong>{{ session.get('usuario', 'Administrador') }}</strong></span>
+{% endblock %}
+
+{% set pagina_ativa = 'dashboard' %}
+
+{% block estilos %}
+.stat-card {
+    background: white;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    height: 100%;
+}
+.stat-card .label { font-size: 13px; color: #6c757d; margin-bottom: 8px; }
+.stat-card .value { font-size: 32px; font-weight: 700; color: #1a1a2e; line-height: 1; }
+.stat-card .icon {
+    width: 44px; height: 44px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px; margin-bottom: 16px;
+}
+.icon-orange { background-color: #fff3e8; color: var(--cor-principal); }
+.icon-green  { background-color: #e8f5e9; color: #2e7d32; }
+.icon-red    { background-color: #fdecea; color: #c62828; }
+.icon-blue   { background-color: #e3f2fd; color: #1565c0; }
+.section-title { font-size: 15px; font-weight: 600; color: #1a1a2e; margin: 32px 0 16px; }
+.alerta-card {
+    background: #fff3e8; border-radius: 12px; padding: 20px 24px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05); height: 100%;
+}
+.alerta-title { font-size: 14px; font-weight: 600; color: #e65100; margin-bottom: 12px; }
+.alerta-item {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 0; border-bottom: 1px solid rgba(230,81,0,0.1); font-size: 13px;
+}
+.alerta-item:last-child { border-bottom: none; }
+{% endblock %}
+
+{% block conteudo %}
+
+{% if alerta_senha is not none %}
+<div class="alert d-flex align-items-center gap-3 mb-4"
+     style="background:#fff3e8; border:none; border-left:4px solid var(--cor-principal); border-radius:8px; padding:16px 20px;">
+    <i class="bi bi-shield-exclamation" style="font-size:24px; color: var(--cor-principal);"></i>
+    <div>
+        <strong>Atenção!</strong>
+        {% if alerta_senha <= 0 %}
+            Sua senha expirou. Troque-a agora para continuar usando o sistema.
+        {% else %}
+            Sua senha expira em <strong>{{ alerta_senha }} dia(s)</strong>. Recomendamos trocar em breve.
+        {% endif %}
+        <a href="/usuarios" style="color: var(--cor-principal); font-weight:600; margin-left:8px;">
+            Trocar senha →
+        </a>
+    </div>
+</div>
+{% endif %}
+
+<!-- Cards de resumo -->
+
+<!-- Cards de resumo -->
+<div class="row g-3">
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="icon icon-orange"><i class="bi bi-people-fill"></i></div>
+            <div class="label">Total de alunos</div>
+            <div class="value">{{ total_alunos }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="icon icon-green"><i class="bi bi-person-check-fill"></i></div>
+            <div class="label">Alunos ativos</div>
+            <div class="value">{{ alunos_ativos }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="icon icon-red"><i class="bi bi-calendar-x-fill"></i></div>
+            <div class="label">Vencimentos próximos</div>
+            <div class="value">{{ vencendo }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="icon icon-blue"><i class="bi bi-door-open-fill"></i></div>
+            <div class="label">Acessos hoje</div>
+            <div class="value">{{ acessos_hoje }}</div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mt-1">
+    <div class="col-md-8">
+        <div class="section-title">Últimos alunos cadastrados</div>
+        <div class="card-base">
+            <table class="table table-borderless mb-0">
+                <thead>
+                    <tr>
+                        <th>Nome</th>
+                        <th>Plano</th>
+                        <th>Vencimento</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if ultimos %}
+                        {% for aluno in ultimos %}
+                        <tr>
+                            <td>
+                                <a href="/alunos/{{ aluno.id }}" style="text-decoration:none; color:#1a1a2e; font-weight:500;">
+                                    {{ aluno.nome }}
+                                </a>
+                            </td>
+                            <td>{{ aluno.plano or '—' }}</td>
+                            <td>{{ aluno.vencimento.strftime('%d/%m/%Y') if aluno.vencimento else '—' }}</td>
+                            <td>
+                                {% if aluno.ativo %}
+                                    <span class="badge-ativo">Ativo</span>
+                                {% else %}
+                                    <span class="badge-inativo">Inativo</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="4" style="text-align:center; color:#6c757d; padding:32px 0;">
+                                Nenhum aluno cadastrado ainda
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="section-title">Vencimentos próximos</div>
+        <div class="alerta-card">
+        <div class="alerta-title">
+                <i class="bi bi-exclamation-triangle me-1"></i>
+                Vencem nos próximos {{ dias_alerta }} dias
+            </div>
+            {% if alertas_vencimento %}
+                {% for aluno in alertas_vencimento %}
+                <div class="alerta-item">
+                    <a href="/alunos/{{ aluno.id }}" style="text-decoration:none; color:#1a1a2e; font-weight:500;">
+                        {{ aluno.nome }}
+                    </a>
+                    <span style="color:#e65100; font-weight:500;">
+                        {{ aluno.vencimento.strftime('%d/%m') }}
+                    </span>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div style="text-align:center; padding:16px 0; color:#6c757d; font-size:13px;">
+                    Nenhum vencimento próximo
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function atualizarDashboard() {
+    const icone = document.getElementById('icone-refresh');
+    icone.style.transition = 'transform 0.5s';
+    icone.style.transform  = 'rotate(360deg)';
+    setTimeout(() => { icone.style.transform = 'rotate(0deg)'; }, 500);
+    setTimeout(() => { location.reload(); }, 300);
+}
+function atualizarHora() {
+    const agora = new Date();
+    const hora  = agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    document.getElementById('ultima-atualizacao').textContent = 'Atualizado às ' + hora;
+}
+atualizarHora();
+</script>
+{% endblock %}

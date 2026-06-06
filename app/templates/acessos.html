@@ -1,0 +1,212 @@
+{% extends 'base.html' %}
+
+{% block titulo %}Controle de Acesso{% endblock %}
+{% block titulo_pagina %}Controle de acesso{% endblock %}
+{% block subtitulo %}Registros de entrada de hoje{% endblock %}
+
+{% set pagina_ativa = 'acessos' %}
+
+{% block topbar_direita %}
+<span style="font-size:12px; color:#6c757d;" id="relogio"></span>
+<button class="btn-principal" data-bs-toggle="modal" data-bs-target="#modalRegistrar">
+    <i class="bi bi-plus-lg"></i> Registrar acesso manual
+</button>
+<span style="font-size:13px; color:#6c757d;">Olá, <strong>{{ session.get('usuario', 'Administrador') }}</strong></span>
+{% endblock %}
+
+{% block estilos %}
+.stat-card {
+    background: white; border-radius: 12px; padding: 20px 24px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    display: flex; align-items: center; gap: 16px;
+}
+.stat-icon {
+    width: 48px; height: 48px; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; flex-shrink: 0;
+}
+.icon-blue   { background-color: #e3f2fd; color: #1565c0; }
+.icon-green  { background-color: #e8f5e9; color: #2e7d32; }
+.icon-orange { background-color: color-mix(in srgb, var(--cor-principal) 15%, white); color: var(--cor-principal); }
+.stat-label  { font-size: 13px; color: #6c757d; }
+.stat-value  { font-size: 26px; font-weight: 700; color: #1a1a2e; line-height: 1.2; }
+.badge-manual {
+    background-color: #fff3e8; color: #e65100;
+    padding: 3px 10px; border-radius: 20px; font-size: 12px;
+}
+.badge-biometria {
+    background-color: #e3f2fd; color: #1565c0;
+    padding: 3px 10px; border-radius: 20px; font-size: 12px;
+}
+.search-box {
+    border: 1px solid #dee2e6; border-radius: 8px;
+    padding: 8px 14px; font-size: 14px; width: 220px; outline: none;
+}
+.search-box:focus { border-color: var(--cor-principal); }
+.avatar-sm {
+    width: 32px; height: 32px; border-radius: 50%;
+    background-color: color-mix(in srgb, var(--cor-principal) 15%, white);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700; color: var(--cor-principal); flex-shrink: 0;
+}
+.section-title { font-size: 15px; font-weight: 600; color: #1a1a2e; margin: 24px 0 16px; }
+{% endblock %}
+
+{% block conteudo %}
+<!-- Cards de resumo -->
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="stat-card">
+            <div class="stat-icon icon-blue"><i class="bi bi-door-open-fill"></i></div>
+            <div>
+                <div class="stat-label">Acessos hoje</div>
+                <div class="stat-value">{{ total_hoje }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="stat-card">
+            <div class="stat-icon icon-green"><i class="bi bi-fingerprint"></i></div>
+            <div>
+                <div class="stat-label">Via biometria</div>
+                <div class="stat-value">{{ total_biometria }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="stat-card">
+            <div class="stat-icon icon-orange"><i class="bi bi-person-check"></i></div>
+            <div>
+                <div class="stat-label">Via manual</div>
+                <div class="stat-value">{{ total_manual }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tabela -->
+<div class="section-title">Registros de hoje</div>
+<div class="card-base">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <input type="text" class="search-box" id="busca" placeholder="🔍  Buscar aluno...">
+        <button onclick="location.reload()"
+            style="background:white; border:1px solid #dee2e6; color:#6c757d; padding:7px 14px; border-radius:8px; font-size:13px; cursor:pointer;">
+            <i class="bi bi-arrow-clockwise"></i> Atualizar
+        </button>
+    </div>
+
+    <table class="table table-borderless mb-0" id="tabela-acessos">
+        <thead>
+            <tr>
+                <th>Aluno</th>
+                <th>Horário</th>
+                <th>Tipo</th>
+                <th>Observação</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% if acessos_hoje %}
+                {% for acesso in acessos_hoje %}
+                <tr>
+                    <td>
+                        <div style="display:flex; align-items:center; gap:10px;">
+                            <div class="avatar-sm">{{ acesso.aluno.nome[0].upper() }}</div>
+                        <div style="display:flex; align-items:center; gap:10px;">
+                            {% if acesso.aluno.foto %}
+                                <img src="{{ acesso.aluno.foto }}" alt="{{ acesso.aluno.nome }}"
+                                    style="width:36px; height:36px; border-radius:50%; object-fit:cover; border:2px solid var(--cor-principal);">
+                            {% else %}
+                                <div style="width:36px; height:36px; border-radius:50%;
+                                    background: color-mix(in srgb, var(--cor-principal) 15%, white);
+                                    display:flex; align-items:center; justify-content:center;
+                                    font-size:14px; font-weight:700; color: var(--cor-principal);">
+                                    {{ acesso.aluno.nome[0].upper() }}
+                                </div>
+                            {% endif %}
+                            <a href="/alunos/{{ acesso.aluno_id }}"
+                                style="text-decoration:none; color:#1a1a2e; font-weight:500;">
+                                {{ acesso.aluno.nome }}
+                            </a>
+                        </div>
+                    </td>
+                    <td>{{ acesso.entrada_em | local_time }}</td>
+                    <td>
+                        {% if acesso.tipo == 'biometria' %}
+                            <span class="badge-biometria"><i class="bi bi-fingerprint me-1"></i>Biometria</span>
+                        {% else %}
+                            <span class="badge-manual"><i class="bi bi-person-check me-1"></i>Manual</span>
+                        {% endif %}
+                    </td>
+                    <td style="color:#6c757d;">{{ acesso.observacao or '—' }}</td>
+                </tr>
+                {% endfor %}
+            {% else %}
+                <tr>
+                    <td colspan="4" style="text-align:center; color:#6c757d; padding:40px 0;">
+                        <i class="bi bi-door-closed" style="font-size:32px; display:block; margin-bottom:8px;"></i>
+                        Nenhum acesso registrado hoje
+                    </td>
+                </tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Modal -->
+<div class="modal fade" id="modalRegistrar" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border-radius:12px; border:none;">
+            <div class="modal-header" style="border-bottom:1px solid #f0f2f5; padding:20px 24px;">
+                <h5 class="modal-title" style="font-size:16px; font-weight:600;">Registrar acesso manual</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="/acessos/registrar">
+                <div class="modal-body" style="padding:24px;">
+                    <div class="mb-3">
+                        <label class="form-label" style="font-size:13px; font-weight:500;">Aluno *</label>
+                        <select name="aluno_id" class="form-select" required>
+                            <option value="">Selecione o aluno...</option>
+                            {% for aluno in alunos_ativos %}
+                                <option value="{{ aluno.id }}">{{ aluno.nome }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" style="font-size:13px; font-weight:500;">Observação</label>
+                        <input type="text" name="observacao" class="form-control"
+                            placeholder="Ex: esqueceu a digital...">
+                    </div>
+                </div>
+                <div class="modal-footer" style="border-top:1px solid #f0f2f5; padding:16px 24px;">
+                    <button type="button" class="btn" data-bs-dismiss="modal"
+                        style="background:white; border:1px solid #dee2e6; color:#6c757d; padding:8px 20px; border-radius:8px;">
+                        Cancelar
+                    </button>
+                    <button type="submit" class="btn-principal">
+                        <i class="bi bi-check-lg me-1"></i> Registrar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function atualizarRelogio() {
+    const agora = new Date();
+    document.getElementById('relogio').textContent =
+        agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+atualizarRelogio();
+setInterval(atualizarRelogio, 1000);
+
+document.getElementById('busca').addEventListener('input', function() {
+    const termo = this.value.toLowerCase();
+    document.querySelectorAll('#tabela-acessos tbody tr').forEach(linha => {
+        linha.style.display = linha.textContent.toLowerCase().includes(termo) ? '' : 'none';
+    });
+});
+</script>
+{% endblock %}
