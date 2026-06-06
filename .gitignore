@@ -1,5 +1,3 @@
-cd "C:\Academia_teste"
-@"
 # Ambiente virtual
 venv/
 
@@ -11,11 +9,15 @@ __pycache__/
 *.pyc
 *.pyo
 
-# DLLs e binários
+# DLLs - exceto biometria
 *.dll
-*.bat
+!biometria/*.dll
+!biometria/libwinpthread-1.dll
 
 # Banco de dados local
 *.db
 *.sqlite3
-"@ | Out-File -Encoding utf8 .gitignore
+
+# Arquivos de alunos
+app/static/documentos/
+app/static/fotos/
