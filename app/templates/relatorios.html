@@ -116,7 +116,6 @@
     font-size: 12px; font-weight: 700; color: #1a1a2e; text-transform: uppercase;
     letter-spacing: 0.5px; padding: 8px 0 6px; border-bottom: 1px solid #f0f2f5; margin-bottom: 12px;
 }
-/* Modal exportar */
 .col-check { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 .col-tag {
     display: inline-block; font-size: 12px; font-weight: 500;
@@ -135,10 +134,20 @@
 .formato-btn i { font-size: 22px; display: block; margin-bottom: 4px; }
 .col-section { margin-bottom: 18px; }
 .col-section-title { font-size: 12px; font-weight: 700; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+.aniv-filtro-card {
+    background: white; border-radius: 12px; padding: 20px 24px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 12px;
+    border-left: 4px solid #e91e8c;
+}
+.badge-aniv {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: #fce4ec; color: #c2185b;
+    font-size: 13px; font-weight: 600;
+    padding: 4px 12px; border-radius: 20px; margin-bottom: 16px;
+}
 {% endblock %}
 
 {% block conteudo %}
-<!-- Banner contextual -->
 <div id="banner-relatorio" class="banner-relatorio mb-3" style="display:none;">
     <div class="banner-icone" id="banner-icone"></div>
     <div>
@@ -150,10 +159,10 @@
 <div id="area-relatorio" style="display:none;">
     <div class="section-title" id="titulo-relatorio"></div>
 
-    <!-- Barra de filtros -->
-    <div class="filtro-card">
+    <!-- Filtro data -->
+    <div class="filtro-card" id="filtro-card-data">
         <form method="GET" action="/relatorios" id="form-filtro">
-            <input type="hidden" name="tipo"       id="input-tipo">
+            <input type="hidden" name="tipo"        id="input-tipo">
             <input type="hidden" name="f_nome"      id="h_f_nome"      value="{{ f_nome }}">
             <input type="hidden" name="f_plano"     id="h_f_plano"     value="{{ f_plano }}">
             <input type="hidden" name="f_tipo_ac"   id="h_f_tipo_ac"   value="{{ f_tipo_ac }}">
@@ -185,9 +194,7 @@
                     </select>
                 </div>
                 <div class="col-md-6 d-flex gap-2 align-items-end flex-wrap">
-                    <button type="submit" class="btn-filtrar">
-                        <i class="bi bi-funnel"></i> Filtrar
-                    </button>
+                    <button type="submit" class="btn-filtrar"><i class="bi bi-funnel"></i> Filtrar</button>
                     <button type="button" class="btn-filtros-avancados" onclick="abrirFiltros()" id="btn-filtros-avancados">
                         <i class="bi bi-sliders"></i> Filtros
                         {% if filtros_ativos > 0 %}<span class="badge-filtro-count">{{ filtros_ativos }}</span>{% endif %}
@@ -199,7 +206,6 @@
                         <i class="bi bi-grid-3x3-gap-fill" id="heatmap-icon"></i>
                         <span id="heatmap-btn-label">Calor</span>
                     </button>
-                    <!-- Botão exportar abre modal -->
                     <button type="button" class="btn-exportar-rel" id="btn-exportar"
                             onclick="abrirModalExportar()" style="display:none;">
                         <i class="bi bi-download" style="color:var(--cor-principal);"></i> Exportar
@@ -209,7 +215,48 @@
         </form>
     </div>
 
-    <!-- Tags de filtros ativos -->
+    <!-- Filtro aniversariantes -->
+    <div class="aniv-filtro-card" id="filtro-card-aniv" style="display:none;">
+        <form method="GET" action="/relatorios" id="form-aniv">
+            <input type="hidden" name="tipo" value="aniversariantes">
+            <div class="row g-2 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label" style="font-size:13px; font-weight:500;">
+                        <i class="bi bi-cake2 me-1" style="color:#e91e8c;"></i> Mês dos aniversariantes
+                    </label>
+                    <select name="mes_aniversario" class="form-select" id="sel-mes-aniv">
+                        <option value="">Selecione o mês...</option>
+                        <option value="1"  {% if mes_aniversario == '1'  %}selected{% endif %}>Janeiro</option>
+                        <option value="2"  {% if mes_aniversario == '2'  %}selected{% endif %}>Fevereiro</option>
+                        <option value="3"  {% if mes_aniversario == '3'  %}selected{% endif %}>Março</option>
+                        <option value="4"  {% if mes_aniversario == '4'  %}selected{% endif %}>Abril</option>
+                        <option value="5"  {% if mes_aniversario == '5'  %}selected{% endif %}>Maio</option>
+                        <option value="6"  {% if mes_aniversario == '6'  %}selected{% endif %}>Junho</option>
+                        <option value="7"  {% if mes_aniversario == '7'  %}selected{% endif %}>Julho</option>
+                        <option value="8"  {% if mes_aniversario == '8'  %}selected{% endif %}>Agosto</option>
+                        <option value="9"  {% if mes_aniversario == '9'  %}selected{% endif %}>Setembro</option>
+                        <option value="10" {% if mes_aniversario == '10' %}selected{% endif %}>Outubro</option>
+                        <option value="11" {% if mes_aniversario == '11' %}selected{% endif %}>Novembro</option>
+                        <option value="12" {% if mes_aniversario == '12' %}selected{% endif %}>Dezembro</option>
+                    </select>
+                </div>
+                <div class="col-auto">
+                    <button type="submit" class="btn-filtrar" style="background:#e91e8c;">
+                        <i class="bi bi-funnel"></i> Buscar
+                    </button>
+                </div>
+                {% if mes_aniversario %}
+                <div class="col-auto">
+                    <button type="button" class="btn-exportar-rel" onclick="abrirModalExportar()">
+                        <i class="bi bi-download" style="color:var(--cor-principal);"></i> Exportar
+                    </button>
+                </div>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+
+    <!-- Tags filtros ativos -->
     {% if filtros_ativos > 0 %}
     <div class="filtros-tags">
         {% if f_nome %}<span class="filtro-tag"><i class="bi bi-person"></i> Nome: "{{ f_nome }}" <a href="{{ request.url | replace('&f_nome=' ~ f_nome, '') | replace('f_nome=' ~ f_nome ~ '&', '') }}">×</a></span>{% endif %}
@@ -288,12 +335,13 @@
         <div class="card-base">
             <div class="total-badge"><i class="bi bi-people"></i> {{ por_aluno|length }} aluno{{ 's' if por_aluno|length != 1 else '' }} com passagem no período</div>
             <table class="table table-borderless mb-0">
-                <thead><tr><th>Aluno</th><th>Plano</th><th>Passagens</th><th>Primeira entrada</th><th>Última entrada</th><th>Status</th></tr></thead>
+                <thead><tr><th>Aluno</th><th>Plano</th><th>Endereço</th><th>Passagens</th><th>Primeira entrada</th><th>Última entrada</th><th>Status</th></tr></thead>
                 <tbody>
                     {% for item in por_aluno %}
                     <tr>
                         <td><a href="/alunos/{{ item.aluno.id }}" style="text-decoration:none; color:#1a1a2e; font-weight:500;">{{ item.aluno.nome }}</a></td>
                         <td>{{ item.aluno.plano or '—' }}</td>
+                        <td style="color:#6c757d; font-size:13px;">{{ item.aluno.endereco or '—' }}</td>
                         <td><span style="font-weight:700; color:var(--cor-principal);">{{ item.total }}</span></td>
                         <td style="color:#6c757d; font-size:13px;">{{ item.primeiro | local_time }}</td>
                         <td style="color:#6c757d; font-size:13px;">{{ item.ultimo | local_time }}</td>
@@ -440,9 +488,54 @@
         <div class="card-base empty-state"><i class="bi bi-cash-coin"></i><p>Nenhum lançamento encontrado com os filtros aplicados.</p></div>
         {% endif %}
     </div>
+
+    <!-- Aniversariantes -->
+    <div id="rel-aniversariantes" class="relatorio-section" style="display:none;">
+        {% if not mes_aniversario %}
+        <div class="card-base empty-state">
+            <i class="bi bi-cake2" style="color:#e91e8c;"></i>
+            <p>Selecione um <strong>mês</strong> para ver os aniversariantes.</p>
+        </div>
+        {% elif aniversariantes %}
+        <div class="card-base">
+            <div class="badge-aniv">
+                <i class="bi bi-cake2"></i> {{ aniversariantes|length }} aniversariante{{ 's' if aniversariantes|length != 1 else '' }}
+            </div>
+            <table class="table table-borderless mb-0">
+                <thead><tr><th>Nome</th><th>Data de Nascimento</th><th>Idade</th><th>Telefone</th><th>E-mail</th><th>Plano</th></tr></thead>
+                <tbody>
+                    {% for aluno in aniversariantes %}
+                    {% set hoje_loop = hoje %}
+                    {% set nasc = aluno.data_nascimento %}
+                    {% set idade = hoje_loop.year - nasc.year - ((hoje_loop.month, hoje_loop.day) < (nasc.month, nasc.day)) if nasc else None %}
+                    <tr>
+                        <td>
+                            <a href="/alunos/{{ aluno.id }}" style="text-decoration:none; color:#1a1a2e; font-weight:500;">{{ aluno.nome }}</a>
+                            {% if nasc and nasc.month == hoje_loop.month and nasc.day == hoje_loop.day %}
+                            <span style="margin-left:6px; font-size:16px;" title="Aniversário hoje!">🎂</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ nasc.strftime('%d/%m/%Y') if nasc else '—' }}</td>
+                        <td>{% if idade is not none %}<span style="font-weight:600; color:var(--cor-principal);">{{ idade }} anos</span>{% else %}—{% endif %}</td>
+                        <td style="color:#6c757d; font-size:13px;">{{ aluno.telefone or '—' }}</td>
+                        <td style="color:#6c757d; font-size:13px;">{{ aluno.email or '—' }}</td>
+                        <td>{{ aluno.plano or '—' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="card-base empty-state">
+            <i class="bi bi-emoji-smile" style="color:#e91e8c;"></i>
+            <p>Nenhum aluno ativo com aniversário no mês selecionado.</p>
+        </div>
+        {% endif %}
+    </div>
+
 </div>
 
-<!-- ── Modal Exportar ─────────────────────────────────────────────────────── -->
+<!-- Modal Exportar -->
 <div class="modal fade" id="modalExportar" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content" style="border-radius:14px; border:none;">
@@ -454,83 +547,91 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" style="filter:invert(1);"></button>
             </div>
             <div class="modal-body" style="padding:24px;">
-
-                <!-- Período -->
                 <div class="mb-4" style="background:#f8f9fa; border-radius:10px; padding:12px 16px; font-size:13px; color:#6c757d;">
                     <i class="bi bi-calendar3 me-2" style="color:var(--cor-principal);"></i>
                     Período: <strong id="modal-periodo"></strong>
                 </div>
-
-                <!-- Colunas dinâmicas por relatório -->
                 <div id="modal-colunas-wrap">
                     <!-- passagens -->
                     <div id="mcols-passagens" class="modal-cols" style="display:none;">
                         <div class="col-section-title">Colunas</div>
                         <div class="col-check">
-                            <span class="col-tag marcada" data-col="data_hora"   onclick="toggleColModal(event,this)">Data/Hora</span>
-                            <span class="col-tag marcada" data-col="aluno"       onclick="toggleColModal(event,this)">Aluno</span>
-                            <span class="col-tag"         data-col="cpf"         onclick="toggleColModal(event,this)">CPF</span>
-                            <span class="col-tag"         data-col="telefone"    onclick="toggleColModal(event,this)">Telefone</span>
-                            <span class="col-tag marcada" data-col="plano"       onclick="toggleColModal(event,this)">Plano</span>
-                            <span class="col-tag marcada" data-col="tipo"        onclick="toggleColModal(event,this)">Tipo</span>
-                            <span class="col-tag"         data-col="observacao"  onclick="toggleColModal(event,this)">Observação</span>
+                            <span class="col-tag marcada" data-col="data_hora"  onclick="toggleColModal(event,this)">Data/Hora</span>
+                            <span class="col-tag marcada" data-col="aluno"      onclick="toggleColModal(event,this)">Aluno</span>
+                            <span class="col-tag"         data-col="cpf"        onclick="toggleColModal(event,this)">CPF</span>
+                            <span class="col-tag"         data-col="telefone"   onclick="toggleColModal(event,this)">Telefone</span>
+                            <span class="col-tag marcada" data-col="plano"      onclick="toggleColModal(event,this)">Plano</span>
+                            <span class="col-tag marcada" data-col="tipo"       onclick="toggleColModal(event,this)">Tipo</span>
+                            <span class="col-tag"         data-col="observacao" onclick="toggleColModal(event,this)">Observação</span>
                         </div>
                     </div>
                     <!-- por_aluno -->
                     <div id="mcols-por_aluno" class="modal-cols" style="display:none;">
                         <div class="col-section-title">Colunas</div>
                         <div class="col-check">
-                            <span class="col-tag marcada" data-col="aluno"       onclick="toggleColModal(event,this)">Aluno</span>
-                            <span class="col-tag"         data-col="cpf"         onclick="toggleColModal(event,this)">CPF</span>
-                            <span class="col-tag"         data-col="telefone"    onclick="toggleColModal(event,this)">Telefone</span>
-                            <span class="col-tag marcada" data-col="plano"       onclick="toggleColModal(event,this)">Plano</span>
-                            <span class="col-tag marcada" data-col="total"       onclick="toggleColModal(event,this)">Total passagens</span>
-                            <span class="col-tag marcada" data-col="primeiro"    onclick="toggleColModal(event,this)">Primeira entrada</span>
-                            <span class="col-tag marcada" data-col="ultimo"      onclick="toggleColModal(event,this)">Última entrada</span>
-                            <span class="col-tag marcada" data-col="status"      onclick="toggleColModal(event,this)">Status</span>
+                            <span class="col-tag marcada" data-col="aluno"    onclick="toggleColModal(event,this)">Aluno</span>
+                            <span class="col-tag"         data-col="cpf"      onclick="toggleColModal(event,this)">CPF</span>
+                            <span class="col-tag"         data-col="telefone" onclick="toggleColModal(event,this)">Telefone</span>
+                            <span class="col-tag marcada" data-col="endereco" onclick="toggleColModal(event,this)">Endereço</span>
+                            <span class="col-tag marcada" data-col="plano"    onclick="toggleColModal(event,this)">Plano</span>
+                            <span class="col-tag marcada" data-col="total"    onclick="toggleColModal(event,this)">Total passagens</span>
+                            <span class="col-tag marcada" data-col="primeiro" onclick="toggleColModal(event,this)">Primeira entrada</span>
+                            <span class="col-tag marcada" data-col="ultimo"   onclick="toggleColModal(event,this)">Última entrada</span>
+                            <span class="col-tag marcada" data-col="status"   onclick="toggleColModal(event,this)">Status</span>
                         </div>
                     </div>
                     <!-- vencimentos -->
                     <div id="mcols-vencimentos" class="modal-cols" style="display:none;">
                         <div class="col-section-title">Colunas</div>
                         <div class="col-check">
-                            <span class="col-tag marcada" data-col="aluno"       onclick="toggleColModal(event,this)">Aluno</span>
-                            <span class="col-tag"         data-col="cpf"         onclick="toggleColModal(event,this)">CPF</span>
-                            <span class="col-tag"         data-col="telefone"    onclick="toggleColModal(event,this)">Telefone</span>
-                            <span class="col-tag marcada" data-col="plano"       onclick="toggleColModal(event,this)">Plano</span>
-                            <span class="col-tag marcada" data-col="vencimento"  onclick="toggleColModal(event,this)">Vencimento</span>
-                            <span class="col-tag marcada" data-col="situacao"    onclick="toggleColModal(event,this)">Situação</span>
+                            <span class="col-tag marcada" data-col="aluno"      onclick="toggleColModal(event,this)">Aluno</span>
+                            <span class="col-tag"         data-col="cpf"        onclick="toggleColModal(event,this)">CPF</span>
+                            <span class="col-tag"         data-col="telefone"   onclick="toggleColModal(event,this)">Telefone</span>
+                            <span class="col-tag marcada" data-col="plano"      onclick="toggleColModal(event,this)">Plano</span>
+                            <span class="col-tag marcada" data-col="vencimento" onclick="toggleColModal(event,this)">Vencimento</span>
+                            <span class="col-tag marcada" data-col="situacao"   onclick="toggleColModal(event,this)">Situação</span>
                         </div>
                     </div>
                     <!-- auditoria -->
                     <div id="mcols-auditoria" class="modal-cols" style="display:none;">
                         <div class="col-section-title">Colunas</div>
                         <div class="col-check">
-                            <span class="col-tag marcada" data-col="data_hora"   onclick="toggleColModal(event,this)">Data/Hora</span>
-                            <span class="col-tag marcada" data-col="usuario"     onclick="toggleColModal(event,this)">Usuário</span>
-                            <span class="col-tag marcada" data-col="acao"        onclick="toggleColModal(event,this)">Ação</span>
-                            <span class="col-tag marcada" data-col="detalhes"    onclick="toggleColModal(event,this)">Detalhes</span>
-                            <span class="col-tag"         data-col="ip"          onclick="toggleColModal(event,this)">IP</span>
+                            <span class="col-tag marcada" data-col="data_hora" onclick="toggleColModal(event,this)">Data/Hora</span>
+                            <span class="col-tag marcada" data-col="usuario"   onclick="toggleColModal(event,this)">Usuário</span>
+                            <span class="col-tag marcada" data-col="acao"      onclick="toggleColModal(event,this)">Ação</span>
+                            <span class="col-tag marcada" data-col="detalhes"  onclick="toggleColModal(event,this)">Detalhes</span>
+                            <span class="col-tag"         data-col="ip"        onclick="toggleColModal(event,this)">IP</span>
                         </div>
                     </div>
                     <!-- financeiro -->
                     <div id="mcols-financeiro" class="modal-cols" style="display:none;">
                         <div class="col-section-title">Colunas</div>
                         <div class="col-check">
-                            <span class="col-tag marcada" data-col="aluno"       onclick="toggleColModal(event,this)">Aluno</span>
-                            <span class="col-tag"         data-col="cpf"         onclick="toggleColModal(event,this)">CPF</span>
-                            <span class="col-tag"         data-col="telefone"    onclick="toggleColModal(event,this)">Telefone</span>
-                            <span class="col-tag marcada" data-col="plano"       onclick="toggleColModal(event,this)">Plano</span>
-                            <span class="col-tag marcada" data-col="valor"       onclick="toggleColModal(event,this)">Valor</span>
-                            <span class="col-tag marcada" data-col="vencimento"  onclick="toggleColModal(event,this)">Vencimento</span>
-                            <span class="col-tag marcada" data-col="pagamento"   onclick="toggleColModal(event,this)">Data pagamento</span>
-                            <span class="col-tag marcada" data-col="forma"       onclick="toggleColModal(event,this)">Forma</span>
-                            <span class="col-tag marcada" data-col="status"      onclick="toggleColModal(event,this)">Status</span>
+                            <span class="col-tag marcada" data-col="aluno"      onclick="toggleColModal(event,this)">Aluno</span>
+                            <span class="col-tag"         data-col="cpf"        onclick="toggleColModal(event,this)">CPF</span>
+                            <span class="col-tag"         data-col="telefone"   onclick="toggleColModal(event,this)">Telefone</span>
+                            <span class="col-tag marcada" data-col="plano"      onclick="toggleColModal(event,this)">Plano</span>
+                            <span class="col-tag marcada" data-col="valor"      onclick="toggleColModal(event,this)">Valor</span>
+                            <span class="col-tag marcada" data-col="vencimento" onclick="toggleColModal(event,this)">Vencimento</span>
+                            <span class="col-tag marcada" data-col="pagamento"  onclick="toggleColModal(event,this)">Data pagamento</span>
+                            <span class="col-tag marcada" data-col="forma"      onclick="toggleColModal(event,this)">Forma</span>
+                            <span class="col-tag marcada" data-col="status"     onclick="toggleColModal(event,this)">Status</span>
+                        </div>
+                    </div>
+                    <!-- aniversariantes -->
+                    <div id="mcols-aniversariantes" class="modal-cols" style="display:none;">
+                        <div class="col-section-title">Colunas</div>
+                        <div class="col-check">
+                            <span class="col-tag marcada" data-col="nome"            onclick="toggleColModal(event,this)">Nome</span>
+                            <span class="col-tag marcada" data-col="data_nascimento" onclick="toggleColModal(event,this)">Data de Nascimento</span>
+                            <span class="col-tag marcada" data-col="idade"           onclick="toggleColModal(event,this)">Idade</span>
+                            <span class="col-tag marcada" data-col="telefone"        onclick="toggleColModal(event,this)">Telefone</span>
+                            <span class="col-tag"         data-col="email"           onclick="toggleColModal(event,this)">E-mail</span>
+                            <span class="col-tag marcada" data-col="plano"           onclick="toggleColModal(event,this)">Plano</span>
+                            <span class="col-tag"         data-col="cpf"             onclick="toggleColModal(event,this)">CPF</span>
                         </div>
                     </div>
                 </div>
-
-                <!-- Formato -->
                 <div class="mt-4">
                     <div class="col-section-title">Formato</div>
                     <div class="d-flex gap-3">
@@ -640,7 +741,6 @@
                     <option value="">Todos</option>
                     <option value="pago"     {% if f_pg_status == 'pago'     %}selected{% endif %}>Pago</option>
                     <option value="pendente" {% if f_pg_status == 'pendente' %}selected{% endif %}>Pendente</option>
-                    <option value="vencido"  {% if f_pg_status == 'vencido'  %}selected{% endif %}>Vencido</option>
                 </select>
             </div>
             <div class="filtro-grupo">
@@ -666,20 +766,23 @@ let tipoAtivo    = '{{ tipo_ativo or "" }}';
 let formatoExp   = 'pdf';
 const filtroAplicado = {{ 'true' if filtro_aplicado else 'false' }};
 const temPassagens   = {{ 'true' if (filtro_aplicado and passagens) else 'false' }};
+const mesAniversario = '{{ mes_aniversario or "" }}';
 
 const titulos = {
-    'passagens'  : 'Relatório de Passagens',
-    'por_aluno'  : 'Passagens por Aluno',
-    'vencimentos': 'Vencimentos de Planos',
-    'auditoria'  : 'Log de Auditoria',
-    'financeiro' : 'Relatório Financeiro'
+    'passagens'      : 'Relatório de Passagens',
+    'por_aluno'      : 'Passagens por Aluno',
+    'vencimentos'    : 'Vencimentos de Planos',
+    'auditoria'      : 'Log de Auditoria',
+    'financeiro'     : 'Relatório Financeiro',
+    'aniversariantes': 'Aniversariantes do Mês',
 };
 const bannerInfo = {
-    'passagens'  : { icone: 'bi-door-open',        desc: 'Lista todas as entradas registradas no período. Inclui mapa de calor por hora e dia da semana.' },
-    'por_aluno'  : { icone: 'bi-person-lines-fill', desc: 'Agrupa passagens por aluno: total, primeira e última entrada no período.' },
-    'vencimentos': { icone: 'bi-calendar-x',        desc: 'Situação dos planos de todos os alunos ativos — em dia, vencendo em breve ou vencido.' },
-    'auditoria'  : { icone: 'bi-shield-check',      desc: 'Todas as ações realizadas no sistema: logins, cadastros, edições e exclusões.' },
-    'financeiro' : { icone: 'bi-cash-coin',         desc: 'Pagamentos por período, filtrados por status e forma de pagamento.' },
+    'passagens'      : { icone: 'bi-door-open',        desc: 'Lista todas as entradas registradas no período. Inclui mapa de calor por hora e dia da semana.' },
+    'por_aluno'      : { icone: 'bi-person-lines-fill', desc: 'Agrupa passagens por aluno: total, primeira e última entrada no período. Inclui endereço.' },
+    'vencimentos'    : { icone: 'bi-calendar-x',        desc: 'Situação dos planos de todos os alunos ativos — em dia, vencendo em breve ou vencido.' },
+    'auditoria'      : { icone: 'bi-shield-check',      desc: 'Todas as ações realizadas no sistema: logins, cadastros, edições e exclusões.' },
+    'financeiro'     : { icone: 'bi-cash-coin',         desc: 'Pagamentos por período, filtrados por status e forma de pagamento.' },
+    'aniversariantes': { icone: 'bi-cake2',             desc: 'Lista alunos ativos que fazem aniversário no mês selecionado.' },
 };
 const heatmapData  = {{ heatmap_json | safe }};
 let heatmapVisivel = false;
@@ -689,10 +792,13 @@ function mostrarRelatorio(tipo) {
     document.getElementById('area-relatorio').style.display = 'block';
     document.querySelectorAll('.relatorio-section').forEach(s => s.style.display = 'none');
     document.getElementById('rel-' + tipo).style.display = 'block';
-    document.getElementById('titulo-relatorio').textContent = titulos[tipo];
+    document.getElementById('titulo-relatorio').textContent = titulos[tipo] || tipo;
     document.getElementById('input-tipo').value = tipo;
 
-    // Banner
+    const isAniv = tipo === 'aniversariantes';
+    document.getElementById('filtro-card-data').style.display = isAniv ? 'none' : 'block';
+    document.getElementById('filtro-card-aniv').style.display = isAniv ? 'block' : 'none';
+
     const info = bannerInfo[tipo];
     if (info) {
         document.getElementById('banner-icone').innerHTML = `<i class="bi ${info.icone}"></i>`;
@@ -701,10 +807,9 @@ function mostrarRelatorio(tipo) {
         document.getElementById('banner-relatorio').style.display = 'flex';
     }
 
-    // Botão exportar — só quando filtro aplicado
-    document.getElementById('btn-exportar').style.display = filtroAplicado ? 'inline-flex' : 'none';
+    document.getElementById('btn-exportar').style.display =
+        (!isAniv && filtroAplicado) ? 'inline-flex' : 'none';
 
-    // Botão calor
     const btnHeatmap = document.getElementById('btn-toggle-heatmap');
     if (tipo === 'passagens' && filtroAplicado) {
         btnHeatmap.style.display = 'inline-flex';
@@ -726,31 +831,29 @@ function mostrarRelatorio(tipo) {
     document.getElementById('area-relatorio').scrollIntoView({ behavior: 'smooth' });
 }
 
-// ── Modal exportar ────────────────────────────────────────────────────────────
+// Modal exportar
 function abrirModalExportar() {
-    const inicio = document.getElementById('filtro-inicio').value;
-    const fim    = document.getElementById('filtro-fim').value;
-    const fmt    = (inicio && fim)
-        ? `${inicio.split('-').reverse().join('/')} a ${fim.split('-').reverse().join('/')}`
-        : 'Período não informado';
-
+    let fmt;
+    if (tipoAtivo === 'aniversariantes') {
+        const sel = document.getElementById('sel-mes-aniv');
+        fmt = sel ? sel.options[sel.selectedIndex].text : 'Mês não selecionado';
+    } else {
+        const inicio = document.getElementById('filtro-inicio').value;
+        const fim    = document.getElementById('filtro-fim').value;
+        fmt = (inicio && fim)
+            ? `${inicio.split('-').reverse().join('/')} a ${fim.split('-').reverse().join('/')}`
+            : 'Período não informado';
+    }
     document.getElementById('modal-titulo-rel').textContent = titulos[tipoAtivo] || '';
     document.getElementById('modal-periodo').textContent    = fmt;
-
-    // Mostra somente colunas do relatório ativo
     document.querySelectorAll('.modal-cols').forEach(el => el.style.display = 'none');
     const mc = document.getElementById('mcols-' + tipoAtivo);
     if (mc) mc.style.display = 'block';
-
-    // Reset formato
     selecionarFormatoExp('pdf');
     new bootstrap.Modal(document.getElementById('modalExportar')).show();
 }
 
-function toggleColModal(e, el) {
-    e.stopPropagation();
-    el.classList.toggle('marcada');
-}
+function toggleColModal(e, el) { e.stopPropagation(); el.classList.toggle('marcada'); }
 
 function selecionarFormatoExp(fmt) {
     formatoExp = fmt;
@@ -759,18 +862,22 @@ function selecionarFormatoExp(fmt) {
 }
 
 function executarExporte() {
-    const inicio = document.getElementById('filtro-inicio').value;
-    const fim    = document.getElementById('filtro-fim').value;
-
-    // Coleta colunas marcadas do painel ativo
     const colunas = [];
     const mc = document.getElementById('mcols-' + tipoAtivo);
     if (mc) mc.querySelectorAll('.col-tag.marcada').forEach(el => colunas.push(el.dataset.col));
-
     if (colunas.length === 0) { alert('Selecione ao menos uma coluna.'); return; }
 
-    const qs = filtrosQueryString();
-    const url = `/relatorios/exportar/${formatoExp}?tipo=${tipoAtivo}&inicio=${inicio}&fim=${fim}&colunas=${colunas.join(',')}&${qs}`;
+    let url;
+    if (tipoAtivo === 'aniversariantes') {
+        const mes = document.getElementById('sel-mes-aniv').value;
+        if (!mes) { alert('Selecione o mês primeiro.'); return; }
+        url = `/relatorios/exportar/${formatoExp}/aniversariantes?mes=${mes}&colunas=${colunas.join(',')}`;
+    } else {
+        const inicio = document.getElementById('filtro-inicio').value;
+        const fim    = document.getElementById('filtro-fim').value;
+        const qs = filtrosQueryString();
+        url = `/relatorios/exportar/${formatoExp}?tipo=${tipoAtivo}&inicio=${inicio}&fim=${fim}&colunas=${colunas.join(',')}&${qs}`;
+    }
     bootstrap.Modal.getInstance(document.getElementById('modalExportar')).hide();
     window.location.href = url;
 }
@@ -780,7 +887,6 @@ function filtrosQueryString() {
     return campos.map(c => { const el = document.getElementById('h_' + c); return el && el.value ? `${c}=${encodeURIComponent(el.value)}` : ''; }).filter(Boolean).join('&');
 }
 
-// ── Filtros avançados ─────────────────────────────────────────────────────────
 function abrirFiltros() {
     document.querySelectorAll('.filtro-contexto').forEach(el => el.style.display = 'none');
     const fc = document.getElementById('fc-' + tipoAtivo);
@@ -800,7 +906,6 @@ function limparFiltros() {
     document.getElementById('form-filtro').submit();
 }
 
-// ── Heatmap ───────────────────────────────────────────────────────────────────
 function toggleHeatmap() {
     heatmapVisivel = !heatmapVisivel;
     const tabela=document.getElementById('tabela-passagens'), hm=document.getElementById('heatmap-body');

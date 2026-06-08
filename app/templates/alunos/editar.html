@@ -7,7 +7,6 @@
 {% set pagina_ativa = 'alunos' %}
 
 {% block estilos %}
-/* Cards e formulário */
 .form-card {
     background: white;
     border-radius: 12px;
@@ -25,8 +24,6 @@
     border-bottom: 1px solid #f0f2f5;
 }
 .form-label { font-size: 13px; font-weight: 500; color: #1a1a2e; }
-
-/* Botões */
 .btn-cancelar {
     background-color: white;
     border: 1px solid #dee2e6;
@@ -49,8 +46,6 @@
     cursor: pointer;
 }
 .btn-excluir:hover { background-color: #fdecea; }
-
-/* Webcam e foto */
 .btn-webcam {
     padding: 8px 16px;
     border-radius: 8px;
@@ -72,8 +67,6 @@
     align-items: center; justify-content: center;
     color: #adb5bd; gap: 8px;
 }
-
-/* Biometria */
 .bio-status {
     display: flex; align-items: center; gap: 12px;
     padding: 12px; background: #f8f9fa;
@@ -83,8 +76,6 @@
 .bio-status.cadastrada {
     background: #e8f5e9; border-color: #2e7d32; border-style: solid;
 }
-
-/* Documentos */
 .doc-card {
     background: #f8f9fa;
     border-radius: 10px;
@@ -110,16 +101,13 @@
 
 {% block conteudo %}
 
-<!-- ==================== FORMULÁRIO PRINCIPAL ==================== -->
 <div class="form-card">
     <form method="POST" action="/alunos/{{ aluno.id }}/editar" enctype="multipart/form-data" id="form-editar">
         <input type="hidden" name="foto_base64" id="foto_base64">
 
-        <!-- ==================== FOTO E BIOMETRIA ==================== -->
+        <!-- FOTO E BIOMETRIA -->
         <div class="form-section-title">Foto e Biometria</div>
         <div class="row g-3 mb-4">
-
-            <!-- Foto via webcam ou upload -->
             <div class="col-md-4">
                 <label class="form-label">Foto do aluno</label>
                 <div style="display:flex; flex-direction:column; align-items:center; gap:12px;">
@@ -140,30 +128,23 @@
                                border:3px solid var(--cor-principal);"></video>
                     <canvas id="canvas-foto" style="display:none;"></canvas>
                     <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:center;">
-                        <button type="button" class="btn-webcam btn-ligar" id="btn-ligar-camera"
-                            onclick="ligarCamera()">
+                        <button type="button" class="btn-webcam btn-ligar" id="btn-ligar-camera" onclick="ligarCamera()">
                             <i class="bi bi-camera-video"></i>
                             {% if aluno.foto %}Trocar foto{% else %}Ligar câmera{% endif %}
                         </button>
-                        <label for="input-foto" class="btn-webcam"
-                            style="background:#e8f5e9; color:#2e7d32; cursor:pointer;">
+                        <label for="input-foto" class="btn-webcam" style="background:#e8f5e9; color:#2e7d32; cursor:pointer;">
                             <i class="bi bi-upload"></i> Upload
                         </label>
-                        <input type="file" id="input-foto" accept="image/*"
-                            style="display:none;" onchange="previewFoto(this)">
-                        <button type="button" class="btn-webcam btn-capturar" id="btn-capturar"
-                            onclick="capturarFoto()" style="display:none;">
+                        <input type="file" id="input-foto" accept="image/*" style="display:none;" onchange="previewFoto(this)">
+                        <button type="button" class="btn-webcam btn-capturar" id="btn-capturar" onclick="capturarFoto()" style="display:none;">
                             <i class="bi bi-camera"></i> Capturar
                         </button>
-                        <button type="button" class="btn-webcam btn-refazer" id="btn-refazer"
-                            onclick="refazerFoto()" style="display:none;">
+                        <button type="button" class="btn-webcam btn-refazer" id="btn-refazer" onclick="refazerFoto()" style="display:none;">
                             <i class="bi bi-arrow-counterclockwise"></i> Refazer
                         </button>
                     </div>
                 </div>
             </div>
-
-            <!-- Status das 2 digitais -->
             <div class="col-md-4">
                 <label class="form-label">Biometria digital</label>
                 <div class="bio-status {% if aluno.biometria_status == 'cadastrada' %}cadastrada{% endif %}">
@@ -195,7 +176,7 @@
             </div>
         </div>
 
-        <!-- ==================== DADOS PESSOAIS ==================== -->
+        <!-- DADOS PESSOAIS -->
         <div class="form-section-title">Dados pessoais</div>
         <div class="row g-3 mb-4">
             <div class="col-md-6">
@@ -204,8 +185,7 @@
             </div>
             <div class="col-md-2">
                 <label class="form-label">Tipo de documento *</label>
-                <select name="tipo_documento" class="form-select" id="tipo_documento"
-                    onchange="atualizarMascara()" required>
+                <select name="tipo_documento" class="form-select" id="tipo_documento" onchange="atualizarMascara()" required>
                     <option value="cpf"        {% if aluno.tipo_documento == 'cpf'        %}selected{% endif %}>CPF</option>
                     <option value="rg"         {% if aluno.tipo_documento == 'rg'         %}selected{% endif %}>RG</option>
                     <option value="passaporte" {% if aluno.tipo_documento == 'passaporte' %}selected{% endif %}>Passaporte</option>
@@ -235,9 +215,15 @@
                 <input type="email" name="email" class="form-control"
                     value="{{ aluno.email or '' }}" placeholder="aluno@email.com">
             </div>
+            <div class="col-md-12">
+                <label class="form-label">Endereço</label>
+                <input type="text" name="endereco" class="form-control"
+                    value="{{ aluno.endereco or '' }}"
+                    placeholder="Rua, número, bairro, cidade...">
+            </div>
         </div>
 
-        <!-- ==================== PLANO ==================== -->
+        <!-- PLANO -->
         <div class="form-section-title">Plano</div>
         <div class="row g-3 mb-4">
             <div class="col-md-4">
@@ -268,20 +254,18 @@
     </form>
 </div>
 
-<!-- ==================== DOCUMENTOS ==================== -->
+<!-- DOCUMENTOS -->
 <div class="form-card mt-4">
     <div class="form-section-title">Documentos anexados</div>
     <form method="POST" action="/alunos/{{ aluno.id }}/documentos/upload" enctype="multipart/form-data">
         <div class="row g-3 mb-4">
             <div class="col-md-4">
                 <label class="form-label">Tipo do documento *</label>
-                <input type="text" name="tipo" class="form-control"
-                    placeholder="Ex: ASO, RG, Contrato..." required>
+                <input type="text" name="tipo" class="form-control" placeholder="Ex: ASO, RG, Contrato..." required>
             </div>
             <div class="col-md-5">
                 <label class="form-label">Arquivo *</label>
-                <input type="file" name="arquivo" class="form-control"
-                    accept=".pdf,.jpg,.jpeg,.png" required>
+                <input type="file" name="arquivo" class="form-control" accept=".pdf,.jpg,.jpeg,.png" required>
                 <div class="form-text">PDF, JPG ou PNG — máx. 5MB</div>
             </div>
             <div class="col-md-3 d-flex align-items-end">
@@ -291,7 +275,6 @@
             </div>
         </div>
     </form>
-
     {% if documentos %}
         {% for doc in documentos %}
         <div class="doc-card">
@@ -324,22 +307,20 @@
     {% endif %}
 </div>
 
-<!-- ==================== BOTÕES ==================== -->
+<!-- BOTÕES -->
 <div class="d-flex gap-2 justify-content-between mt-4">
-    <button type="button" class="btn-excluir"
-        onclick="confirmarExclusao({{ aluno.id }}, '{{ aluno.nome }}')">
+    <button type="button" class="btn-excluir" onclick="confirmarExclusao({{ aluno.id }}, '{{ aluno.nome }}')">
         <i class="bi bi-trash me-1"></i> Excluir aluno
     </button>
     <div class="d-flex gap-2">
         <a href="/alunos" class="btn-cancelar">Cancelar</a>
-        <button type="button" class="btn-principal"
-            onclick="document.getElementById('form-editar').submit()">
+        <button type="button" class="btn-principal" onclick="document.getElementById('form-editar').submit()">
             <i class="bi bi-check-lg"></i> Salvar alterações
         </button>
     </div>
 </div>
 
-<!-- ==================== MODAL EXCLUSÃO ==================== -->
+<!-- MODAL EXCLUSÃO -->
 <div class="modal fade" id="modalExcluir" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content" style="border-radius:12px; border:none;">
@@ -381,10 +362,7 @@ function ligarCamera() {
             document.getElementById('btn-capturar').style.display      = 'inline-flex';
             document.getElementById('btn-refazer').style.display       = 'none';
         })
-        .catch(err => {
-            console.error('Erro câmera:', err);
-            alert('Não foi possível acessar a câmera: ' + err.message);
-        });
+        .catch(err => { alert('Não foi possível acessar a câmera: ' + err.message); });
 }
 
 function capturarFoto() {

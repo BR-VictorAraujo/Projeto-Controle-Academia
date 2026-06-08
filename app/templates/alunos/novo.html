@@ -78,12 +78,10 @@
 <form method="POST" action="/alunos/novo" enctype="multipart/form-data">
     <input type="hidden" name="foto_base64" id="foto_base64">
 
-    <!-- ==================== FOTO E BIOMETRIA ==================== -->
+    <!-- FOTO E BIOMETRIA -->
     <div class="form-card mb-4">
         <div class="form-section-title">Foto e Biometria</div>
         <div class="row g-3">
-
-            <!-- Foto via webcam ou upload -->
             <div class="col-md-4">
                 <label class="form-label">Foto do aluno</label>
                 <div style="display:flex; flex-direction:column; align-items:center; gap:12px;">
@@ -95,29 +93,22 @@
                     <img id="foto-capturada" src="" alt="Foto capturada">
                     <canvas id="canvas-foto" style="display:none;"></canvas>
                     <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:center;">
-                        <button type="button" class="btn-webcam btn-ligar" id="btn-ligar-camera"
-                            onclick="ligarCamera()">
+                        <button type="button" class="btn-webcam btn-ligar" id="btn-ligar-camera" onclick="ligarCamera()">
                             <i class="bi bi-camera-video"></i> Ligar câmera
                         </button>
-                        <label for="input-foto" class="btn-webcam"
-                            style="background:#e8f5e9; color:#2e7d32; cursor:pointer;">
+                        <label for="input-foto" class="btn-webcam" style="background:#e8f5e9; color:#2e7d32; cursor:pointer;">
                             <i class="bi bi-upload"></i> Upload
                         </label>
-                        <input type="file" id="input-foto" accept="image/*"
-                            style="display:none;" onchange="previewFoto(this)">
-                        <button type="button" class="btn-webcam btn-capturar" id="btn-capturar"
-                            onclick="capturarFoto()" style="display:none;">
+                        <input type="file" id="input-foto" accept="image/*" style="display:none;" onchange="previewFoto(this)">
+                        <button type="button" class="btn-webcam btn-capturar" id="btn-capturar" onclick="capturarFoto()" style="display:none;">
                             <i class="bi bi-camera"></i> Capturar
                         </button>
-                        <button type="button" class="btn-webcam btn-refazer" id="btn-refazer"
-                            onclick="refazerFoto()" style="display:none;">
+                        <button type="button" class="btn-webcam btn-refazer" id="btn-refazer" onclick="refazerFoto()" style="display:none;">
                             <i class="bi bi-arrow-counterclockwise"></i> Refazer
                         </button>
                     </div>
                 </div>
             </div>
-
-            <!-- Biometria -->
             <div class="col-md-4">
                 <label class="form-label">Biometria digital</label>
                 <div class="bio-status">
@@ -144,7 +135,7 @@
         </div>
     </div>
 
-    <!-- ==================== DADOS PESSOAIS ==================== -->
+    <!-- DADOS PESSOAIS -->
     <div class="form-card mb-4">
         <div class="form-section-title">Dados pessoais</div>
         <div class="row g-3">
@@ -154,8 +145,7 @@
             </div>
             <div class="col-md-2">
                 <label class="form-label">Tipo de documento *</label>
-                <select name="tipo_documento" class="form-select" id="tipo_documento"
-                    onchange="atualizarMascara()" required>
+                <select name="tipo_documento" class="form-select" id="tipo_documento" onchange="atualizarMascara()" required>
                     <option value="cpf">CPF</option>
                     <option value="rg">RG</option>
                     <option value="passaporte">Passaporte</option>
@@ -178,10 +168,15 @@
                 <label class="form-label">E-mail</label>
                 <input type="email" name="email" class="form-control" placeholder="aluno@email.com">
             </div>
+            <div class="col-md-12">
+                <label class="form-label">Endereço</label>
+                <input type="text" name="endereco" class="form-control"
+                    placeholder="Rua, número, bairro, cidade...">
+            </div>
         </div>
     </div>
 
-    <!-- ==================== PLANO ==================== -->
+    <!-- PLANO -->
     <div class="form-card mb-4">
         <div class="form-section-title">Plano</div>
         <div class="row g-3">
@@ -208,23 +203,20 @@
         </div>
     </div>
 
-    <!-- ==================== DOCUMENTOS ==================== -->
+    <!-- DOCUMENTOS -->
     <div class="form-card mb-4">
         <div class="form-section-title">Documentos</div>
         <div style="font-size:13px; color:#6c757d; margin-bottom:16px;">
             <i class="bi bi-info-circle me-1"></i>
             Opcional — você pode anexar documentos agora ou depois na edição do aluno
         </div>
-
         <div id="lista-docs">
             <div class="row g-2 mb-2" id="doc-0">
                 <div class="col-md-4">
-                    <input type="text" name="doc_tipo[]" class="form-control"
-                        placeholder="Tipo (ex: ASO, RG...)">
+                    <input type="text" name="doc_tipo[]" class="form-control" placeholder="Tipo (ex: ASO, RG...)">
                 </div>
                 <div class="col-md-6">
-                    <input type="file" name="doc_arquivo[]" class="form-control"
-                        accept=".pdf,.jpg,.jpeg,.png">
+                    <input type="file" name="doc_arquivo[]" class="form-control" accept=".pdf,.jpg,.jpeg,.png">
                 </div>
                 <div class="col-md-2">
                     <button type="button" class="btn w-100"
@@ -235,7 +227,6 @@
                 </div>
             </div>
         </div>
-
         <button type="button" onclick="adicionarDoc()"
             style="background:white; border:1px solid var(--cor-principal); color:var(--cor-principal);
                    padding:8px 16px; border-radius:8px; font-size:13px; font-weight:500; cursor:pointer;">
@@ -243,7 +234,7 @@
         </button>
     </div>
 
-    <!-- ==================== BOTÕES ==================== -->
+    <!-- BOTÕES -->
     <div class="d-flex gap-2 justify-content-end mb-4">
         <a href="/alunos" class="btn-cancelar">Cancelar</a>
         <button type="submit" class="btn-principal">
@@ -259,7 +250,6 @@
 let stream   = null;
 let docCount = 1;
 
-// ==================== CÂMERA ====================
 function ligarCamera() {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         alert('Seu navegador não suporta acesso à câmera.');
@@ -277,10 +267,7 @@ function ligarCamera() {
             document.getElementById('btn-capturar').style.display      = 'inline-flex';
             document.getElementById('btn-refazer').style.display       = 'none';
         })
-        .catch(err => {
-            console.error('Erro câmera:', err);
-            alert('Não foi possível acessar a câmera: ' + err.message);
-        });
+        .catch(err => { alert('Não foi possível acessar a câmera: ' + err.message); });
 }
 
 function capturarFoto() {
@@ -327,7 +314,6 @@ function previewFoto(input) {
     }
 }
 
-// ==================== DOCUMENTO ====================
 function adicionarDoc() {
     const id  = docCount++;
     const div = document.createElement('div');
@@ -335,12 +321,10 @@ function adicionarDoc() {
     div.id = `doc-${id}`;
     div.innerHTML = `
         <div class="col-md-4">
-            <input type="text" name="doc_tipo[]" class="form-control"
-                placeholder="Tipo (ex: ASO, RG...)">
+            <input type="text" name="doc_tipo[]" class="form-control" placeholder="Tipo (ex: ASO, RG...)">
         </div>
         <div class="col-md-6">
-            <input type="file" name="doc_arquivo[]" class="form-control"
-                accept=".pdf,.jpg,.jpeg,.png">
+            <input type="file" name="doc_arquivo[]" class="form-control" accept=".pdf,.jpg,.jpeg,.png">
         </div>
         <div class="col-md-2">
             <button type="button" class="btn w-100"
@@ -358,7 +342,6 @@ function removerDoc(id) {
     if (el) el.remove();
 }
 
-// ==================== DOCUMENTO ====================
 function atualizarMascara() {
     const tipo  = document.getElementById('tipo_documento').value;
     const campo = document.getElementById('campo_documento');

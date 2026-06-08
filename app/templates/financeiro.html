@@ -10,7 +10,12 @@
 <button class="btn-principal" data-bs-toggle="modal" data-bs-target="#modalRelatorioMensal"
     style="background:white; color:#1a1a2e; border:1.5px solid #dee2e6;"
     onclick="sincronizarMesRelatorio()">
-    <i class="bi bi-file-earmark-text" style="color:var(--cor-principal);"></i> Relatório
+    <i class="bi bi-file-earmark-text" style="color:var(--cor-principal);"></i> Relatório Mensal
+</button>
+<button class="btn-principal" data-bs-toggle="modal" data-bs-target="#modalRelatorioDiario"
+    style="background:white; color:#1a1a2e; border:1.5px solid #dee2e6;"
+    onclick="sincronizarDiario()">
+    <i class="bi bi-calendar-day" style="color:var(--cor-principal);"></i> Relatório Diário
 </button>
 <button class="btn-principal" data-bs-toggle="modal" data-bs-target="#modalNovoPagamento">
     <i class="bi bi-plus-lg"></i> Registrar pagamento
@@ -20,10 +25,7 @@
 
 {% block estilos %}
 .fin-card { background: white; border-radius: 12px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
-.stat-card {
-    background: white; border-radius: 12px; padding: 20px 24px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.05); display: flex; align-items: center; gap: 16px;
-}
+.stat-card { background: white; border-radius: 12px; padding: 20px 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); display: flex; align-items: center; gap: 16px; }
 .stat-icon { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0; }
 .icon-green  { background-color: #e8f5e9; color: #2e7d32; }
 .icon-red    { background-color: #fdecea; color: #c62828; }
@@ -39,32 +41,13 @@
 .btn-acao:hover { background-color: #f0f2f5; }
 .search-box { border: 1px solid #dee2e6; border-radius: 8px; padding: 8px 14px; font-size: 14px; width: 220px; outline: none; }
 .search-box:focus { border-color: var(--cor-principal); }
-.tab-btn {
-    padding: 7px 16px; border-radius: 8px; font-size: 13px; font-weight: 500;
-    cursor: pointer; border: 1px solid #dee2e6; background: white; color: #6c757d; text-decoration: none;
-    white-space: nowrap;
-}
+.tab-btn { padding: 7px 16px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; border: 1px solid #dee2e6; background: white; color: #6c757d; text-decoration: none; white-space: nowrap; }
 .tab-btn.ativo { background: var(--cor-principal); color: white; border-color: var(--cor-principal); }
-
-/* Filtros rápidos de data */
 .periodo-rapido-wrap { display: flex; gap: 6px; flex-wrap: wrap; }
-.periodo-btn {
-    padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 500;
-    cursor: pointer; border: 1px solid #dee2e6; background: white; color: #6c757d;
-    white-space: nowrap; transition: all 0.15s;
-}
+.periodo-btn { padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 500; cursor: pointer; border: 1px solid #dee2e6; background: white; color: #6c757d; white-space: nowrap; transition: all 0.15s; }
 .periodo-btn:hover { border-color: var(--cor-principal); color: var(--cor-principal); }
 .periodo-btn.ativo { background: color-mix(in srgb, var(--cor-principal) 12%, white); color: var(--cor-principal); border-color: var(--cor-principal); font-weight: 600; }
-
-/* Indicador período ativo */
-.periodo-badge {
-    display: inline-flex; align-items: center; gap: 6px;
-    background: color-mix(in srgb, var(--cor-principal) 10%, white);
-    color: var(--cor-principal); border: 1px solid color-mix(in srgb, var(--cor-principal) 25%, white);
-    font-size: 12px; font-weight: 600; padding: 4px 12px; border-radius: 20px;
-}
-
-/* Modal relatório mensal */
+.periodo-badge { display: inline-flex; align-items: center; gap: 6px; background: color-mix(in srgb, var(--cor-principal) 10%, white); color: var(--cor-principal); border: 1px solid color-mix(in srgb, var(--cor-principal) 25%, white); font-size: 12px; font-weight: 600; padding: 4px 12px; border-radius: 20px; }
 .rel-secao { border: 1.5px solid #dee2e6; border-radius: 10px; padding: 16px; margin-bottom: 12px; cursor: pointer; transition: all 0.15s; }
 .rel-secao:hover { border-color: var(--cor-principal); background: color-mix(in srgb, var(--cor-principal) 3%, white); }
 .rel-secao.selecionada { border-color: var(--cor-principal); background: color-mix(in srgb, var(--cor-principal) 6%, white); }
@@ -78,148 +61,101 @@
 .formato-btn:hover { border-color: var(--cor-principal); color: var(--cor-principal); }
 .formato-btn.ativo { border-color: var(--cor-principal); background: color-mix(in srgb, var(--cor-principal) 8%, white); color: var(--cor-principal); }
 .formato-btn i { font-size: 22px; display: block; margin-bottom: 4px; }
+.campo-banco { display: none; margin-top: 10px; }
+.campo-banco.visivel { display: block; }
+.secao-cols { margin-top: 10px; padding-top: 10px; border-top: 1px dashed #dee2e6; }
+.secao-cols-label { font-size: 11px; font-weight: 600; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
 {% endblock %}
 
 {% block conteudo %}
-
-<!-- Cards resumo -->
 <div class="row g-3 mb-4">
     <div class="col-md-3">
         <div class="stat-card">
             <div class="stat-icon icon-green"><i class="bi bi-check-circle-fill"></i></div>
-            <div>
-                <div class="stat-label">Recebido no período</div>
-                <div class="stat-value">R$ {{ '%.2f'|format(total_recebido) }}</div>
-            </div>
+            <div><div class="stat-label">Recebido no período</div><div class="stat-value">R$ {{ '%.2f'|format(total_recebido) }}</div></div>
         </div>
     </div>
     <div class="col-md-3">
         <div class="stat-card">
             <div class="stat-icon icon-orange"><i class="bi bi-clock-fill"></i></div>
-            <div>
-                <div class="stat-label">Pendente no período</div>
-                <div class="stat-value">R$ {{ '%.2f'|format(total_pendente) }}</div>
-            </div>
+            <div><div class="stat-label">Pendente no período</div><div class="stat-value">R$ {{ '%.2f'|format(total_pendente) }}</div></div>
         </div>
     </div>
     <div class="col-md-3">
         <div class="stat-card">
             <div class="stat-icon icon-red"><i class="bi bi-exclamation-circle-fill"></i></div>
-            <div>
-                <div class="stat-label">Inadimplentes</div>
-                <div class="stat-value">{{ total_inadimplentes }}</div>
-            </div>
+            <div><div class="stat-label">Inadimplentes</div><div class="stat-value">{{ total_inadimplentes }}</div></div>
         </div>
     </div>
     <div class="col-md-3">
         <div class="stat-card">
             <div class="stat-icon icon-blue"><i class="bi bi-people-fill"></i></div>
-            <div>
-                <div class="stat-label">Pagamentos no período</div>
-                <div class="stat-value">{{ total_pagamentos_mes }}</div>
-            </div>
+            <div><div class="stat-label">Pagamentos no período</div><div class="stat-value">{{ total_pagamentos_mes }}</div></div>
         </div>
     </div>
 </div>
 
-<!-- Filtros -->
 <div class="fin-card mb-3">
     <div class="row g-3 align-items-end">
-
-        <!-- Filtros rápidos -->
         <div class="col-12">
             <label class="form-label" style="font-size:13px; font-weight:500; margin-bottom:8px; display:block;">
                 <i class="bi bi-lightning-fill me-1" style="color:var(--cor-principal);"></i> Período rápido
             </label>
             <div class="periodo-rapido-wrap">
-                <button class="periodo-btn {% if periodo_ativo == 'hoje' %}ativo{% endif %}"
-                        onclick="aplicarPeriodoRapido('hoje')">Hoje</button>
-                <button class="periodo-btn {% if periodo_ativo == 'ontem' %}ativo{% endif %}"
-                        onclick="aplicarPeriodoRapido('ontem')">Ontem</button>
-                <button class="periodo-btn {% if periodo_ativo == 'semana_atual' %}ativo{% endif %}"
-                        onclick="aplicarPeriodoRapido('semana_atual')">Semana atual</button>
-                <button class="periodo-btn {% if periodo_ativo == 'semana_passada' %}ativo{% endif %}"
-                        onclick="aplicarPeriodoRapido('semana_passada')">Semana passada</button>
-                <button class="periodo-btn {% if periodo_ativo == 'mes_atual' %}ativo{% endif %}"
-                        onclick="aplicarPeriodoRapido('mes_atual')">Mês atual</button>
-                <button class="periodo-btn {% if periodo_ativo == 'mes_passado' %}ativo{% endif %}"
-                        onclick="aplicarPeriodoRapido('mes_passado')">Mês passado</button>
+                <button class="periodo-btn {% if periodo_ativo == 'hoje' %}ativo{% endif %}" onclick="aplicarPeriodoRapido('hoje')">Hoje</button>
+                <button class="periodo-btn {% if periodo_ativo == 'ontem' %}ativo{% endif %}" onclick="aplicarPeriodoRapido('ontem')">Ontem</button>
+                <button class="periodo-btn {% if periodo_ativo == 'semana_atual' %}ativo{% endif %}" onclick="aplicarPeriodoRapido('semana_atual')">Semana atual</button>
+                <button class="periodo-btn {% if periodo_ativo == 'semana_passada' %}ativo{% endif %}" onclick="aplicarPeriodoRapido('semana_passada')">Semana passada</button>
+                <button class="periodo-btn {% if periodo_ativo == 'mes_atual' %}ativo{% endif %}" onclick="aplicarPeriodoRapido('mes_atual')">Mês atual</button>
+                <button class="periodo-btn {% if periodo_ativo == 'mes_passado' %}ativo{% endif %}" onclick="aplicarPeriodoRapido('mes_passado')">Mês passado</button>
                 <span style="width:1px; background:#dee2e6; margin:0 4px;"></span>
-                <button class="periodo-btn {% if periodo_ativo == 'personalizado' %}ativo{% endif %}"
-                        onclick="togglePersonalizado()" id="btn-personalizado">
+                <button class="periodo-btn {% if periodo_ativo == 'personalizado' %}ativo{% endif %}" onclick="togglePersonalizado()" id="btn-personalizado">
                     <i class="bi bi-calendar3 me-1"></i> Personalizado
                 </button>
             </div>
         </div>
-
-        <!-- Datas personalizadas (oculto por padrão) -->
-        <div class="col-12" id="wrap-personalizado"
-             style="display:{% if periodo_ativo == 'personalizado' %}block{% else %}none{% endif %};">
+        <div class="col-12" id="wrap-personalizado" style="display:{% if periodo_ativo == 'personalizado' %}block{% else %}none{% endif %};">
             <div class="row g-2 align-items-end">
                 <div class="col-md-2">
                     <label class="form-label" style="font-size:12px; font-weight:500; color:#6c757d;">Data início</label>
-                    <input type="date" id="data-inicio-custom" class="form-control form-control-sm"
-                           value="{{ data_inicio or '' }}">
+                    <input type="date" id="data-inicio-custom" class="form-control form-control-sm" value="{{ data_inicio or '' }}">
                 </div>
                 <div class="col-md-2">
                     <label class="form-label" style="font-size:12px; font-weight:500; color:#6c757d;">Data fim</label>
-                    <input type="date" id="data-fim-custom" class="form-control form-control-sm"
-                           value="{{ data_fim or '' }}">
+                    <input type="date" id="data-fim-custom" class="form-control form-control-sm" value="{{ data_fim or '' }}">
                 </div>
                 <div class="col-auto">
-                    <button class="btn-filtrar" onclick="aplicarPersonalizado()">
-                        <i class="bi bi-funnel"></i> Filtrar
-                    </button>
+                    <button class="btn-filtrar" onclick="aplicarPersonalizado()"><i class="bi bi-funnel"></i> Filtrar</button>
                 </div>
             </div>
         </div>
-
-        <!-- Período ativo badge + busca + tabs -->
         <div class="col-md-4">
             <label class="form-label" style="font-size:13px; font-weight:500;">Buscar aluno</label>
             <input type="text" class="search-box w-100" id="busca" placeholder="🔍 Nome do aluno...">
         </div>
         <div class="col-md-8 d-flex gap-2 align-items-end flex-wrap">
-            <a href="?status=todos&periodo={{ periodo_ativo }}&inicio={{ data_inicio }}&fim={{ data_fim }}"
-               class="tab-btn {% if status_filtro == 'todos' %}ativo{% endif %}">Todos</a>
-            <a href="?status=pago&periodo={{ periodo_ativo }}&inicio={{ data_inicio }}&fim={{ data_fim }}"
-               class="tab-btn {% if status_filtro == 'pago' %}ativo{% endif %}">Pagos</a>
-            <a href="?status=pendente&periodo={{ periodo_ativo }}&inicio={{ data_inicio }}&fim={{ data_fim }}"
-               class="tab-btn {% if status_filtro == 'pendente' %}ativo{% endif %}">Pendentes</a>
-            <a href="?status=vencido&periodo={{ periodo_ativo }}&inicio={{ data_inicio }}&fim={{ data_fim }}"
-               class="tab-btn {% if status_filtro == 'vencido' %}ativo{% endif %}">Vencidos</a>
-            <a href="?status=inadimplentes&periodo={{ periodo_ativo }}&inicio={{ data_inicio }}&fim={{ data_fim }}"
-               class="tab-btn {% if status_filtro == 'inadimplentes' %}ativo{% endif %}"
-               style="{% if status_filtro != 'inadimplentes' %}color:#c62828; border-color:#fdecea;{% endif %}">
-                ⚠️ Inadimplentes
-            </a>
+            <a href="?status=todos&periodo={{ periodo_ativo }}&inicio={{ data_inicio }}&fim={{ data_fim }}" class="tab-btn {% if status_filtro == 'todos' %}ativo{% endif %}">Todos</a>
+            <a href="?status=pago&periodo={{ periodo_ativo }}&inicio={{ data_inicio }}&fim={{ data_fim }}" class="tab-btn {% if status_filtro == 'pago' %}ativo{% endif %}">Pagos</a>
+            <a href="?status=pendente&periodo={{ periodo_ativo }}&inicio={{ data_inicio }}&fim={{ data_fim }}" class="tab-btn {% if status_filtro == 'pendente' %}ativo{% endif %}">Pendentes</a>
+            <a href="?status=inadimplentes&periodo={{ periodo_ativo }}&inicio={{ data_inicio }}&fim={{ data_fim }}" class="tab-btn {% if status_filtro == 'inadimplentes' %}ativo{% endif %}" style="{% if status_filtro != 'inadimplentes' %}color:#c62828; border-color:#fdecea;{% endif %}">⚠️ Inadimplentes</a>
         </div>
     </div>
 </div>
 
-<!-- Indicador de período -->
 {% if data_inicio and data_fim %}
 <div class="mb-3">
     <span class="periodo-badge">
         <i class="bi bi-calendar3"></i>
         {{ data_inicio.replace('-', '/').split('/')[::-1]|join('/') if data_inicio else '' }}
-        {% if data_inicio != data_fim %}
-        a {{ data_fim.replace('-', '/').split('/')[::-1]|join('/') if data_fim else '' }}
-        {% endif %}
+        {% if data_inicio != data_fim %}a {{ data_fim.replace('-', '/').split('/')[::-1]|join('/') if data_fim else '' }}{% endif %}
         — {{ total_registros }} registro{{ 's' if total_registros != 1 else '' }}
     </span>
 </div>
 {% endif %}
 
-<!-- Tabela de pagamentos -->
 <div class="fin-card">
     <table class="table table-borderless mb-0" id="tabela-pagamentos">
-        <thead>
-            <tr>
-                <th>Aluno</th><th>Plano</th><th>Valor</th><th>Vencimento</th>
-                <th>Pagamento</th><th>Forma</th><th>Status</th><th>Ações</th>
-            </tr>
-        </thead>
+        <thead><tr><th>Aluno</th><th>Plano</th><th>Valor</th><th>Vencimento</th><th>Pagamento</th><th>Forma</th><th>Status</th><th>Ações</th></tr></thead>
         <tbody>
             {% if status_filtro == 'inadimplentes' %}
                 {% if inadimplentes %}
@@ -227,11 +163,8 @@
                     <tr>
                         <td>
                             <div style="display:flex; align-items:center; gap:10px;">
-                                {% if aluno.foto %}
-                                    <img src="{{ aluno.foto }}" style="width:32px; height:32px; border-radius:50%; object-fit:cover; border:2px solid #c62828;">
-                                {% else %}
-                                    <div style="width:32px; height:32px; border-radius:50%; background:#fdecea; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:700; color:#c62828;">{{ aluno.nome[0].upper() }}</div>
-                                {% endif %}
+                                {% if aluno.foto %}<img src="{{ aluno.foto }}" style="width:32px; height:32px; border-radius:50%; object-fit:cover; border:2px solid #c62828;">
+                                {% else %}<div style="width:32px; height:32px; border-radius:50%; background:#fdecea; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:700; color:#c62828;">{{ aluno.nome[0].upper() }}</div>{% endif %}
                                 <a href="/alunos/{{ aluno.id }}" style="text-decoration:none; color:#1a1a2e; font-weight:500;">{{ aluno.nome }}</a>
                             </div>
                         </td>
@@ -260,11 +193,8 @@
                     <tr>
                         <td>
                             <div style="display:flex; align-items:center; gap:10px;">
-                                {% if pag.aluno.foto %}
-                                    <img src="{{ pag.aluno.foto }}" style="width:32px; height:32px; border-radius:50%; object-fit:cover; border:2px solid var(--cor-principal);">
-                                {% else %}
-                                    <div style="width:32px; height:32px; border-radius:50%; background:color-mix(in srgb, var(--cor-principal) 15%, white); display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:700; color:var(--cor-principal);">{{ pag.aluno.nome[0].upper() }}</div>
-                                {% endif %}
+                                {% if pag.aluno.foto %}<img src="{{ pag.aluno.foto }}" style="width:32px; height:32px; border-radius:50%; object-fit:cover; border:2px solid var(--cor-principal);">
+                                {% else %}<div style="width:32px; height:32px; border-radius:50%; background:color-mix(in srgb, var(--cor-principal) 15%, white); display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:700; color:var(--cor-principal);">{{ pag.aluno.nome[0].upper() }}</div>{% endif %}
                                 <a href="/alunos/{{ pag.aluno_id }}" style="text-decoration:none; color:#1a1a2e; font-weight:500;">{{ pag.aluno.nome }}</a>
                             </div>
                         </td>
@@ -273,33 +203,25 @@
                         <td>{{ pag.data_vencimento.strftime('%d/%m/%Y') }}</td>
                         <td>{{ pag.data_pagamento.strftime('%d/%m/%Y') if pag.data_pagamento else '—' }}</td>
                         <td>
-                            {% if pag.forma_pagamento == 'dinheiro' %}
-                                <span style="font-size:13px;"><i class="bi bi-cash me-1"></i>Dinheiro</span>
-                            {% elif pag.forma_pagamento == 'pix' %}
-                                <span style="font-size:13px;"><i class="bi bi-qr-code me-1"></i>PIX</span>
-                            {% elif pag.forma_pagamento == 'credito' %}
-                                <span style="font-size:13px;"><i class="bi bi-credit-card me-1"></i>Crédito</span>
-                            {% elif pag.forma_pagamento == 'debito' %}
-                                <span style="font-size:13px;"><i class="bi bi-credit-card-2-back me-1"></i>Débito</span>
-                            {% elif pag.forma_pagamento == 'boleto' %}
-                                <span style="font-size:13px;"><i class="bi bi-receipt me-1"></i>Boleto</span>
+                            {% if pag.forma_pagamento == 'dinheiro' %}<span style="font-size:13px;"><i class="bi bi-cash me-1"></i>Dinheiro</span>
+                            {% elif pag.forma_pagamento == 'pix' %}<span style="font-size:13px;"><i class="bi bi-qr-code me-1"></i>PIX{% if pag.banco_pix %} <small style="color:#6c757d;">({{ pag.banco_pix }})</small>{% endif %}</span>
+                            {% elif pag.forma_pagamento == 'credito' %}<span style="font-size:13px;"><i class="bi bi-credit-card me-1"></i>Crédito</span>
+                            {% elif pag.forma_pagamento == 'debito' %}<span style="font-size:13px;"><i class="bi bi-credit-card-2-back me-1"></i>Débito</span>
+                            {% elif pag.forma_pagamento == 'boleto' %}<span style="font-size:13px;"><i class="bi bi-receipt me-1"></i>Boleto</span>
                             {% else %}{{ pag.forma_pagamento or '—' }}{% endif %}
                         </td>
                         <td>
                             {% if pag.status == 'pago' %}<span class="badge-pago">✅ Pago</span>
-                            {% elif pag.status == 'vencido' %}<span class="badge-vencido">⚠️ Vencido</span>
                             {% elif pag.status == 'cancelado' %}<span class="badge-cancelado">Cancelado</span>
                             {% else %}<span class="badge-pendente">⏳ Pendente</span>{% endif %}
                         </td>
                         <td>
                             {% if pag.status != 'pago' %}
-                            <button class="btn-acao" title="Confirmar pagamento"
-                                onclick="abrirPagamento({{ pag.id }}, '{{ pag.aluno.nome }}', {{ pag.valor }})">
+                            <button class="btn-acao" title="Confirmar pagamento" onclick="abrirPagamento({{ pag.id }}, '{{ pag.aluno.nome }}', {{ pag.valor }})">
                                 <i class="bi bi-check-circle" style="color:#2e7d32;"></i>
                             </button>
                             {% endif %}
-                            <button class="btn-acao" title="Excluir"
-                                onclick="confirmarExclusao({{ pag.id }}, '{{ pag.aluno.nome }}')">
+                            <button class="btn-acao" title="Excluir" onclick="confirmarExclusao({{ pag.id }}, '{{ pag.aluno.nome }}')">
                                 <i class="bi bi-trash" style="color:#c62828;"></i>
                             </button>
                         </td>
@@ -322,15 +244,14 @@
         <div class="modal-content" style="border-radius:14px; border:none;">
             <div class="modal-header" style="background:#1a1a2e; border-radius:14px 14px 0 0; padding:20px 24px;">
                 <h5 class="modal-title" style="color:white; font-size:16px; font-weight:600;">
-                    <i class="bi bi-file-earmark-text me-2" style="color:var(--cor-principal);"></i>
-                    Configurar Relatório
+                    <i class="bi bi-file-earmark-text me-2" style="color:var(--cor-principal);"></i> Configurar Relatório Mensal
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" style="filter:invert(1);"></button>
             </div>
-            <div class="modal-body" style="padding:24px;">
+            <div class="modal-body" style="padding:24px; max-height:75vh; overflow-y:auto;">
                 <div class="mb-4">
                     <label class="form-label" style="font-size:13px; font-weight:600; color:#1a1a2e;">
-                        <i class="bi bi-calendar3 me-1" style="color:var(--cor-principal);"></i> Período do relatório
+                        <i class="bi bi-calendar3 me-1" style="color:var(--cor-principal);"></i> Período
                     </label>
                     <div class="d-flex gap-2 align-items-center flex-wrap">
                         <div>
@@ -344,61 +265,115 @@
                         </div>
                     </div>
                 </div>
-                <div class="mb-4">
-                    <div style="font-size:13px; font-weight:600; color:#1a1a2e; margin-bottom:12px;">
-                        <i class="bi bi-layout-text-window me-1" style="color:var(--cor-principal);"></i> Seções do relatório
+
+                <div style="font-size:13px; font-weight:600; color:#1a1a2e; margin-bottom:12px;">
+                    <i class="bi bi-layout-text-window me-1" style="color:var(--cor-principal);"></i> Seções e colunas
+                </div>
+
+                <!-- Resumo -->
+                <div class="rel-secao selecionada" id="secao-resumo" onclick="toggleSecao('resumo')">
+                    <div style="display:flex; align-items:center; justify-content:space-between;">
+                        <div>
+                            <div class="rel-secao-titulo">📊 Resumo financeiro</div>
+                            <div class="rel-secao-desc">Totais por forma de pagamento — sem seleção de colunas</div>
+                        </div>
+                        <i class="bi bi-check-circle-fill" id="icon-resumo" style="color:var(--cor-principal); font-size:20px;"></i>
                     </div>
-                    <div class="rel-secao selecionada" id="secao-resumo" onclick="toggleSecao('resumo')">
-                        <div style="display:flex; align-items:center; justify-content:space-between;">
-                            <div>
-                                <div class="rel-secao-titulo">📊 Resumo financeiro do mês</div>
-                                <div class="rel-secao-desc">Total recebido, pendente, vencido, quantidade por forma de pagamento e inadimplentes</div>
-                            </div>
-                            <i class="bi bi-check-circle-fill" id="icon-resumo" style="color:var(--cor-principal); font-size:20px;"></i>
+                </div>
+
+                <!-- Dinheiro -->
+                <div class="rel-secao selecionada" id="secao-dinheiro" onclick="toggleSecao('dinheiro')">
+                    <div style="display:flex; align-items:center; justify-content:space-between;">
+                        <div>
+                            <div class="rel-secao-titulo">💵 Relação de Dinheiro</div>
+                            <div class="rel-secao-desc">Pagamentos em dinheiro</div>
                         </div>
+                        <i class="bi bi-check-circle-fill" id="icon-dinheiro" style="color:var(--cor-principal); font-size:20px;"></i>
                     </div>
-                    <div class="rel-secao selecionada" id="secao-pagamentos" onclick="toggleSecao('pagamentos')">
-                        <div style="display:flex; align-items:center; justify-content:space-between;">
-                            <div>
-                                <div class="rel-secao-titulo">💳 Lista de pagamentos</div>
-                                <div class="rel-secao-desc">Todos os lançamentos do mês com as colunas selecionadas abaixo</div>
-                            </div>
-                            <i class="bi bi-check-circle-fill" id="icon-pagamentos" style="color:var(--cor-principal); font-size:20px;"></i>
-                        </div>
-                        <div class="col-check" id="cols-pagamentos" onclick="event.stopPropagation()">
-                            <span class="col-tag marcada" data-col="nome"       onclick="toggleCol(event,this)">Nome</span>
-                            <span class="col-tag marcada" data-col="plano"      onclick="toggleCol(event,this)">Plano</span>
-                            <span class="col-tag"         data-col="cpf"        onclick="toggleCol(event,this)">CPF</span>
-                            <span class="col-tag"         data-col="telefone"   onclick="toggleCol(event,this)">Telefone</span>
-                            <span class="col-tag marcada" data-col="valor"      onclick="toggleCol(event,this)">Valor</span>
-                            <span class="col-tag marcada" data-col="vencimento" onclick="toggleCol(event,this)">Vencimento</span>
-                            <span class="col-tag marcada" data-col="pagamento"  onclick="toggleCol(event,this)">Data pagamento</span>
-                            <span class="col-tag marcada" data-col="forma"      onclick="toggleCol(event,this)">Forma pagamento</span>
-                            <span class="col-tag marcada" data-col="status"     onclick="toggleCol(event,this)">Status</span>
-                            <span class="col-tag"         data-col="observacao" onclick="toggleCol(event,this)">Observação</span>
-                        </div>
-                    </div>
-                    <div class="rel-secao selecionada" id="secao-inadimplentes" onclick="toggleSecao('inadimplentes')">
-                        <div style="display:flex; align-items:center; justify-content:space-between;">
-                            <div>
-                                <div class="rel-secao-titulo">⚠️ Inadimplentes</div>
-                                <div class="rel-secao-desc">Alunos ativos sem pagamento registrado ou com pagamento vencido no mês</div>
-                            </div>
-                            <i class="bi bi-check-circle-fill" id="icon-inadimplentes" style="color:var(--cor-principal); font-size:20px;"></i>
-                        </div>
-                        <div class="col-check" id="cols-inadimplentes" onclick="event.stopPropagation()">
-                            <span class="col-tag marcada" data-col="nome"        onclick="toggleCol(event,this)">Nome</span>
-                            <span class="col-tag marcada" data-col="plano"       onclick="toggleCol(event,this)">Plano</span>
-                            <span class="col-tag"         data-col="cpf"         onclick="toggleCol(event,this)">CPF</span>
-                            <span class="col-tag"         data-col="telefone"    onclick="toggleCol(event,this)">Telefone</span>
-                            <span class="col-tag marcada" data-col="venc_plano"  onclick="toggleCol(event,this)">Vencimento do plano</span>
-                            <span class="col-tag marcada" data-col="valor_plano" onclick="toggleCol(event,this)">Valor do plano</span>
+                    <div class="secao-cols" id="cols-wrap-dinheiro" onclick="event.stopPropagation()">
+                        <div class="secao-cols-label">Colunas</div>
+                        <div class="col-check">
+                            <span class="col-tag marcada" data-col="nome"           data-secao="dinheiro" onclick="toggleCol(event,this)">Nome</span>
+                            <span class="col-tag marcada" data-col="data_pagamento" data-secao="dinheiro" onclick="toggleCol(event,this)">Data Pagamento</span>
+                            <span class="col-tag marcada" data-col="plano"          data-secao="dinheiro" onclick="toggleCol(event,this)">Plano</span>
+                            <span class="col-tag marcada" data-col="valor"          data-secao="dinheiro" onclick="toggleCol(event,this)">Valor</span>
+                            <span class="col-tag"         data-col="cpf"            data-secao="dinheiro" onclick="toggleCol(event,this)">CPF</span>
+                            <span class="col-tag"         data-col="telefone"       data-secao="dinheiro" onclick="toggleCol(event,this)">Telefone</span>
                         </div>
                     </div>
                 </div>
-                <div>
+
+                <!-- PIX -->
+                <div class="rel-secao selecionada" id="secao-pix" onclick="toggleSecao('pix')">
+                    <div style="display:flex; align-items:center; justify-content:space-between;">
+                        <div>
+                            <div class="rel-secao-titulo">📱 Relação de PIX</div>
+                            <div class="rel-secao-desc">Pagamentos via PIX</div>
+                        </div>
+                        <i class="bi bi-check-circle-fill" id="icon-pix" style="color:var(--cor-principal); font-size:20px;"></i>
+                    </div>
+                    <div class="secao-cols" id="cols-wrap-pix" onclick="event.stopPropagation()">
+                        <div class="secao-cols-label">Colunas</div>
+                        <div class="col-check">
+                            <span class="col-tag marcada" data-col="nome"           data-secao="pix" onclick="toggleCol(event,this)">Nome</span>
+                            <span class="col-tag marcada" data-col="data_pagamento" data-secao="pix" onclick="toggleCol(event,this)">Data Pagamento</span>
+                            <span class="col-tag marcada" data-col="plano"          data-secao="pix" onclick="toggleCol(event,this)">Plano</span>
+                            <span class="col-tag marcada" data-col="banco"          data-secao="pix" onclick="toggleCol(event,this)">Banco</span>
+                            <span class="col-tag marcada" data-col="valor"          data-secao="pix" onclick="toggleCol(event,this)">Valor</span>
+                            <span class="col-tag"         data-col="cpf"            data-secao="pix" onclick="toggleCol(event,this)">CPF</span>
+                            <span class="col-tag"         data-col="telefone"       data-secao="pix" onclick="toggleCol(event,this)">Telefone</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Cartão -->
+                <div class="rel-secao selecionada" id="secao-cartao" onclick="toggleSecao('cartao')">
+                    <div style="display:flex; align-items:center; justify-content:space-between;">
+                        <div>
+                            <div class="rel-secao-titulo">💳 Relação de Cartão</div>
+                            <div class="rel-secao-desc">Pagamentos com cartão (crédito/débito)</div>
+                        </div>
+                        <i class="bi bi-check-circle-fill" id="icon-cartao" style="color:var(--cor-principal); font-size:20px;"></i>
+                    </div>
+                    <div class="secao-cols" id="cols-wrap-cartao" onclick="event.stopPropagation()">
+                        <div class="secao-cols-label">Colunas</div>
+                        <div class="col-check">
+                            <span class="col-tag marcada" data-col="nome"           data-secao="cartao" onclick="toggleCol(event,this)">Nome</span>
+                            <span class="col-tag marcada" data-col="data_pagamento" data-secao="cartao" onclick="toggleCol(event,this)">Data Pagamento</span>
+                            <span class="col-tag marcada" data-col="plano"          data-secao="cartao" onclick="toggleCol(event,this)">Plano</span>
+                            <span class="col-tag marcada" data-col="tipo"           data-secao="cartao" onclick="toggleCol(event,this)">Tipo (Créd/Déb)</span>
+                            <span class="col-tag marcada" data-col="valor"          data-secao="cartao" onclick="toggleCol(event,this)">Valor</span>
+                            <span class="col-tag"         data-col="cpf"            data-secao="cartao" onclick="toggleCol(event,this)">CPF</span>
+                            <span class="col-tag"         data-col="telefone"       data-secao="cartao" onclick="toggleCol(event,this)">Telefone</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Inadimplentes -->
+                <div class="rel-secao selecionada" id="secao-inadimplentes" onclick="toggleSecao('inadimplentes')">
+                    <div style="display:flex; align-items:center; justify-content:space-between;">
+                        <div>
+                            <div class="rel-secao-titulo">⚠️ Inadimplentes</div>
+                            <div class="rel-secao-desc">Alunos mensalistas sem pagamento no período</div>
+                        </div>
+                        <i class="bi bi-check-circle-fill" id="icon-inadimplentes" style="color:var(--cor-principal); font-size:20px;"></i>
+                    </div>
+                    <div class="secao-cols" id="cols-wrap-inadimplentes" onclick="event.stopPropagation()">
+                        <div class="secao-cols-label">Colunas</div>
+                        <div class="col-check">
+                            <span class="col-tag marcada" data-col="nome"       data-secao="inadimplentes" onclick="toggleCol(event,this)">Nome</span>
+                            <span class="col-tag marcada" data-col="plano"      data-secao="inadimplentes" onclick="toggleCol(event,this)">Plano</span>
+                            <span class="col-tag marcada" data-col="vencimento" data-secao="inadimplentes" onclick="toggleCol(event,this)">Vencimento</span>
+                            <span class="col-tag marcada" data-col="valor"      data-secao="inadimplentes" onclick="toggleCol(event,this)">Valor do Plano</span>
+                            <span class="col-tag"         data-col="cpf"        data-secao="inadimplentes" onclick="toggleCol(event,this)">CPF</span>
+                            <span class="col-tag"         data-col="telefone"   data-secao="inadimplentes" onclick="toggleCol(event,this)">Telefone</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-3">
                     <div style="font-size:13px; font-weight:600; color:#1a1a2e; margin-bottom:12px;">
-                        <i class="bi bi-download me-1" style="color:var(--cor-principal);"></i> Formato de exportação
+                        <i class="bi bi-download me-1" style="color:var(--cor-principal);"></i> Formato
                     </div>
                     <div class="d-flex gap-3">
                         <button class="formato-btn ativo" id="fmt-pdf" onclick="selecionarFormato('pdf')">
@@ -411,14 +386,125 @@
                 </div>
             </div>
             <div class="modal-footer" style="border-top:1px solid #f0f2f5; padding:16px 24px; justify-content:space-between; align-items:center;">
-                <span style="font-size:12px; color:#6c757d;"><i class="bi bi-info-circle me-1"></i>O relatório será gerado com base no período selecionado</span>
+                <span style="font-size:12px; color:#6c757d;"><i class="bi bi-info-circle me-1"></i>Relatório gerado com base no período selecionado</span>
                 <div class="d-flex gap-2">
-                    <button type="button" class="btn" data-bs-dismiss="modal"
-                        style="background:white; border:1px solid #dee2e6; color:#6c757d; padding:8px 20px; border-radius:8px;">Cancelar</button>
+                    <button type="button" class="btn" data-bs-dismiss="modal" style="background:white; border:1px solid #dee2e6; color:#6c757d; padding:8px 20px; border-radius:8px;">Cancelar</button>
                     <button type="button" class="btn-principal" onclick="gerarRelatorio()">
                         <i class="bi bi-download me-1"></i> Gerar relatório
                     </button>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL RELATÓRIO DIÁRIO -->
+<div class="modal fade" id="modalRelatorioDiario" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content" style="border-radius:14px; border:none;">
+            <div class="modal-header" style="background:#1a1a2e; border-radius:14px 14px 0 0; padding:20px 24px;">
+                <h5 class="modal-title" style="color:white; font-size:16px; font-weight:600;">
+                    <i class="bi bi-calendar-day me-2" style="color:var(--cor-principal);"></i> Configurar Relatório Diário
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" style="filter:invert(1);"></button>
+            </div>
+            <div class="modal-body" style="padding:24px; max-height:75vh; overflow-y:auto;">
+                <div class="mb-4">
+                    <label class="form-label" style="font-size:13px; font-weight:600; color:#1a1a2e;">
+                        <i class="bi bi-calendar3 me-1" style="color:var(--cor-principal);"></i> Data do relatório
+                    </label>
+                    <input type="date" id="diario-data" class="form-control" style="max-width:200px;">
+                    <div class="form-text">Deixe em branco para usar a data de hoje</div>
+                </div>
+
+                <div style="font-size:13px; font-weight:600; color:#1a1a2e; margin-bottom:12px;">
+                    <i class="bi bi-layout-text-window me-1" style="color:var(--cor-principal);"></i> Seções e colunas
+                </div>
+
+                <!-- Dinheiro diário -->
+                <div class="rel-secao selecionada" id="secao-d-dinheiro" onclick="toggleSecaoDiario('d-dinheiro')">
+                    <div style="display:flex; align-items:center; justify-content:space-between;">
+                        <div>
+                            <div class="rel-secao-titulo">💵 Relação de Dinheiro</div>
+                            <div class="rel-secao-desc">Pagamentos em dinheiro</div>
+                        </div>
+                        <i class="bi bi-check-circle-fill" id="icon-d-dinheiro" style="color:var(--cor-principal); font-size:20px;"></i>
+                    </div>
+                    <div class="secao-cols" id="cols-wrap-d-dinheiro" onclick="event.stopPropagation()">
+                        <div class="col-check">
+                            <span class="col-tag marcada" data-col="nome"           data-secao="d-dinheiro" onclick="toggleCol(event,this)">Nome</span>
+                            <span class="col-tag marcada" data-col="data_pagamento" data-secao="d-dinheiro" onclick="toggleCol(event,this)">Data Pagamento</span>
+                            <span class="col-tag marcada" data-col="plano"          data-secao="d-dinheiro" onclick="toggleCol(event,this)">Plano</span>
+                            <span class="col-tag marcada" data-col="valor"          data-secao="d-dinheiro" onclick="toggleCol(event,this)">Valor</span>
+                            <span class="col-tag"         data-col="cpf"            data-secao="d-dinheiro" onclick="toggleCol(event,this)">CPF</span>
+                            <span class="col-tag"         data-col="telefone"       data-secao="d-dinheiro" onclick="toggleCol(event,this)">Telefone</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PIX diário -->
+                <div class="rel-secao selecionada" id="secao-d-pix" onclick="toggleSecaoDiario('d-pix')">
+                    <div style="display:flex; align-items:center; justify-content:space-between;">
+                        <div>
+                            <div class="rel-secao-titulo">📱 Relação de PIX</div>
+                            <div class="rel-secao-desc">Pagamentos via PIX</div>
+                        </div>
+                        <i class="bi bi-check-circle-fill" id="icon-d-pix" style="color:var(--cor-principal); font-size:20px;"></i>
+                    </div>
+                    <div class="secao-cols" id="cols-wrap-d-pix" onclick="event.stopPropagation()">
+                        <div class="col-check">
+                            <span class="col-tag marcada" data-col="nome"           data-secao="d-pix" onclick="toggleCol(event,this)">Nome</span>
+                            <span class="col-tag marcada" data-col="data_pagamento" data-secao="d-pix" onclick="toggleCol(event,this)">Data Pagamento</span>
+                            <span class="col-tag marcada" data-col="plano"          data-secao="d-pix" onclick="toggleCol(event,this)">Plano</span>
+                            <span class="col-tag marcada" data-col="banco"          data-secao="d-pix" onclick="toggleCol(event,this)">Banco</span>
+                            <span class="col-tag marcada" data-col="valor"          data-secao="d-pix" onclick="toggleCol(event,this)">Valor</span>
+                            <span class="col-tag"         data-col="cpf"            data-secao="d-pix" onclick="toggleCol(event,this)">CPF</span>
+                            <span class="col-tag"         data-col="telefone"       data-secao="d-pix" onclick="toggleCol(event,this)">Telefone</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Cartão diário -->
+                <div class="rel-secao selecionada" id="secao-d-cartao" onclick="toggleSecaoDiario('d-cartao')">
+                    <div style="display:flex; align-items:center; justify-content:space-between;">
+                        <div>
+                            <div class="rel-secao-titulo">💳 Relação de Cartão</div>
+                            <div class="rel-secao-desc">Pagamentos com cartão (crédito/débito)</div>
+                        </div>
+                        <i class="bi bi-check-circle-fill" id="icon-d-cartao" style="color:var(--cor-principal); font-size:20px;"></i>
+                    </div>
+                    <div class="secao-cols" id="cols-wrap-d-cartao" onclick="event.stopPropagation()">
+                        <div class="col-check">
+                            <span class="col-tag marcada" data-col="nome"           data-secao="d-cartao" onclick="toggleCol(event,this)">Nome</span>
+                            <span class="col-tag marcada" data-col="data_pagamento" data-secao="d-cartao" onclick="toggleCol(event,this)">Data Pagamento</span>
+                            <span class="col-tag marcada" data-col="plano"          data-secao="d-cartao" onclick="toggleCol(event,this)">Plano</span>
+                            <span class="col-tag marcada" data-col="tipo"           data-secao="d-cartao" onclick="toggleCol(event,this)">Tipo (Créd/Déb)</span>
+                            <span class="col-tag marcada" data-col="valor"          data-secao="d-cartao" onclick="toggleCol(event,this)">Valor</span>
+                            <span class="col-tag"         data-col="cpf"            data-secao="d-cartao" onclick="toggleCol(event,this)">CPF</span>
+                            <span class="col-tag"         data-col="telefone"       data-secao="d-cartao" onclick="toggleCol(event,this)">Telefone</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-3">
+                    <div style="font-size:13px; font-weight:600; color:#1a1a2e; margin-bottom:12px;">
+                        <i class="bi bi-download me-1" style="color:var(--cor-principal);"></i> Formato
+                    </div>
+                    <div class="d-flex gap-3">
+                        <button class="formato-btn ativo" id="diario-fmt-pdf" onclick="selecionarFormatoDiario('pdf')">
+                            <i class="bi bi-file-earmark-pdf" style="color:#c62828;"></i> PDF
+                        </button>
+                        <button class="formato-btn" id="diario-fmt-csv" onclick="selecionarFormatoDiario('csv')">
+                            <i class="bi bi-file-earmark-spreadsheet" style="color:#2e7d32;"></i> CSV / Excel
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer" style="border-top:1px solid #f0f2f5; padding:16px 24px;">
+                <button type="button" class="btn" data-bs-dismiss="modal" style="background:white; border:1px solid #dee2e6; color:#6c757d; padding:8px 20px; border-radius:8px;">Cancelar</button>
+                <button type="button" class="btn-principal" onclick="gerarRelatorioDiario()">
+                    <i class="bi bi-download me-1"></i> Gerar relatório
+                </button>
             </div>
         </div>
     </div>
@@ -433,7 +519,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <form method="POST" action="/financeiro/registrar">
-                                <input type="hidden" name="_periodo" value="{{ periodo_ativo }}">
+                <input type="hidden" name="_periodo" value="{{ periodo_ativo }}">
                 <input type="hidden" name="_status"  value="{{ status_filtro }}">
                 <input type="hidden" name="_inicio"  value="{{ data_inicio }}">
                 <input type="hidden" name="_fim"     value="{{ data_fim }}">
@@ -443,7 +529,11 @@
                         <select name="aluno_id" class="form-select" required id="select-aluno" onchange="preencherValor(this)">
                             <option value="">Selecione o aluno...</option>
                             {% for aluno in alunos_ativos %}
-                            <option value="{{ aluno.id }}" data-plano="{{ aluno.plano }}" data-valor="{{ planos_valores.get(aluno.plano, 0) }}">
+                            <option value="{{ aluno.id }}"
+                                data-plano="{{ aluno.plano }}"
+                                data-valor="{{ planos_valores.get(aluno.plano, 0) }}"
+                                data-vencimento="{{ aluno.vencimento.strftime('%Y-%m-%d') if aluno.vencimento else '' }}"
+                                data-dias="{{ planos_dias.get(aluno.plano, 30) }}">
                                 {{ aluno.nome }} — {{ aluno.plano or 'Sem plano' }}
                             </option>
                             {% endfor %}
@@ -459,7 +549,7 @@
                     <div class="mb-3">
                         <label class="form-label" style="font-size:13px; font-weight:500;">Forma de pagamento *</label>
                         <select name="forma_pagamento" class="form-select" required id="select-forma-novo"
-                                onchange="calcularAcrescimo('novo')">
+                                onchange="calcularAcrescimo('novo'); toggleBanco('novo', this.value)">
                             {% if formas_ativas.dinheiro %}<option value="dinheiro">💵 Dinheiro</option>{% endif %}
                             {% if formas_ativas.pix      %}<option value="pix">📱 PIX</option>{% endif %}
                             {% if formas_ativas.credito  %}<option value="credito">💳 Cartão de Crédito</option>{% endif %}
@@ -467,8 +557,11 @@
                             {% if formas_ativas.boleto   %}<option value="boleto">🧾 Boleto</option>{% endif %}
                         </select>
                         <div id="info-acrescimo-novo" style="display:none; margin-top:6px; padding:8px 12px; background:#fff3e8; border-radius:8px; font-size:12px; color:#e65100;">
-                            <i class="bi bi-info-circle me-1"></i>
-                            <span id="txt-acrescimo-novo"></span>
+                            <i class="bi bi-info-circle me-1"></i><span id="txt-acrescimo-novo"></span>
+                        </div>
+                        <div class="campo-banco" id="banco-novo">
+                            <label class="form-label mt-2" style="font-size:13px; font-weight:500;">Banco do PIX</label>
+                            <input type="text" name="banco_pix" class="form-control" placeholder="Ex: Nubank, Bradesco, Inter...">
                         </div>
                     </div>
                     <div class="mb-3">
@@ -486,8 +579,7 @@
                     </div>
                 </div>
                 <div class="modal-footer" style="border-top:1px solid #f0f2f5; padding:16px 24px;">
-                    <button type="button" class="btn" data-bs-dismiss="modal"
-                        style="background:white; border:1px solid #dee2e6; color:#6c757d; padding:8px 20px; border-radius:8px;">Cancelar</button>
+                    <button type="button" class="btn" data-bs-dismiss="modal" style="background:white; border:1px solid #dee2e6; color:#6c757d; padding:8px 20px; border-radius:8px;">Cancelar</button>
                     <button type="submit" class="btn-principal"><i class="bi bi-check-lg me-1"></i> Salvar</button>
                 </div>
             </form>
@@ -504,7 +596,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <form method="POST" id="form-confirmar-pag" action="">
-                                <input type="hidden" name="_periodo" value="{{ periodo_ativo }}">
+                <input type="hidden" name="_periodo" value="{{ periodo_ativo }}">
                 <input type="hidden" name="_status"  value="{{ status_filtro }}">
                 <input type="hidden" name="_inicio"  value="{{ data_inicio }}">
                 <input type="hidden" name="_fim"     value="{{ data_fim }}">
@@ -513,7 +605,7 @@
                     <div class="mb-3">
                         <label class="form-label" style="font-size:13px; font-weight:500;">Forma de pagamento *</label>
                         <select name="forma_pagamento" class="form-select" required id="select-forma-conf"
-                                onchange="calcularAcrescimo('conf')">
+                                onchange="calcularAcrescimo('conf'); toggleBanco('conf', this.value)">
                             {% if formas_ativas.dinheiro %}<option value="dinheiro">💵 Dinheiro</option>{% endif %}
                             {% if formas_ativas.pix      %}<option value="pix">📱 PIX</option>{% endif %}
                             {% if formas_ativas.credito  %}<option value="credito">💳 Cartão de Crédito</option>{% endif %}
@@ -521,8 +613,11 @@
                             {% if formas_ativas.boleto   %}<option value="boleto">🧾 Boleto</option>{% endif %}
                         </select>
                         <div id="info-acrescimo-conf" style="display:none; margin-top:6px; padding:8px 12px; background:#fff3e8; border-radius:8px; font-size:12px; color:#e65100;">
-                            <i class="bi bi-info-circle me-1"></i>
-                            <span id="txt-acrescimo-conf"></span>
+                            <i class="bi bi-info-circle me-1"></i><span id="txt-acrescimo-conf"></span>
+                        </div>
+                        <div class="campo-banco" id="banco-conf">
+                            <label class="form-label mt-2" style="font-size:13px; font-weight:500;">Banco do PIX</label>
+                            <input type="text" name="banco_pix" class="form-control" placeholder="Ex: Nubank, Bradesco, Inter...">
                         </div>
                     </div>
                     <div class="mb-3">
@@ -535,8 +630,7 @@
                     </div>
                 </div>
                 <div class="modal-footer" style="border-top:1px solid #f0f2f5; padding:16px 24px;">
-                    <button type="button" class="btn" data-bs-dismiss="modal"
-                        style="background:white; border:1px solid #dee2e6; color:#6c757d; padding:8px 20px; border-radius:8px;">Cancelar</button>
+                    <button type="button" class="btn" data-bs-dismiss="modal" style="background:white; border:1px solid #dee2e6; color:#6c757d; padding:8px 20px; border-radius:8px;">Cancelar</button>
                     <button type="submit" class="btn-principal"><i class="bi bi-check-lg me-1"></i> Confirmar pagamento</button>
                 </div>
             </form>
@@ -553,10 +647,8 @@
                 <h5 class="mt-3 mb-1">Excluir pagamento?</h5>
                 <p class="text-muted mb-4" id="msg-excluir" style="font-size:14px;"></p>
                 <div class="d-flex gap-2 justify-content-center">
-                    <button class="btn" data-bs-dismiss="modal"
-                        style="background:white; border:1px solid #dee2e6; color:#6c757d; padding:8px 20px; border-radius:8px;">Cancelar</button>
-                    <a id="btn-confirmar-excluir" href="#"
-                        style="background:#c62828; color:white; padding:10px 24px; border-radius:8px; text-decoration:none; font-weight:500;">
+                    <button class="btn" data-bs-dismiss="modal" style="background:white; border:1px solid #dee2e6; color:#6c757d; padding:8px 20px; border-radius:8px;">Cancelar</button>
+                    <a id="btn-confirmar-excluir" href="#" style="background:#c62828; color:white; padding:10px 24px; border-radius:8px; text-decoration:none; font-weight:500;">
                         <i class="bi bi-trash me-1"></i> Excluir
                     </a>
                 </div>
@@ -568,18 +660,57 @@
 
 {% block scripts %}
 <script>
-// Taxas de acréscimo configuradas nos parâmetros
-const TAXAS = {
-    credito: {{ taxas.credito }},
-    debito:  {{ taxas.debito }},
-};
+const TAXAS = { credito: {{ taxas.credito }}, debito: {{ taxas.debito }} };
 
 function preencherValor(select) {
-    const valor = select.options[select.selectedIndex].dataset.valor;
+    const opt   = select.options[select.selectedIndex];
+    const valor = opt.dataset.valor;
+    const venc  = opt.dataset.vencimento;
+    const dias  = parseInt(opt.dataset.dias) || 30;
+
     if (valor) {
         document.getElementById('input-valor').value = parseFloat(valor).toFixed(2);
         calcularAcrescimo('novo');
     }
+
+    // Calcula data de vencimento automaticamente (mantém o dia do mês)
+    const inputVenc = document.querySelector('[name="data_vencimento"]');
+    if (inputVenc) {
+        const hoje = new Date(); hoje.setHours(0,0,0,0);
+
+        function addMeses(data, meses) {
+            const d = new Date(data);
+            d.setMonth(d.getMonth() + meses);
+            return d;
+        }
+
+        if (dias === 1) {
+            // Diária: hoje + 1 dia
+            const d = new Date(hoje);
+            d.setDate(d.getDate() + 1);
+            inputVenc.value = d.toISOString().split('T')[0];
+        } else {
+            // Determina quantos meses somar
+            let meses;
+            if      (dias <= 31)  meses = 1;
+            else if (dias <= 92)  meses = 3;
+            else if (dias <= 185) meses = 6;
+            else                  meses = 12;
+
+            // Parte do vencimento cadastrado, soma meses até passar de hoje
+            let base = venc ? new Date(venc + 'T00:00:00') : new Date(hoje);
+            let novo = addMeses(base, meses);
+            while (novo <= hoje) {
+                novo = addMeses(novo, meses);
+            }
+            inputVenc.value = novo.toISOString().split('T')[0];
+        }
+    }
+}
+
+function toggleBanco(ctx, forma) {
+    const el = document.getElementById('banco-' + ctx);
+    if (el) el.classList.toggle('visivel', forma === 'pix');
 }
 
 function calcularAcrescimo(ctx) {
@@ -587,138 +718,150 @@ function calcularAcrescimo(ctx) {
     const infoEl  = document.getElementById('info-acrescimo-' + ctx);
     const txtEl   = document.getElementById('txt-acrescimo-' + ctx);
     if (!formaEl || !infoEl || !txtEl) return;
-
-    const forma = formaEl.value;
-    const taxa  = TAXAS[forma] || 0;
-
+    const taxa = TAXAS[formaEl.value] || 0;
     if (taxa > 0) {
-        let valorBase = 0;
-        if (ctx === 'novo') {
-            valorBase = parseFloat(document.getElementById('input-valor').value) || 0;
-        } else {
-            // Extrai valor da mensagem de confirmação
-            const msg = document.getElementById('msg-confirmar-pag').textContent;
-            const match = msg.match(/R\$ ([\d.,]+)/);
-            if (match) valorBase = parseFloat(match[1].replace(',', '.')) || 0;
-        }
-        const acresc = valorBase * taxa / 100;
-        const total  = valorBase + acresc;
-        txtEl.textContent = `Taxa de ${taxa}%: +R$ ${acresc.toFixed(2).replace('.', ',')} — Total: R$ ${total.toFixed(2).replace('.', ',')}`;
+        let base = 0;
+        if (ctx === 'novo') base = parseFloat(document.getElementById('input-valor').value) || 0;
+        else { const m = document.getElementById('msg-confirmar-pag').textContent.match(/R\$ ([\d.,]+)/); if (m) base = parseFloat(m[1].replace(',','.')) || 0; }
+        const ac = base * taxa / 100;
+        txtEl.textContent = `Taxa de ${taxa}%: +R$ ${ac.toFixed(2).replace('.',',')} — Total: R$ ${(base+ac).toFixed(2).replace('.',',')}`;
         infoEl.style.display = 'block';
-    } else {
-        infoEl.style.display = 'none';
-    }
+    } else { infoEl.style.display = 'none'; }
 }
+
 function abrirPagamento(id, nome, valor) {
-    document.getElementById('msg-confirmar-pag').textContent =
-        `Confirmar pagamento de R$ ${parseFloat(valor).toFixed(2)} para ${nome}?`;
+    document.getElementById('msg-confirmar-pag').textContent = `Confirmar pagamento de R$ ${parseFloat(valor).toFixed(2)} para ${nome}?`;
     document.getElementById('form-confirmar-pag').action = `/financeiro/${id}/pagar`;
-    // Reseta aviso de acréscimo
-    const info = document.getElementById('info-acrescimo-conf');
-    if (info) info.style.display = 'none';
+    const info = document.getElementById('info-acrescimo-conf'); if (info) info.style.display = 'none';
+    const banco = document.getElementById('banco-conf'); if (banco) banco.classList.remove('visivel');
     new bootstrap.Modal(document.getElementById('modalConfirmarPagamento')).show();
 }
+
 function confirmarExclusao(id, nome) {
-    document.getElementById('msg-excluir').textContent =
-        `Deseja excluir o pagamento de ${nome}? Esta ação não pode ser desfeita.`;
-    const periodo = '{{ periodo_ativo }}';
-    const status  = '{{ status_filtro }}';
-    const inicio  = '{{ data_inicio }}';
-    const fim     = '{{ data_fim }}';
+    document.getElementById('msg-excluir').textContent = `Deseja excluir o pagamento de ${nome}? Esta ação não pode ser desfeita.`;
     document.getElementById('btn-confirmar-excluir').href =
-        `/financeiro/${id}/excluir?periodo=${periodo}&status=${status}&inicio=${inicio}&fim=${fim}`;
+        `/financeiro/${id}/excluir?periodo={{ periodo_ativo }}&status={{ status_filtro }}&inicio={{ data_inicio }}&fim={{ data_fim }}`;
     new bootstrap.Modal(document.getElementById('modalExcluir')).show();
 }
 
 document.getElementById('busca').addEventListener('input', function() {
-    const termo = this.value.toLowerCase();
-    document.querySelectorAll('#tabela-pagamentos tbody tr').forEach(linha => {
-        linha.style.display = linha.textContent.toLowerCase().includes(termo) ? '' : 'none';
-    });
+    const t = this.value.toLowerCase();
+    document.querySelectorAll('#tabela-pagamentos tbody tr').forEach(l => l.style.display = l.textContent.toLowerCase().includes(t) ? '' : 'none');
 });
 
-// ── Filtros rápidos de período ────────────────────────────────────────────────
 function aplicarPeriodoRapido(periodo) {
     const url = new URL(window.location.href);
-    url.searchParams.set('periodo', periodo);
-    url.searchParams.delete('inicio');
-    url.searchParams.delete('fim');
-    url.searchParams.set('status', '{{ status_filtro }}');
-    window.location.href = url.toString();
+    url.searchParams.set('periodo', periodo); url.searchParams.delete('inicio'); url.searchParams.delete('fim');
+    url.searchParams.set('status', '{{ status_filtro }}'); window.location.href = url.toString();
 }
-
 function togglePersonalizado() {
-    const wrap = document.getElementById('wrap-personalizado');
-    wrap.style.display = wrap.style.display === 'none' ? 'block' : 'none';
+    const w = document.getElementById('wrap-personalizado');
+    w.style.display = w.style.display === 'none' ? 'block' : 'none';
     document.getElementById('btn-personalizado').classList.toggle('ativo');
 }
-
 function aplicarPersonalizado() {
-    const inicio = document.getElementById('data-inicio-custom').value;
-    const fim    = document.getElementById('data-fim-custom').value;
-    if (!inicio || !fim) { alert('Informe data início e data fim.'); return; }
+    const i = document.getElementById('data-inicio-custom').value, f = document.getElementById('data-fim-custom').value;
+    if (!i || !f) { alert('Informe data início e data fim.'); return; }
     const url = new URL(window.location.href);
-    url.searchParams.set('periodo', 'personalizado');
-    url.searchParams.set('inicio', inicio);
-    url.searchParams.set('fim', fim);
-    url.searchParams.set('status', '{{ status_filtro }}');
-    window.location.href = url.toString();
+    url.searchParams.set('periodo','personalizado'); url.searchParams.set('inicio',i); url.searchParams.set('fim',f);
+    url.searchParams.set('status','{{ status_filtro }}'); window.location.href = url.toString();
 }
 
-// ── Modal relatório mensal ────────────────────────────────────────────────────
-const secoesAtivas = { resumo: true, pagamentos: true, inadimplentes: true };
+// ── Colunas ──────────────────────────────────────────────────────────────────
+function toggleCol(e, el) { e.stopPropagation(); el.classList.toggle('marcada'); }
+
+function getColsPorSecao(secao) {
+    const cols = [];
+    document.querySelectorAll(`.col-tag[data-secao="${secao}"].marcada`).forEach(el => cols.push(el.dataset.col));
+    return cols;
+}
+
+// ── Relatório Mensal ──────────────────────────────────────────────────────────
+const secoesAtivas = { resumo: true, dinheiro: true, pix: true, cartao: true, inadimplentes: true };
 let formatoAtivo = 'pdf';
 
 function toggleSecao(nome) {
     secoesAtivas[nome] = !secoesAtivas[nome];
-    const el   = document.getElementById('secao-' + nome);
+    const el = document.getElementById('secao-' + nome);
     const icon = document.getElementById('icon-' + nome);
+    const colsWrap = document.getElementById('cols-wrap-' + nome);
     if (secoesAtivas[nome]) {
-        el.classList.add('selecionada');
-        icon.className = 'bi bi-check-circle-fill';
-        icon.style.color = 'var(--cor-principal)';
-        if (nome === 'pagamentos')    document.getElementById('cols-pagamentos').style.opacity = '1';
-        if (nome === 'inadimplentes') document.getElementById('cols-inadimplentes').style.opacity = '1';
+        el.classList.add('selecionada'); icon.className = 'bi bi-check-circle-fill'; icon.style.color = 'var(--cor-principal)';
+        if (colsWrap) colsWrap.style.opacity = '1';
     } else {
-        el.classList.remove('selecionada');
-        icon.className = 'bi bi-circle';
-        icon.style.color = '#dee2e6';
-        if (nome === 'pagamentos')    document.getElementById('cols-pagamentos').style.opacity = '0.4';
-        if (nome === 'inadimplentes') document.getElementById('cols-inadimplentes').style.opacity = '0.4';
+        el.classList.remove('selecionada'); icon.className = 'bi bi-circle'; icon.style.color = '#dee2e6';
+        if (colsWrap) colsWrap.style.opacity = '0.4';
     }
 }
-function toggleCol(e, el) { e.stopPropagation(); el.classList.toggle('marcada'); }
+
 function selecionarFormato(fmt) {
     formatoAtivo = fmt;
     document.getElementById('fmt-pdf').classList.toggle('ativo', fmt === 'pdf');
     document.getElementById('fmt-csv').classList.toggle('ativo', fmt === 'csv');
 }
-// Sincroniza o mês do modal com o período ativo na tela
+
 function sincronizarMesRelatorio() {
-    // Preenche datas do modal com o período ativo na tela
-    const inicio = document.getElementById('rel-inicio');
-    const fim    = document.getElementById('rel-fim');
-    if (inicio) inicio.value = '{{ data_inicio }}';
-    if (fim)    fim.value    = '{{ data_fim }}';
+    const i = document.getElementById('rel-inicio'), f = document.getElementById('rel-fim');
+    if (i) i.value = '{{ data_inicio }}'; if (f) f.value = '{{ data_fim }}';
 }
 
 function gerarRelatorio() {
     const inicio = document.getElementById('rel-inicio').value;
     const fim    = document.getElementById('rel-fim').value;
     if (!inicio || !fim) { alert('Informe a data início e a data fim.'); return; }
-    const colunas = [];
-    document.querySelectorAll('#cols-pagamentos .col-tag.marcada').forEach(el => colunas.push(el.dataset.col));
     const secoes = Object.entries(secoesAtivas).filter(([,v]) => v).map(([k]) => k).join(',');
     if (!secoes) { alert('Selecione ao menos uma seção.'); return; }
-    if (secoesAtivas.pagamentos && colunas.length === 0) { alert('Selecione ao menos uma coluna para a lista de pagamentos.'); return; }
-    const colsInad = [];
-    document.querySelectorAll('#cols-inadimplentes .col-tag.marcada').forEach(el => colsInad.push(el.dataset.col));
-    const url = `/financeiro/relatorio-mensal?inicio=${inicio}&fim=${fim}&formato=${formatoAtivo}&secoes=${secoes}&colunas=${colunas.join(',')}&colunas_inad=${colsInad.join(',')}`;
+    const colsDinheiro    = getColsPorSecao('dinheiro').join(',');
+    const colsPix         = getColsPorSecao('pix').join(',');
+    const colsCartao      = getColsPorSecao('cartao').join(',');
+    const colsInad        = getColsPorSecao('inadimplentes').join(',');
+    const url = `/financeiro/relatorio-mensal?inicio=${inicio}&fim=${fim}&formato=${formatoAtivo}&secoes=${secoes}`
+              + `&cols_dinheiro=${colsDinheiro}&cols_pix=${colsPix}&cols_cartao=${colsCartao}&cols_inad=${colsInad}`;
     bootstrap.Modal.getInstance(document.getElementById('modalRelatorioMensal')).hide();
     window.location.href = url;
 }
 
-// CSS helper
+// ── Relatório Diário ──────────────────────────────────────────────────────────
+const secoesDiarioAtivas = { 'd-dinheiro': true, 'd-pix': true, 'd-cartao': true };
+let formatoDiario = 'pdf';
+
+function toggleSecaoDiario(nome) {
+    secoesDiarioAtivas[nome] = !secoesDiarioAtivas[nome];
+    const el       = document.getElementById('secao-' + nome);
+    const icon     = document.getElementById('icon-' + nome);
+    const colsWrap = document.getElementById('cols-wrap-' + nome);
+    if (secoesDiarioAtivas[nome]) {
+        el.classList.add('selecionada'); icon.className = 'bi bi-check-circle-fill'; icon.style.color = 'var(--cor-principal)';
+        if (colsWrap) colsWrap.style.opacity = '1';
+    } else {
+        el.classList.remove('selecionada'); icon.className = 'bi bi-circle'; icon.style.color = '#dee2e6';
+        if (colsWrap) colsWrap.style.opacity = '0.4';
+    }
+}
+
+function selecionarFormatoDiario(fmt) {
+    formatoDiario = fmt;
+    document.getElementById('diario-fmt-pdf').classList.toggle('ativo', fmt === 'pdf');
+    document.getElementById('diario-fmt-csv').classList.toggle('ativo', fmt === 'csv');
+}
+
+function sincronizarDiario() {
+    document.getElementById('diario-data').value = new Date().toISOString().split('T')[0];
+}
+
+function gerarRelatorioDiario() {
+    const data    = document.getElementById('diario-data').value;
+    const secoes  = Object.entries(secoesDiarioAtivas).filter(([,v]) => v).map(([k]) => k).join(',');
+    if (!secoes) { alert('Selecione ao menos uma seção.'); return; }
+    const colsDinheiro = getColsPorSecao('d-dinheiro').join(',');
+    const colsPix      = getColsPorSecao('d-pix').join(',');
+    const colsCartao   = getColsPorSecao('d-cartao').join(',');
+    const url = `/financeiro/relatorio-diario?data=${data}&formato=${formatoDiario}&secoes=${secoes}`
+              + `&cols_dinheiro=${colsDinheiro}&cols_pix=${colsPix}&cols_cartao=${colsCartao}`;
+    bootstrap.Modal.getInstance(document.getElementById('modalRelatorioDiario')).hide();
+    window.location.href = url;
+}
+
 const style = document.createElement('style');
 style.textContent = `.btn-filtrar { background-color: var(--cor-principal); color: white; padding: 7px 18px; border-radius: 8px; font-size: 13px; font-weight: 500; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; }`;
 document.head.appendChild(style);

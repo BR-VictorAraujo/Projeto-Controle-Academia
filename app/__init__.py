@@ -18,10 +18,22 @@ def create_app():
     app.config.from_object(Config)
     db.init_app(app)
     login_manager.init_app(app)
-    from app.routes import auth
-    app.register_blueprint(auth)
 
-    # Filtros de fuso horário
+    # Registra todos os blueprints
+    from app.routes.auth       import bp as auth_bp
+    from app.routes.alunos     import bp as alunos_bp
+    from app.routes.acessos    import bp as acessos_bp
+    from app.routes.financeiro import bp as financeiro_bp
+    from app.routes.relatorios import bp as relatorios_bp
+    from app.routes.config     import bp as config_bp
+
+    app.register_blueprint(auth_bp)
+    app.register_blueprint(alunos_bp)
+    app.register_blueprint(acessos_bp)
+    app.register_blueprint(financeiro_bp)
+    app.register_blueprint(relatorios_bp)
+    app.register_blueprint(config_bp)
+
     @app.template_filter('local_time')
     def local_time_filter(dt):
         if dt is None:
@@ -46,7 +58,6 @@ def create_app():
             fuso = -3
         return (dt + timedelta(hours=fuso)).strftime('%d/%m/%Y')
 
-    # Injeta configurações globais em todos os templates
     @app.context_processor
     def inject_config():
         from app.models import Configuracao

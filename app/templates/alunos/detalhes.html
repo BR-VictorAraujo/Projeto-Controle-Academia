@@ -14,18 +14,11 @@
     box-shadow: 0 2px 8px rgba(0,0,0,0.05);
 }
 .avatar {
-    width: 120px;
-    height: 120px;
-    border-radius: 50%;
+    width: 120px; height: 120px; border-radius: 50%;
     background-color: color-mix(in srgb, var(--cor-principal) 15%, white);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 40px;
-    font-weight: 700;
-    color: var(--cor-principal);
-    margin-bottom: 16px;
-    overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 40px; font-weight: 700; color: var(--cor-principal);
+    margin-bottom: 16px; overflow: hidden;
 }
 .avatar img { width: 100%; height: 100%; object-fit: cover; }
 .aluno-nome { font-size: 22px; font-weight: 600; color: #1a1a2e; margin-bottom: 4px; }
@@ -133,6 +126,10 @@
                 <div class="info-row">
                     <span class="info-label"><i class="bi bi-envelope me-1"></i> E-mail</span>
                     <span class="info-value">{{ aluno.email or '—' }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label"><i class="bi bi-geo-alt me-1"></i> Endereço</span>
+                    <span class="info-value">{{ aluno.endereco or '—' }}</span>
                 </div>
                 <div class="info-row">
                     <span class="info-label"><i class="bi bi-cake me-1"></i> Nascimento</span>
