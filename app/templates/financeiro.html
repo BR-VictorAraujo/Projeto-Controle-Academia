@@ -104,10 +104,13 @@
             <div class="periodo-rapido-wrap">
                 <button class="periodo-btn {% if periodo_ativo == 'hoje' %}ativo{% endif %}" onclick="aplicarPeriodoRapido('hoje')">Hoje</button>
                 <button class="periodo-btn {% if periodo_ativo == 'ontem' %}ativo{% endif %}" onclick="aplicarPeriodoRapido('ontem')">Ontem</button>
-                <button class="periodo-btn {% if periodo_ativo == 'semana_atual' %}ativo{% endif %}" onclick="aplicarPeriodoRapido('semana_atual')">Semana atual</button>
-                <button class="periodo-btn {% if periodo_ativo == 'semana_passada' %}ativo{% endif %}" onclick="aplicarPeriodoRapido('semana_passada')">Semana passada</button>
+                <button class="periodo-btn {% if periodo_ativo == 'semana_atual' %}ativo{% endif %}" onclick="aplicarPeriodoRapido('semana_atual')">Esta semana</button>
                 <button class="periodo-btn {% if periodo_ativo == 'mes_atual' %}ativo{% endif %}" onclick="aplicarPeriodoRapido('mes_atual')">Mês atual</button>
                 <button class="periodo-btn {% if periodo_ativo == 'mes_passado' %}ativo{% endif %}" onclick="aplicarPeriodoRapido('mes_passado')">Mês passado</button>
+                <button class="periodo-btn {% if periodo_ativo == 'todo_periodo' %}ativo{% endif %}" onclick="aplicarPeriodoRapido('todo_periodo')"
+                    style="{% if periodo_ativo != 'todo_periodo' %}border-color:#6c757d;{% endif %}">
+                    <i class="bi bi-infinity me-1"></i> Todo o período
+                </button>
                 <span style="width:1px; background:#dee2e6; margin:0 4px;"></span>
                 <button class="periodo-btn {% if periodo_ativo == 'personalizado' %}ativo{% endif %}" onclick="togglePersonalizado()" id="btn-personalizado">
                     <i class="bi bi-calendar3 me-1"></i> Personalizado
@@ -148,7 +151,12 @@
         <i class="bi bi-calendar3"></i>
         {{ data_inicio.replace('-', '/').split('/')[::-1]|join('/') if data_inicio else '' }}
         {% if data_inicio != data_fim %}a {{ data_fim.replace('-', '/').split('/')[::-1]|join('/') if data_fim else '' }}{% endif %}
-        — {{ total_registros }} registro{{ 's' if total_registros != 1 else '' }}
+        —
+        {% if status_filtro == 'inadimplentes' %}
+            {{ inadimplentes|length }} inadimplente{{ 's' if inadimplentes|length != 1 else '' }}
+        {% else %}
+            {{ total_registros }} registro{{ 's' if total_registros != 1 else '' }}
+        {% endif %}
     </span>
 </div>
 {% endif %}
@@ -175,7 +183,7 @@
                         <td><span class="badge-vencido">⚠️ Inadimplente</span></td>
                         <td>
                             <button class="btn-acao" title="Registrar pagamento"
-                                onclick="document.getElementById('select-aluno').value='{{ aluno.id }}'; preencherValor(document.getElementById('select-aluno')); new bootstrap.Modal(document.getElementById('modalNovoPagamento')).show();">
+                                onclick="document.getElementById('select-aluno').value='{{ aluno.id }}'; preencherValor(document.getElementById('select-aluno')); toggleBanco('novo', document.getElementById('select-forma-novo').value); new bootstrap.Modal(document.getElementById('modalNovoPagamento')).show();">
                                 <i class="bi bi-cash-coin" style="color:#2e7d32;"></i>
                             </button>
                         </td>
@@ -673,6 +681,10 @@ function preencherValor(select) {
         calcularAcrescimo('novo');
     }
 
+    // Atualiza visibilidade do campo banco conforme forma selecionada
+    const formaEl = document.getElementById('select-forma-novo');
+    if (formaEl) toggleBanco('novo', formaEl.value);
+
     // Calcula data de vencimento automaticamente (mantém o dia do mês)
     const inputVenc = document.querySelector('[name="data_vencimento"]');
     if (inputVenc) {
@@ -733,7 +745,12 @@ function abrirPagamento(id, nome, valor) {
     document.getElementById('msg-confirmar-pag').textContent = `Confirmar pagamento de R$ ${parseFloat(valor).toFixed(2)} para ${nome}?`;
     document.getElementById('form-confirmar-pag').action = `/financeiro/${id}/pagar`;
     const info = document.getElementById('info-acrescimo-conf'); if (info) info.style.display = 'none';
-    const banco = document.getElementById('banco-conf'); if (banco) banco.classList.remove('visivel');
+    // Reseta e verifica banco conforme forma atual
+    const formaConf = document.getElementById('select-forma-conf');
+    if (formaConf) {
+        formaConf.selectedIndex = 0;
+        toggleBanco('conf', formaConf.value);
+    }
     new bootstrap.Modal(document.getElementById('modalConfirmarPagamento')).show();
 }
 

@@ -86,6 +86,12 @@ def financeiro():
             primeiro_dia = date(hoje.year, hoje.month - 1, 1)
         ultimo_dia = date(primeiro_dia.year, primeiro_dia.month,
                           calendar.monthrange(primeiro_dia.year, primeiro_dia.month)[1])
+    elif periodo_ativo == 'todo_periodo':
+        # Busca a data do primeiro pagamento registrado
+        from app.models import Pagamento as PagTodo
+        primeiro_pag = db.session.query(db.func.min(PagTodo.data_vencimento)).scalar()
+        primeiro_dia = primeiro_pag if primeiro_pag else date(hoje.year, 1, 1)
+        ultimo_dia   = hoje
     elif periodo_ativo == 'personalizado':
         try:
             primeiro_dia = datetime.strptime(request.args.get('inicio', hoje.strftime('%Y-%m-%d')), '%Y-%m-%d').date()
@@ -106,33 +112,83 @@ def financeiro():
 
     inadimplentes = []
     if status_filtro == 'inadimplentes':
-        alunos_com_pagamento = db.session.query(Pagamento.aluno_id).filter(
-            Pagamento.data_vencimento >= primeiro_dia,
-            Pagamento.data_vencimento <= ultimo_dia,
-            Pagamento.status == 'pago'
-        ).scalar_subquery()
-        # Inadimplentes: apenas alunos ativos que NÃO são de plano diária
+        # Para "todo o período", considera qualquer pagamento pago já registrado
+        if periodo_ativo == 'todo_periodo':
+            alunos_com_pagamento = db.session.query(Pagamento.aluno_id).filter(
+                Pagamento.status == 'pago'
+            ).scalar_subquery()
+        else:
+            alunos_com_pagamento = db.session.query(Pagamento.aluno_id).filter(
+                Pagamento.status == 'pago',
+                Pagamento.data_pagamento >= primeiro_dia,
+                Pagamento.data_pagamento <= ultimo_dia
+            ).scalar_subquery()
+        # Inadimplentes: apenas alunos ativos, não-diária, com vencimento < hoje e sem pagamento no período
         inadimplentes = Aluno.query.filter(
             Aluno.ativo == True,
+            Aluno.vencimento < hoje,
             ~Aluno.plano.in_(planos_diaria) if planos_diaria else True,
             ~Aluno.id.in_(alunos_com_pagamento)
         ).order_by(Aluno.nome).all()
         pagamentos = []
     else:
-        query = Pagamento.query.filter(
-            Pagamento.data_vencimento >= primeiro_dia,
-            Pagamento.data_vencimento <= ultimo_dia
-        )
-        if status_filtro != 'todos':
-            query = query.filter(Pagamento.status == status_filtro)
+        # Pagos: filtra por data_pagamento (quando o dinheiro entrou)
+        # Pendentes: filtra por data_vencimento (quando vence)
+        if status_filtro == 'pago':
+            query = Pagamento.query.filter(
+                Pagamento.status == 'pago',
+                Pagamento.data_pagamento >= primeiro_dia,
+                Pagamento.data_pagamento <= ultimo_dia
+            )
+        elif status_filtro == 'pendente':
+            query = Pagamento.query.filter(
+                Pagamento.status == 'pendente',
+                Pagamento.data_vencimento >= primeiro_dia,
+                Pagamento.data_vencimento <= ultimo_dia
+            )
+        else:
+            # Todos: pagos por data_pagamento + pendentes por data_vencimento
+            query = Pagamento.query.filter(
+                db.or_(
+                    db.and_(
+                        Pagamento.status == 'pago',
+                        Pagamento.data_pagamento >= primeiro_dia,
+                        Pagamento.data_pagamento <= ultimo_dia
+                    ),
+                    db.and_(
+                        Pagamento.status == 'pendente',
+                        Pagamento.data_vencimento >= primeiro_dia,
+                        Pagamento.data_vencimento <= ultimo_dia
+                    )
+                )
+            )
         pagamentos = query.order_by(Pagamento.data_vencimento).all()
 
-    todos_periodo        = Pagamento.query.filter(Pagamento.data_vencimento >= primeiro_dia, Pagamento.data_vencimento <= ultimo_dia).all()
-    total_recebido       = sum(float(p.valor) for p in todos_periodo if p.status == 'pago')
-    total_pendente       = sum(float(p.valor) for p in todos_periodo if p.status == 'pendente')
-    total_inadimplentes  = len(set(p.aluno_id for p in todos_periodo if p.status == 'pendente' and p.data_vencimento < hoje))
-    total_pagamentos_mes = len([p for p in todos_periodo if p.status == 'pago'])
+    # Totais: pagos por data_pagamento, pendentes por data_vencimento
+    pagos_periodo     = Pagamento.query.filter(
+        Pagamento.status == 'pago',
+        Pagamento.data_pagamento >= primeiro_dia,
+        Pagamento.data_pagamento <= ultimo_dia
+    ).all()
+    pendentes_periodo = Pagamento.query.filter(
+        Pagamento.status == 'pendente',
+        Pagamento.data_vencimento >= primeiro_dia,
+        Pagamento.data_vencimento <= ultimo_dia
+    ).all()
+    todos_periodo        = pagos_periodo + pendentes_periodo
+    total_recebido       = sum(float(p.valor) for p in pagos_periodo)
+    total_pendente       = sum(float(p.valor) for p in pendentes_periodo)
+    total_pagamentos_mes = len(pagos_periodo)
     total_registros      = len(todos_periodo)
+    # Inadimplentes: alunos ativos não-diária sem pagamento pago no período
+    _planos_diaria = [p.nome for p in Plano.query.filter_by(dias_validade=1, ativo=True).all()]
+    _alunos_pagos  = {p.aluno_id for p in pagos_periodo}
+    _q_inad = Aluno.query.filter(Aluno.ativo == True, Aluno.vencimento < hoje)
+    if _planos_diaria:
+        _q_inad = _q_inad.filter(~Aluno.plano.in_(_planos_diaria))
+    if _alunos_pagos:
+        _q_inad = _q_inad.filter(~Aluno.id.in_(list(_alunos_pagos)))
+    total_inadimplentes = _q_inad.count()
 
     formas_ativas = {
         'dinheiro': get_param('forma_dinheiro', '1') == '1',
@@ -193,7 +249,7 @@ def financeiro_registrar():
                 # Proteção contra duplicidade: só atualiza vencimento se não houver
                 # outro pagamento pago com a mesma data de vencimento
                 pags_mesmo_venc = Pagamento.query.filter(
-                    Pagamento.aluno_id == aluno_id,
+                    Pagamento.aluno_id == int(aluno_id),
                     Pagamento.status == 'pago',
                     Pagamento.data_vencimento == data_vencimento
                 ).count()
@@ -207,6 +263,15 @@ def financeiro_registrar():
     db.session.commit()
     registrar_log('registrou pagamento', f'Aluno ID: {aluno_id} | Valor: R$ {valor}')
     flash('Pagamento registrado com sucesso!', 'success')
+    # Se foi pago, redireciona para aba Pagos para mostrar o novo lançamento
+    if status == 'pago':
+        periodo = request.form.get('_periodo', 'mes_atual')
+        inicio  = request.form.get('_inicio', '')
+        fim     = request.form.get('_fim', '')
+        params  = f'periodo={periodo}&status=pago'
+        if inicio and fim:
+            params += f'&inicio={inicio}&fim={fim}'
+        return redirect(f'/financeiro?{params}')
     return _redirect_financeiro()
 
 @bp.route('/financeiro/<int:id>/pagar', methods=['POST'])
