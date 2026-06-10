@@ -35,6 +35,47 @@ def verificar_diarias_vencidas():
         db.session.commit()
 
 
+def corrigir_vencimentos_desatualizados():
+    """
+    Rotina automática: corrige vencimentos de alunos ativos cujo vencimento
+    está no passado E que possuem ao menos um pagamento pago registrado.
+    Alunos sem nenhum pagamento NÃO são alterados.
+    """
+    from app.models import Pagamento, Plano
+    hoje = date.today()
+
+    # Alunos ativos com vencimento no passado (exceto diárias)
+    planos_diaria = [p.nome for p in Plano.query.filter_by(dias_validade=1, ativo=True).all()]
+    q = Aluno.query.filter(Aluno.ativo == True, Aluno.vencimento < hoje)
+    if planos_diaria:
+        q = q.filter(~Aluno.plano.in_(planos_diaria))
+    alunos = q.all()
+
+    atualizados = 0
+    for aluno in alunos:
+        plano = Plano.query.filter_by(nome=aluno.plano, ativo=True).first()
+        if not plano:
+            continue
+
+        # Só corrige se tiver ao menos um pagamento pago registrado
+        tem_pagamento = Pagamento.query.filter(
+            Pagamento.aluno_id == aluno.id,
+            Pagamento.status == 'pago'
+        ).first()
+        if not tem_pagamento:
+            continue
+
+        # Calcula o vencimento correto a partir do vencimento cadastrado
+        novo_venc = _calcular_novo_vencimento(aluno.vencimento, plano.dias_validade, hoje)
+
+        # Só atualiza se o novo vencimento for diferente do atual
+        if novo_venc != aluno.vencimento:
+            aluno.vencimento = novo_venc
+            atualizados += 1
+
+    if atualizados:
+        db.session.commit()
+
 def _calcular_novo_vencimento(venc_atual, dias_plano, hoje):
     """Calcula o próximo vencimento mantendo o dia do mês."""
     if dias_plano == 1:
@@ -61,6 +102,8 @@ def financeiro():
 
     # Regra de negócio: inativa diárias vencidas
     verificar_diarias_vencidas()
+    # Corrige vencimentos desatualizados automaticamente
+    corrigir_vencimentos_desatualizados()
 
     hoje          = date.today()
     status_filtro = request.args.get('status', 'todos')
@@ -87,9 +130,12 @@ def financeiro():
         ultimo_dia = date(primeiro_dia.year, primeiro_dia.month,
                           calendar.monthrange(primeiro_dia.year, primeiro_dia.month)[1])
     elif periodo_ativo == 'todo_periodo':
-        # Busca a data do primeiro pagamento registrado
+        # Busca a data do primeiro pagamento PAGO registrado (por data_pagamento)
         from app.models import Pagamento as PagTodo
-        primeiro_pag = db.session.query(db.func.min(PagTodo.data_vencimento)).scalar()
+        primeiro_pag = db.session.query(db.func.min(PagTodo.data_pagamento)).filter(
+            PagTodo.status == 'pago',
+            PagTodo.data_pagamento != None
+        ).scalar()
         primeiro_dia = primeiro_pag if primeiro_pag else date(hoje.year, 1, 1)
         ultimo_dia   = hoje
     elif periodo_ativo == 'personalizado':
@@ -114,8 +160,10 @@ def financeiro():
     if status_filtro == 'inadimplentes':
         # Para "todo o período", considera qualquer pagamento pago já registrado
         if periodo_ativo == 'todo_periodo':
+            # No todo_periodo, inadimplente é quem tem vencimento passado e nunca pagou
             alunos_com_pagamento = db.session.query(Pagamento.aluno_id).filter(
-                Pagamento.status == 'pago'
+                Pagamento.status == 'pago',
+                Pagamento.data_pagamento != None
             ).scalar_subquery()
         else:
             alunos_com_pagamento = db.session.query(Pagamento.aluno_id).filter(
@@ -228,7 +276,7 @@ def financeiro_registrar():
     data_pag_str    = request.form.get('data_pagamento')
     data_vencimento = datetime.strptime(data_venc_str, '%Y-%m-%d').date() if data_venc_str else date.today()
     data_pagamento  = datetime.strptime(data_pag_str,  '%Y-%m-%d').date() if data_pag_str  else None
-    status = 'pago' if data_pagamento else ('vencido' if data_vencimento < date.today() else 'pendente')
+    status = 'pago' if data_pagamento else 'pendente'
 
     db.session.add(Pagamento(
         aluno_id=aluno_id, valor=valor, forma_pagamento=forma_pagamento,
@@ -253,7 +301,7 @@ def financeiro_registrar():
                     Pagamento.status == 'pago',
                     Pagamento.data_vencimento == data_vencimento
                 ).count()
-                if pags_mesmo_venc <= 1:
+                if pags_mesmo_venc == 0:
                     aluno.vencimento = _calcular_novo_vencimento(
                         aluno.vencimento, plano.dias_validade, hoje)
                 # Reativa o aluno se estava inativo (caso pague de novo)
@@ -618,8 +666,8 @@ def financeiro_relatorio_mensal():
         nome_mes = primeiro_dia.strftime('%d/%m/%Y') + ' a ' + ultimo_dia.strftime('%d/%m/%Y')
 
     todos_mes = Pagamento.query.filter(
-        Pagamento.data_vencimento >= primeiro_dia,
-        Pagamento.data_vencimento <= ultimo_dia,
+        Pagamento.data_pagamento >= primeiro_dia,
+        Pagamento.data_pagamento <= ultimo_dia,
         Pagamento.status == 'pago'
     ).order_by(Pagamento.data_pagamento, Pagamento.aluno_id).all()
 
@@ -634,10 +682,14 @@ def financeiro_relatorio_mensal():
     total_cartao   = sum(float(p.valor) for p in p_cartao)
     total_geral    = total_dinheiro + total_pix + total_cartao
 
-    # Inadimplentes: apenas alunos ativos não-diária sem pagamento no período
+    # Inadimplentes: alunos ativos, não-diária, com vencimento anterior ao fim do período
+    # e sem pagamento pago no período
     planos_diaria = [p.nome for p in Plano.query.filter_by(dias_validade=1, ativo=True).all()]
     alunos_pagos  = {p.aluno_id for p in todos_mes}
-    q_inad = Aluno.query.filter(Aluno.ativo == True)
+    q_inad = Aluno.query.filter(
+        Aluno.ativo == True,
+        Aluno.vencimento <= ultimo_dia  # só considera inadimplente se venceu dentro ou antes do período
+    )
     if planos_diaria:
         q_inad = q_inad.filter(~Aluno.plano.in_(planos_diaria))
     if alunos_pagos:

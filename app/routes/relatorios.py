@@ -94,7 +94,7 @@ def relatorios():
     passagens = []; por_aluno = []; auditoria = []
     heatmap = [[0]*24 for _ in range(7)]
     pico_quente = {'dia':0,'hora':0,'valor':0}; pico_frio = {'dia':0,'hora':0,'valor':0}
-    total_passagens = 0; fin_pagamentos = []; fin_resumo = {'recebido':0.0,'pendente':0.0,'vencido':0.0}
+    total_passagens = 0; fin_pagamentos = []; fin_resumo = {'recebido':0.0,'pendente':0.0}
 
     if filtro_aplicado:
         dt_inicio  = datetime.strptime(filtro_inicio, '%Y-%m-%d').date()
@@ -125,18 +125,41 @@ def relatorios():
         heatmap, pico_quente, pico_frio = _build_heatmap(passagens_raw)
 
         if tipo_ativo == 'financeiro':
-            for pag in Pagamento.query.filter_by(status='pendente').all():
-                if pag.data_vencimento < hoje: pag.status = 'vencido'
-            db.session.commit()
-            qpag = Pagamento.query.filter(Pagamento.data_vencimento >= dt_inicio, Pagamento.data_vencimento <= dt_fim)
-            if f_pg_status: qpag = qpag.filter(Pagamento.status == f_pg_status)
+            # Filtra pagamentos por data_pagamento (pagos) e data_vencimento (pendentes)
+            qpag = Pagamento.query.filter(
+                db.or_(
+                    db.and_(
+                        Pagamento.status == 'pago',
+                        Pagamento.data_pagamento >= dt_inicio,
+                        Pagamento.data_pagamento <= dt_fim
+                    ),
+                    db.and_(
+                        Pagamento.status == 'pendente',
+                        Pagamento.data_vencimento >= dt_inicio,
+                        Pagamento.data_vencimento <= dt_fim
+                    )
+                )
+            )
+            if f_pg_status:
+                if f_pg_status == 'pago':
+                    qpag = qpag.filter(
+                        Pagamento.status == 'pago',
+                        Pagamento.data_pagamento >= dt_inicio,
+                        Pagamento.data_pagamento <= dt_fim
+                    )
+                elif f_pg_status == 'pendente':
+                    qpag = qpag.filter(
+                        Pagamento.status == 'pendente',
+                        Pagamento.data_vencimento >= dt_inicio,
+                        Pagamento.data_vencimento <= dt_fim
+                    )
             if f_forma_pag: qpag = qpag.filter(Pagamento.forma_pagamento == f_forma_pag)
             if f_nome:  qpag = qpag.join(Aluno).filter(Aluno.nome.ilike(f'%{f_nome}%'))
             if f_plano: qpag = qpag.join(Aluno, isouter=True).filter(Aluno.plano == f_plano)
             fin_pagamentos = qpag.order_by(Pagamento.data_vencimento).all()
             for p in fin_pagamentos:
-                if p.status == 'pago':    fin_resumo['recebido'] += float(p.valor)
-                else:                       fin_resumo['pendente'] += float(p.valor)
+                if p.status == 'pago': fin_resumo['recebido'] += float(p.valor)
+                else:                  fin_resumo['pendente'] += float(p.valor)
 
     qv = Aluno.query.filter_by(ativo=True)
     if f_plano and tipo_ativo == 'vencimentos': qv = qv.filter(Aluno.plano == f_plano)
@@ -321,7 +344,16 @@ def exportar_csv():
     elif tipo == 'financeiro':
         cols = parse_cols(['aluno','plano','valor','vencimento','pagamento','forma','status'])
         writer.writerow([col_labels.get(c,c) for c in cols])
-        qpag = Pagamento.query.filter(Pagamento.data_vencimento >= dt_inicio, Pagamento.data_vencimento <= dt_fim)
+        qpag = Pagamento.query.filter(
+            db.or_(
+                db.and_(Pagamento.status == 'pago',
+                        Pagamento.data_pagamento >= dt_inicio,
+                        Pagamento.data_pagamento <= dt_fim),
+                db.and_(Pagamento.status == 'pendente',
+                        Pagamento.data_vencimento >= dt_inicio,
+                        Pagamento.data_vencimento <= dt_fim)
+            )
+        )
         if f_pg_status: qpag = qpag.filter(Pagamento.status == f_pg_status)
         if f_forma_pag: qpag = qpag.filter(Pagamento.forma_pagamento == f_forma_pag)
         if f_nome:  qpag = qpag.join(Aluno).filter(Aluno.nome.ilike(f'%{f_nome}%'))
@@ -368,11 +400,14 @@ def exportar_pdf():
     f_usuario=request.args.get('f_usuario','').strip(); f_acao=request.args.get('f_acao','')
     f_pg_status=request.args.get('f_pg_status',''); f_forma_pag=request.args.get('f_forma_pag','')
 
-    LARANJA  = colors.HexColor(get_param('cor_principal', '#FF6B00'))
-    SIDEBAR  = colors.HexColor('#1a1a2e')
-    CINZA    = colors.HexColor('#6c757d')
-    nome_ac  = get_param('nome_academia', 'Academia')
-    logo_url = get_param('logo_url', '')
+    LARANJA      = colors.HexColor(get_param('cor_principal', '#FF6B00'))
+    SIDEBAR      = colors.HexColor('#1a1a2e')
+    CINZA        = colors.HexColor('#6c757d')
+    nome_ac      = get_param('nome_academia', 'Academia')
+    logo_url     = get_param('logo_url', '')
+    endereco_ac  = get_param('endereco', '')
+    telefone_ac  = get_param('telefone', '')
+    hora_emissao = datetime.now().strftime('%d/%m/%Y às %H:%M')
 
     titulos_map = {'passagens':'Relatorio de Passagens','por_aluno':'Passagens por Aluno',
                    'vencimentos':'Relatorio de Vencimentos','auditoria':'Log de Auditoria',
@@ -404,30 +439,39 @@ def exportar_pdf():
                 self.__dict__.update(state)
                 pw, ph = landscape(A4)
                 self.setFillColor(SIDEBAR)
-                self.rect(0, ph-1.4*cm, pw, 1.4*cm, fill=1, stroke=0)
+                self.rect(0, ph-1.6*cm, pw, 1.6*cm, fill=1, stroke=0)
                 self.setFillColor(LARANJA)
-                self.rect(0, ph-1.4*cm, 0.5*cm, 1.4*cm, fill=1, stroke=0)
+                self.rect(0, ph-1.6*cm, 0.5*cm, 1.6*cm, fill=1, stroke=0)
                 logo_x = 0.8*cm
                 if logo_url:
                     logo_path = os.path.join('app', logo_url.lstrip('/'))
                     if os.path.exists(logo_path):
                         try:
-                            self.drawImage(logo_path, logo_x, ph-1.25*cm, width=1*cm, height=1*cm,
+                            self.drawImage(logo_path, logo_x, ph-1.4*cm, width=1*cm, height=1*cm,
                                            preserveAspectRatio=True, mask='auto')
                             logo_x = 2.0*cm
                         except: pass
                 self.setFont('Helvetica-Bold', 11)
                 self.setFillColor(colors.white)
-                self.drawString(logo_x, ph-0.85*cm, nome_ac.upper())
+                self.drawString(logo_x, ph-0.7*cm, nome_ac.upper())
                 self.setFont('Helvetica', 8)
+                self.setFillColor(colors.HexColor('#cccccc'))
+                if endereco_ac:
+                    self.drawString(logo_x, ph-1.0*cm, endereco_ac)
+                info_linha = titulo_rel
+                if telefone_ac:
+                    info_linha += f'  |  Tel: {telefone_ac}'
+                self.drawString(logo_x, ph-1.3*cm, info_linha)
                 self.setFillColor(colors.HexColor('#aaaaaa'))
-                self.drawRightString(pw-1*cm, ph-0.85*cm, f'Pag. {self._pageNumber} de {total}')
+                self.drawRightString(pw-1*cm, ph-0.7*cm, f'Emitido em {hora_emissao}')
+                self.drawRightString(pw-1*cm, ph-1.0*cm, f'Pág. {self._pageNumber} de {total}')
                 self.setStrokeColor(colors.HexColor('#dee2e6'))
                 self.setLineWidth(0.5)
                 self.line(1*cm, 1.4*cm, pw-1*cm, 1.4*cm)
                 self.setFont('Helvetica', 8)
                 self.setFillColor(CINZA)
-                self.drawString(1*cm, 1.0*cm, nome_ac + '  —  Confidencial')
+                self.drawString(1*cm, 1.0*cm, nome_ac + '  —  Uso interno')
+                self.drawRightString(pw-1*cm, 1.0*cm, f'Página {self._pageNumber} de {total}')
                 super().showPage()
             super().save()
 
@@ -527,7 +571,16 @@ def exportar_pdf():
 
     elif tipo == 'financeiro':
         cols = parse_cols(['aluno','plano','valor','vencimento','pagamento','forma','status'])
-        qpag = Pagamento.query.filter(Pagamento.data_vencimento >= dt_inicio, Pagamento.data_vencimento <= dt_fim)
+        qpag = Pagamento.query.filter(
+            db.or_(
+                db.and_(Pagamento.status == 'pago',
+                        Pagamento.data_pagamento >= dt_inicio,
+                        Pagamento.data_pagamento <= dt_fim),
+                db.and_(Pagamento.status == 'pendente',
+                        Pagamento.data_vencimento >= dt_inicio,
+                        Pagamento.data_vencimento <= dt_fim)
+            )
+        )
         if f_pg_status: qpag = qpag.filter(Pagamento.status == f_pg_status)
         if f_forma_pag: qpag = qpag.filter(Pagamento.forma_pagamento == f_forma_pag)
         if f_nome:  qpag = qpag.join(Aluno).filter(Aluno.nome.ilike(f'%{f_nome}%'))

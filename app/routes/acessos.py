@@ -14,6 +14,11 @@ def _filtro_periodo(dt_inicio, dt_fim):
     fim_utc    = datetime(dt_fim.year,    dt_fim.month,    dt_fim.day)    - timedelta(hours=fuso) + timedelta(days=1)
     return inicio_utc, fim_utc
 
+def _hoje_local():
+    """Retorna a data de hoje no fuso horário configurado."""
+    fuso = int(get_param('fuso_horario', '-3'))
+    return (datetime.utcnow() + timedelta(hours=fuso)).date()
+
 def verificar_diaria_aluno(aluno):
     """
     Verifica se o aluno é de plano diário e se o plano venceu.
@@ -34,7 +39,7 @@ def verificar_diaria_aluno(aluno):
 @bp.route('/acessos')
 @login_required
 def acessos():
-    hoje_local   = (datetime.utcnow() + timedelta(hours=int(get_param('fuso_horario', '-3')))).date()
+    hoje_local = _hoje_local()
     inicio_utc, fim_utc = _filtro_periodo(hoje_local, hoje_local)
     acessos_hoje = RegistroAcesso.query.filter(
         RegistroAcesso.entrada_em >= inicio_utc,
@@ -49,6 +54,7 @@ def acessos():
 
 @bp.route('/acessos/biometria', methods=['POST'])
 def acesso_biometria():
+    # Sem @login_required — chamado internamente pelo app biométrico via localhost
     data     = request.get_json(silent=True) or {}
     aluno_id = data.get('aluno_id')
     if not aluno_id:
@@ -108,17 +114,25 @@ def registrar_acesso():
 @bp.route('/monitoramento')
 @login_required
 def monitoramento():
-    hoje             = datetime.utcnow().date()
+    hoje_local       = _hoje_local()
+    inicio_utc, fim_utc = _filtro_periodo(hoje_local, hoje_local)
     acessos_recentes = RegistroAcesso.query.filter(
-        db.func.date(RegistroAcesso.entrada_em) == hoje
+        RegistroAcesso.entrada_em >= inicio_utc,
+        RegistroAcesso.entrada_em <  fim_utc
     ).order_by(RegistroAcesso.entrada_em.desc()).limit(10).all()
-    total_hoje      = RegistroAcesso.query.filter(db.func.date(RegistroAcesso.entrada_em) == hoje).count()
-    total_biometria = RegistroAcesso.query.filter(db.func.date(RegistroAcesso.entrada_em) == hoje, RegistroAcesso.tipo == 'biometria').count()
-    total_manual    = RegistroAcesso.query.filter(db.func.date(RegistroAcesso.entrada_em) == hoje, RegistroAcesso.tipo == 'manual').count()
+    # Usa uma única query para contar totais
+    todos_hoje      = RegistroAcesso.query.filter(
+        RegistroAcesso.entrada_em >= inicio_utc,
+        RegistroAcesso.entrada_em <  fim_utc
+    ).all()
+    total_hoje      = len(todos_hoje)
+    total_biometria = sum(1 for a in todos_hoje if a.tipo == 'biometria')
+    total_manual    = sum(1 for a in todos_hoje if a.tipo == 'manual')
     ultimo          = RegistroAcesso.query.order_by(RegistroAcesso.entrada_em.desc()).first()
     return render_template('monitoramento.html', acessos_recentes=acessos_recentes,
                            total_hoje=total_hoje, total_biometria=total_biometria,
-                           total_manual=total_manual, ultimo_id=ultimo.id if ultimo else 0, hoje=hoje)
+                           total_manual=total_manual, ultimo_id=ultimo.id if ultimo else 0,
+                           hoje=hoje_local)
 
 @bp.route('/monitoramento/ultimo')
 @login_required
@@ -127,7 +141,7 @@ def monitoramento_ultimo():
     if not acesso:
         return json.dumps({'id': 0})
     fuso           = int(get_param('fuso_horario', '-3'))
-    hoje           = datetime.utcnow().date()
+    hoje           = _hoje_local()
     vencido        = False
     vencimento_str = '—'
     if acesso.aluno.vencimento:
@@ -147,10 +161,12 @@ def monitoramento_ultimo():
 @bp.route('/monitoramento/recentes')
 @login_required
 def monitoramento_recentes():
-    fuso    = int(get_param('fuso_horario', '-3'))
-    hoje    = datetime.utcnow().date()
+    fuso           = int(get_param('fuso_horario', '-3'))
+    hoje           = _hoje_local()
+    inicio_utc, fim_utc = _filtro_periodo(hoje, hoje)
     acessos = RegistroAcesso.query.filter(
-        db.func.date(RegistroAcesso.entrada_em) == hoje
+        RegistroAcesso.entrada_em >= inicio_utc,
+        RegistroAcesso.entrada_em <  fim_utc
     ).order_by(RegistroAcesso.entrada_em.desc()).limit(10).all()
     return json.dumps([{
         'nome': a.aluno.nome,
@@ -162,9 +178,14 @@ def monitoramento_recentes():
 @bp.route('/monitoramento/contadores')
 @login_required
 def monitoramento_contadores():
-    hoje = datetime.utcnow().date()
+    hoje           = _hoje_local()
+    inicio_utc, fim_utc = _filtro_periodo(hoje, hoje)
+    todos = RegistroAcesso.query.filter(
+        RegistroAcesso.entrada_em >= inicio_utc,
+        RegistroAcesso.entrada_em <  fim_utc
+    ).all()
     return json.dumps({
-        'total':     RegistroAcesso.query.filter(db.func.date(RegistroAcesso.entrada_em) == hoje).count(),
-        'biometria': RegistroAcesso.query.filter(db.func.date(RegistroAcesso.entrada_em) == hoje, RegistroAcesso.tipo == 'biometria').count(),
-        'manual':    RegistroAcesso.query.filter(db.func.date(RegistroAcesso.entrada_em) == hoje, RegistroAcesso.tipo == 'manual').count(),
+        'total':     len(todos),
+        'biometria': sum(1 for a in todos if a.tipo == 'biometria'),
+        'manual':    sum(1 for a in todos if a.tipo == 'manual'),
     })

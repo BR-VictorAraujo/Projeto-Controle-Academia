@@ -45,14 +45,17 @@ def novo_aluno():
         foto_path   = None
         foto_base64 = request.form.get('foto_base64')
         if foto_base64 and foto_base64.startswith('data:image'):
-            import uuid, base64, os
-            pasta    = os.path.join('app', 'static', 'fotos')
-            os.makedirs(pasta, exist_ok=True)
-            img_data = foto_base64.split(',')[1]
-            filename = f'aluno_{uuid.uuid4().hex[:8]}.jpg'
-            with open(os.path.join(pasta, filename), 'wb') as f:
-                f.write(base64.b64decode(img_data))
-            foto_path = f'/static/fotos/{filename}'
+            try:
+                import uuid, base64, os
+                pasta    = os.path.join('app', 'static', 'fotos')
+                os.makedirs(pasta, exist_ok=True)
+                img_data = foto_base64.split(',')[1]
+                filename = f'aluno_{uuid.uuid4().hex[:8]}.jpg'
+                with open(os.path.join(pasta, filename), 'wb') as f:
+                    f.write(base64.b64decode(img_data))
+                foto_path = f'/static/fotos/{filename}'
+            except Exception:
+                foto_path = None  # ignora erro de foto, não impede o cadastro
 
         aluno = Aluno(nome=nome, tipo_documento=tipo_documento, documento=documento,
                       telefone=telefone, email=email, plano=plano,
@@ -63,10 +66,17 @@ def novo_aluno():
 
         from app.models import DocumentoAluno
         import os, uuid
+        MAX_UPLOAD_MB = 10
         for tipo_doc, arquivo in zip(request.form.getlist('doc_tipo[]'), request.files.getlist('doc_arquivo[]')):
             if arquivo and arquivo.filename and tipo_doc:
                 ext = arquivo.filename.rsplit('.', 1)[-1].lower()
                 if ext in ['pdf', 'jpg', 'jpeg', 'png']:
+                    arquivo.seek(0, 2)
+                    tamanho_mb = arquivo.tell() / (1024 * 1024)
+                    arquivo.seek(0)
+                    if tamanho_mb > MAX_UPLOAD_MB:
+                        flash(f'Arquivo {arquivo.filename} muito grande (máx {MAX_UPLOAD_MB}MB).', 'warning')
+                        continue
                     pasta    = os.path.join('app', 'static', 'documentos', str(aluno.id))
                     os.makedirs(pasta, exist_ok=True)
                     filename = f'{uuid.uuid4().hex[:8]}_{arquivo.filename}'
@@ -114,6 +124,7 @@ def editar_aluno(id):
 
         data_nasc_str  = request.form.get('data_nascimento')
         vencimento_str = request.form.get('vencimento')
+
         aluno.nome            = request.form.get('nome')
         aluno.tipo_documento  = tipo_doc
         aluno.documento       = novo_documento
@@ -123,18 +134,27 @@ def editar_aluno(id):
         aluno.ativo           = request.form.get('ativo') == '1'
         aluno.endereco        = request.form.get('endereco', '')
         aluno.data_nascimento = datetime.strptime(data_nasc_str, '%Y-%m-%d').date() if data_nasc_str else None
-        aluno.vencimento      = datetime.strptime(vencimento_str, '%Y-%m-%d').date() if vencimento_str else None
+
+        aluno.vencimento = datetime.strptime(vencimento_str, '%Y-%m-%d').date() if vencimento_str else None
 
         foto_base64 = request.form.get('foto_base64')
         if foto_base64 and foto_base64.startswith('data:image'):
-            import uuid, base64, os
-            pasta    = os.path.join('app', 'static', 'fotos')
-            os.makedirs(pasta, exist_ok=True)
-            img_data = foto_base64.split(',')[1]
-            filename = f'aluno_{uuid.uuid4().hex[:8]}.jpg'
-            with open(os.path.join(pasta, filename), 'wb') as f:
-                f.write(base64.b64decode(img_data))
-            aluno.foto = f'/static/fotos/{filename}'
+            try:
+                import uuid, base64, os
+                # Remove foto antiga do disco
+                if aluno.foto:
+                    foto_antiga = os.path.join('app', aluno.foto.lstrip('/'))
+                    if os.path.exists(foto_antiga):
+                        os.remove(foto_antiga)
+                pasta    = os.path.join('app', 'static', 'fotos')
+                os.makedirs(pasta, exist_ok=True)
+                img_data = foto_base64.split(',')[1]
+                filename = f'aluno_{uuid.uuid4().hex[:8]}.jpg'
+                with open(os.path.join(pasta, filename), 'wb') as f:
+                    f.write(base64.b64decode(img_data))
+                aluno.foto = f'/static/fotos/{filename}'
+            except Exception:
+                pass  # ignora erro de foto, não impede a edição
 
         db.session.commit()
         registrar_log('editou aluno', f'ID: {id} | Nome: {aluno.nome}')
@@ -146,8 +166,30 @@ def editar_aluno(id):
 @bp.route('/alunos/<int:id>/excluir')
 @login_required
 def excluir_aluno(id):
+    import os
+    from app.models import DocumentoAluno
     aluno = Aluno.query.get_or_404(id)
     nome  = aluno.nome
+
+    # Remove foto do disco
+    if aluno.foto:
+        try:
+            foto_path = os.path.join('app', aluno.foto.lstrip('/'))
+            if os.path.exists(foto_path):
+                os.remove(foto_path)
+        except Exception:
+            pass
+
+    # Remove documentos do disco
+    documentos = DocumentoAluno.query.filter_by(aluno_id=id).all()
+    for doc in documentos:
+        try:
+            doc_path = os.path.join('app', doc.caminho.lstrip('/'))
+            if os.path.exists(doc_path):
+                os.remove(doc_path)
+        except Exception:
+            pass
+
     registrar_log('excluiu aluno', f'ID: {id} | Nome: {nome}')
     db.session.delete(aluno)
     db.session.commit()
@@ -172,6 +214,14 @@ def upload_documento(id):
         flash('Formato inválido. Use PDF, JPG ou PNG.', 'danger')
         return redirect(url_for('alunos.editar_aluno', id=id))
 
+    # Valida tamanho máximo 10MB
+    arquivo.seek(0, 2)
+    tamanho_mb = arquivo.tell() / (1024 * 1024)
+    arquivo.seek(0)
+    if tamanho_mb > 10:
+        flash('Arquivo muito grande. Tamanho máximo: 10MB.', 'danger')
+        return redirect(url_for('alunos.editar_aluno', id=id))
+
     pasta    = os.path.join('app', 'static', 'documentos', str(id))
     os.makedirs(pasta, exist_ok=True)
     filename = f'{uuid.uuid4().hex[:8]}_{arquivo.filename}'
@@ -194,7 +244,7 @@ def excluir_documento(id, doc_id):
         filepath = os.path.join('app', doc.caminho.lstrip('/'))
         if os.path.exists(filepath):
             os.remove(filepath)
-    except:
+    except Exception:
         pass
     db.session.delete(doc)
     db.session.commit()

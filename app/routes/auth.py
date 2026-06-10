@@ -118,19 +118,40 @@ def logout():
 @bp.route('/dashboard')
 @login_required
 def dashboard():
-    hoje        = datetime.utcnow().date()
+    from app.routes.financeiro import corrigir_vencimentos_desatualizados
+    # Usa fuso horário configurado para data local correta
+    fuso        = int(get_param('fuso_horario', '-3'))
+    hoje        = (datetime.utcnow() + timedelta(hours=fuso)).date()
     dias_alerta = int(get_param('dias_alerta_vencimento', '7'))
     alerta_dias = hoje + timedelta(days=dias_alerta)
 
+    # Corrige vencimentos desatualizados ao abrir o dashboard também
+    corrigir_vencimentos_desatualizados()
+
     total_alunos  = Aluno.query.count()
     alunos_ativos = Aluno.query.filter_by(ativo=True).count()
-    vencendo      = Aluno.query.filter(Aluno.ativo == True, Aluno.vencimento <= alerta_dias).count()
-    acessos_hoje  = RegistroAcesso.query.filter(db.func.date(RegistroAcesso.entrada_em) == hoje).count()
+    # Vencimentos próximos: entre hoje e alerta_dias (excluindo já vencidos)
+    vencendo      = Aluno.query.filter(
+        Aluno.ativo == True,
+        Aluno.vencimento >= hoje,
+        Aluno.vencimento <= alerta_dias
+    ).count()
+
+    # Acessos hoje usando filtro de período com fuso
+    inicio_utc = datetime(hoje.year, hoje.month, hoje.day) - timedelta(hours=fuso)
+    fim_utc    = inicio_utc + timedelta(days=1)
+    acessos_hoje = RegistroAcesso.query.filter(
+        RegistroAcesso.entrada_em >= inicio_utc,
+        RegistroAcesso.entrada_em <  fim_utc
+    ).count()
+
     ultimos       = Aluno.query.order_by(Aluno.criado_em.desc()).limit(5).all()
 
     alertar_plano      = get_param('alertar_plano_vencimento', '1') == '1'
     alertas_vencimento = Aluno.query.filter(
-        Aluno.ativo == True, Aluno.vencimento <= alerta_dias
+        Aluno.ativo == True,
+        Aluno.vencimento >= hoje,
+        Aluno.vencimento <= alerta_dias
     ).order_by(Aluno.vencimento).all() if alertar_plano else []
 
     alerta_senha  = None
