@@ -688,7 +688,8 @@ def financeiro_relatorio_mensal():
     alunos_pagos  = {p.aluno_id for p in todos_mes}
     q_inad = Aluno.query.filter(
         Aluno.ativo == True,
-        Aluno.vencimento <= ultimo_dia  # só considera inadimplente se venceu dentro ou antes do período
+        Aluno.vencimento < hoje,       # só considera inadimplente se já venceu
+        Aluno.vencimento <= ultimo_dia # e se venceu dentro ou antes do período
     )
     if planos_diaria:
         q_inad = q_inad.filter(~Aluno.plano.in_(planos_diaria))

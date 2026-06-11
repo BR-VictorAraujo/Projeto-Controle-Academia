@@ -123,11 +123,9 @@ class TelaApp(ctk.CTkFrame):
         sidebar.pack(side="left", fill="y")
         sidebar.pack_propagate(False)
 
-        # Barra laranja no topo
         ctk.CTkFrame(sidebar, height=4, fg_color=COR_PRINCIPAL,
                      corner_radius=0).pack(fill="x")
 
-        # Logo + nome
         logo_frame = ctk.CTkFrame(sidebar, fg_color="transparent")
         logo_frame.pack(fill="x", padx=16, pady=(16, 4))
         ctk.CTkLabel(logo_frame, text="\U0001f4aa",
@@ -303,7 +301,6 @@ class AbaPortaria(ctk.CTkFrame):
         ciclo        = 0
         while self._ativo:
             try:
-                # Recarrega templates a cada 10 ciclos (nao a cada captura)
                 if ciclo % 10 == 0:
                     templates = self.db.buscar_todos_templates()
                 ciclo += 1
@@ -314,7 +311,6 @@ class AbaPortaria(ctk.CTkFrame):
                 except Exception:
                     return
 
-                # Aguarda se leitor estiver ocupado
                 if not _lock_leitor.acquire(blocking=False):
                     time.sleep(0.2)
                     continue
@@ -361,7 +357,6 @@ class AbaPortaria(ctk.CTkFrame):
                             text=f"Erro: {e}", text_color=COR_ERROR)
                     except Exception:
                         pass
-                break
                 break
 
     def _registrar_acesso(self, aluno):
@@ -461,7 +456,6 @@ class AbaCadastro(ctk.CTkFrame):
         body.columnconfigure(0, weight=1)
         body.columnconfigure(1, weight=1)
 
-        # Coluna esquerda: lista de alunos
         col_esq = ctk.CTkFrame(body, fg_color=COR_CARD, corner_radius=12)
         col_esq.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
 
@@ -487,11 +481,9 @@ class AbaCadastro(ctk.CTkFrame):
             text_color=COR_SUBTEXT, font=ctk.CTkFont(size=11))
         self._lbl_aluno_sel.pack(pady=8)
 
-        # Lista vazia até o usuario digitar
         ctk.CTkLabel(self._lista_alunos, text='Digite para buscar...',
                      text_color=COR_SUBTEXT, font=ctk.CTkFont(size=11)).pack(pady=20)
 
-        # Coluna direita: captura
         col_dir = ctk.CTkFrame(body, fg_color=COR_CARD, corner_radius=12)
         col_dir.grid(row=0, column=1, sticky="nsew", padx=(8, 0))
 
@@ -500,7 +492,6 @@ class AbaCadastro(ctk.CTkFrame):
                      text_color=COR_PRINCIPAL).pack(
                          padx=16, pady=(16, 4), anchor="w")
 
-        # Aviso de 3 capturas
         aviso = ctk.CTkFrame(col_dir, fg_color="#fff8e1", corner_radius=8)
         aviso.pack(fill="x", padx=16, pady=(0, 8))
         ctk.CTkLabel(aviso,
@@ -510,7 +501,6 @@ class AbaCadastro(ctk.CTkFrame):
                      text_color="#795548",
                      justify="left").pack(padx=10, pady=6, anchor="w")
 
-        # Digital 1
         d1 = ctk.CTkFrame(col_dir, fg_color="#f0f2f5", corner_radius=8)
         d1.pack(fill="x", padx=16, pady=6)
         ctk.CTkLabel(d1, text="Digital 1 (principal)",
@@ -526,7 +516,6 @@ class AbaCadastro(ctk.CTkFrame):
                       command=lambda: self._capturar(0)).pack(
                           side="right", padx=12)
 
-        # Digital 2
         d2 = ctk.CTkFrame(col_dir, fg_color="#f0f2f5", corner_radius=8)
         d2.pack(fill="x", padx=16, pady=6)
         ctk.CTkLabel(d2, text="Digital 2 (backup)",
@@ -578,7 +567,7 @@ class AbaCadastro(ctk.CTkFrame):
                              font=ctk.CTkFont(size=11)).pack(pady=10)
                 return
             for a in alunos:
-                tem_bio  = a.get('tem_biometria', False)
+                tem_bio     = a.get('tem_biometria', False)
                 selecionado = self._aluno_sel and self._aluno_sel['id'] == a['id']
 
                 row = ctk.CTkFrame(
@@ -588,7 +577,6 @@ class AbaCadastro(ctk.CTkFrame):
                 row._aluno_id = a['id']
                 row.pack(fill="x", pady=2, padx=2)
 
-                # Checkbox real
                 var = ctk.BooleanVar(value=selecionado)
                 chk = ctk.CTkCheckBox(row, text="", variable=var, width=24,
                                        fg_color=COR_PRINCIPAL,
@@ -597,7 +585,6 @@ class AbaCadastro(ctk.CTkFrame):
                                        command=lambda x=a: self._selecionar_aluno(x))
                 chk.pack(side="left", padx=(8, 0))
 
-                # Badge biometria
                 bio_text  = "BIO" if tem_bio else "   "
                 bio_color = COR_SUCCESS if tem_bio else "#333"
                 bio_bg    = "#1b3a1b" if tem_bio else "#2a2a2a"
@@ -608,7 +595,6 @@ class AbaCadastro(ctk.CTkFrame):
                              font=ctk.CTkFont(size=9, weight="bold")).pack(
                                  side="left", padx=4, pady=6)
 
-                # Info: nome + cpf + plano
                 info = ctk.CTkFrame(row, fg_color="transparent")
                 info.pack(side="left", fill="x", expand=True, padx=4)
 
@@ -621,9 +607,9 @@ class AbaCadastro(ctk.CTkFrame):
                 doc = a.get('documento') or ''
                 cpf_plano = f"CPF: {doc if doc else 'Nao cadastrado'}"
                 ativo = a.get('ativo', True)
-                status_text = "Ativo" if ativo else "Inativo"
+                status_text  = "Ativo" if ativo else "Inativo"
                 status_color = "#2e7d32" if ativo else "#c62828"
-                status_bg = "#e8f5e9" if ativo else "#fdecea"
+                status_bg    = "#e8f5e9" if ativo else "#fdecea"
 
                 linha_info = ctk.CTkFrame(info, fg_color="transparent")
                 linha_info.pack(fill="x")
@@ -638,9 +624,8 @@ class AbaCadastro(ctk.CTkFrame):
                              fg_color=status_bg,
                              corner_radius=4,
                              font=ctk.CTkFont(size=9, weight="bold"),
-                             width=44).pack(side="left", padx=(6,0))
+                             width=44).pack(side="left", padx=(6, 0))
 
-                # Clique em toda a linha
                 row.bind("<Button-1>", lambda e, x=a: self._selecionar_aluno(x))
                 for child in row.winfo_children():
                     child.bind("<Button-1>", lambda e, x=a: self._selecionar_aluno(x))
@@ -673,7 +658,6 @@ class AbaCadastro(ctk.CTkFrame):
         self._lbl_d2.configure(text="Nao capturada", text_color=COR_SUBTEXT)
         self._btn_salvar.configure(state="disabled")
         self._lbl_resultado.configure(text="")
-
 
     def _capturar(self, idx):
         if not self._aluno_sel:
@@ -711,7 +695,6 @@ class AbaCadastro(ctk.CTkFrame):
         if not self._aluno_sel:
             return
         try:
-            # Verifica se já tem biometria cadastrada
             aluno_id = self._aluno_sel['id']
             tem_bio  = self._aluno_sel.get('tem_biometria', False)
             if tem_bio:
@@ -732,10 +715,8 @@ class AbaCadastro(ctk.CTkFrame):
                 text_color=COR_SUCCESS)
             self._carregar_alunos(self._entry_busca.get())
             self._templates = [None, None]
-            self._lbl_d1.configure(
-                text="Nao capturada", text_color=COR_SUBTEXT)
-            self._lbl_d2.configure(
-                text="Nao capturada", text_color=COR_SUBTEXT)
+            self._lbl_d1.configure(text="Nao capturada", text_color=COR_SUBTEXT)
+            self._lbl_d2.configure(text="Nao capturada", text_color=COR_SUBTEXT)
             self._btn_salvar.configure(state="disabled")
         except Exception as e:
             self._lbl_resultado.configure(
@@ -750,7 +731,18 @@ class App(ctk.CTk):
         self.minsize(800, 560)
         self.configure(fg_color=COR_DARK)
         self._tela_atual = None
+        self.protocol("WM_DELETE_WINDOW", self._fechar)
         self.mostrar_login()
+
+    def _fechar(self):
+        """Fecha o app completamente ao clicar no X — encerra todas as threads."""
+        try:
+            if self._tela_atual:
+                self._tela_atual.destroy()
+        except Exception:
+            pass
+        self.destroy()
+        os._exit(0)
 
     def mostrar_login(self):
         if self._tela_atual:

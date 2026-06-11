@@ -421,7 +421,6 @@
             <div class="fin-resumo-bar">
                 <div class="fin-resumo-item fin-pago"><i class="bi bi-check-circle me-1"></i>Recebido: <strong>R$ {{ '%.2f'|format(fin_resumo.recebido) }}</strong></div>
                 <div class="fin-resumo-item fin-pend"><i class="bi bi-clock me-1"></i>Pendente: <strong>R$ {{ '%.2f'|format(fin_resumo.pendente) }}</strong></div>
-                <div class="fin-resumo-item fin-vencido"><i class="bi bi-exclamation-circle me-1"></i>Vencido: <strong>R$ {{ '%.2f'|format(fin_resumo.vencido) }}</strong></div>
                 <div class="fin-resumo-item" style="background:#f8f9fa; color:#1a1a2e;"><i class="bi bi-receipt me-1"></i>Total: <strong>{{ fin_pagamentos|length }} lançamento{{ 's' if fin_pagamentos|length != 1 else '' }}</strong></div>
             </div>
             <table class="table table-borderless mb-0">
