@@ -605,19 +605,30 @@ def financeiro_relatorio_diario():
                style=[('LEFTPADDING',(0,0),(-1,-1),3),('RIGHTPADDING',(0,0),(-1,-1),3)]))
     els.append(Spacer(1, 0.5*cm))
 
+    st_cell = E('cell', fontSize=8, textColor=colors.HexColor('#333'), leading=10)
+
     def _tbl_secao(titulo, registros, cols, total_val):
         if not registros: return
         els.append(Paragraph(titulo, st_h2))
         els.append(linha())
+        # Paragraph nas células de texto: quebra linha automática em nomes longos
         data = [['#'] + _header(cols)]
-        for i, p in enumerate(registros, 1): data.append([str(i)] + _row(p, cols))
+        for i, p in enumerate(registros, 1):
+            data.append([str(i)] + [Paragraph(str(v), st_cell) for v in _row(p, cols)])
         tot = [''] + [''] * len(cols)
         if 'valor' in cols: tot[1 + cols.index('valor')] = f'R$ {total_val:.2f}'
         tot[0] = ''
         data.append(tot)
-        n = len(cols) + 1
-        cw = (pw - 3*cm) / n
-        els.append(tabela(data, col_widths=[cw]*n, totais=[len(data)-1]))
+        # Coluna nome com peso 3x; demais dividem o restante
+        n = len(cols)
+        larg_total = pw - 3*cm
+        larg_num   = 0.8*cm
+        if 'nome' in cols:
+            larg_resto = (larg_total - larg_num) / (n + 2)   # nome vale 3 partes
+            col_widths = [larg_num] + [larg_resto * 3 if c == 'nome' else larg_resto for c in cols]
+        else:
+            col_widths = [larg_num] + [(larg_total - larg_num) / n] * n
+        els.append(tabela(data, col_widths=col_widths, totais=[len(data)-1]))
         els.append(Spacer(1, 0.4*cm))
 
     if 'd-dinheiro' in secoes_diario and p_dinheiro: _tbl_secao('💵 Relação de Dinheiro', p_dinheiro, cols_dinheiro, total_dinheiro)
@@ -866,18 +877,29 @@ def financeiro_relatorio_mensal():
         els.append(tabela(resumo_data, col_widths=[8*cm, 4*cm, 4*cm], totais=[4]))
         els.append(Spacer(1, 0.5*cm))
 
+    st_cell = E('cell', fontSize=8, textColor=colors.HexColor('#333'), leading=10)
+
+    def _larguras(cols, larg_total):
+        """Coluna nome com peso 3x; demais dividem o restante igualmente."""
+        larg_num = 0.8*cm
+        n = len(cols)
+        if 'nome' in cols:
+            larg_resto = (larg_total - larg_num) / (n + 2)
+            return [larg_num] + [larg_resto * 3 if c == 'nome' else larg_resto for c in cols]
+        return [larg_num] + [(larg_total - larg_num) / n] * n
+
     def _tbl_mensal(titulo, registros, cols, total_val):
         if not registros: return
         els.append(Paragraph(titulo, st_h2))
         els.append(linha())
+        # Paragraph nas células: quebra linha automática em nomes longos
         data = [['#'] + _header(cols)]
-        for i, p in enumerate(registros, 1): data.append([str(i)] + _row(p, cols))
+        for i, p in enumerate(registros, 1):
+            data.append([str(i)] + [Paragraph(str(v), st_cell) for v in _row(p, cols)])
         tot = [''] + [''] * len(cols)
         if 'valor' in cols: tot[1 + cols.index('valor')] = f'R$ {total_val:.2f}'
         data.append(tot)
-        n = len(cols) + 1
-        cw = (pw - 2*cm) / n
-        els.append(tabela(data, col_widths=[cw]*n, totais=[len(data)-1]))
+        els.append(tabela(data, col_widths=_larguras(cols, pw - 2*cm), totais=[len(data)-1]))
         els.append(Spacer(1, 0.4*cm))
 
     if 'dinheiro' in secoes and p_dinheiro: _tbl_mensal('💵 Relação de Dinheiro', p_dinheiro, cols_dinheiro, total_dinheiro)
@@ -890,15 +912,14 @@ def financeiro_relatorio_mensal():
         if inadimplentes:
             planos_v = {p.nome: float(p.valor) for p in Plano.query.all()}
             data = [['#'] + _header(cols_inad)]
-            for i, a in enumerate(inadimplentes, 1): data.append([str(i)] + _row_inad(a, cols_inad, planos_v))
+            for i, a in enumerate(inadimplentes, 1):
+                data.append([str(i)] + [Paragraph(str(v), st_cell) for v in _row_inad(a, cols_inad, planos_v)])
             tot = ['', f'Total: {len(inadimplentes)} aluno(s)'] + [''] * (len(cols_inad) - 1)
             if 'valor' in cols_inad:
                 total_inadimp = sum(planos_v.get(a.plano, 0) for a in inadimplentes)
                 tot[1 + cols_inad.index('valor')] = f'R$ {total_inadimp:.2f}'
             data.append(tot)
-            n = len(cols_inad) + 1
-            cw = (pw - 2*cm) / n
-            els.append(tabela(data, col_widths=[cw]*n, totais=[len(data)-1]))
+            els.append(tabela(data, col_widths=_larguras(cols_inad, pw - 2*cm), totais=[len(data)-1]))
         else:
             els.append(Paragraph('Nenhum inadimplente no período.', st_body))
 
