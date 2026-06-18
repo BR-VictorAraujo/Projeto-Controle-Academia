@@ -1021,11 +1021,22 @@ function alternarDividido(ativo) {
     document.getElementById('bloco-simples').style.display  = ativo ? 'none' : 'block';
     document.getElementById('bloco-dividido').style.display = ativo ? 'block' : 'none';
 
-    // Ao ativar, preenche valor1 com metade do total
-    if (ativo && _valorTotal > 0) {
-        const metade = (_valorTotal / 2).toFixed(2);
-        document.getElementById('input-valor1').value = metade;
-        calcularRestante();
+    // Ao ativar: lê o valor do select de aluno (caso já esteja selecionado)
+    if (ativo) {
+        const sel = document.getElementById('select-aluno');
+        const opt = sel ? sel.options[sel.selectedIndex] : null;
+        if (opt && opt.dataset.valor) {
+            _valorTotal = parseFloat(opt.dataset.valor) || 0;
+        }
+        // Também tenta pegar do campo valor simples (caso tenha sido preenchido manualmente)
+        if (_valorTotal <= 0) {
+            _valorTotal = parseFloat(document.getElementById('input-valor').value) || 0;
+        }
+        if (_valorTotal > 0) {
+            const metade = (_valorTotal / 2).toFixed(2);
+            document.getElementById('input-valor1').value = metade;
+            calcularRestante();
+        }
     }
 
     // Ajusta required dos campos
@@ -1076,19 +1087,17 @@ function submeterPagamento() {
     document.getElementById('form-novo-pag').submit();
 }
 
-// Sobrescreve preencherValor para salvar o total
-const _preencherValorOriginal = preencherValor;
-function preencherValor(select) {
-    _preencherValorOriginal(select);
-    const opt = select.options[select.selectedIndex];
+// Atualiza _valorTotal sempre que aluno for selecionado
+document.getElementById('select-aluno').addEventListener('change', function() {
+    const opt = this.options[this.selectedIndex];
     _valorTotal = parseFloat(opt.dataset.valor) || 0;
-    // Se dividido estiver ativo, recalcula
+    // Se dividido estiver ativo, recalcula automaticamente
     if (document.getElementById('input-dividido').value === '1' && _valorTotal > 0) {
         const metade = (_valorTotal / 2).toFixed(2);
         document.getElementById('input-valor1').value = metade;
         calcularRestante();
     }
-}
+});
 
 // Reset ao fechar o modal
 document.getElementById('modalNovoPagamento').addEventListener('hidden.bs.modal', function() {
