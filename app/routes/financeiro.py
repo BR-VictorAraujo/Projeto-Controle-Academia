@@ -269,33 +269,61 @@ def financeiro():
 def financeiro_registrar():
     from app.models import Pagamento, Plano
     aluno_id        = request.form.get('aluno_id')
-    valor           = float(request.form.get('valor', 0))
-    forma_pagamento = request.form.get('forma_pagamento')
-    banco_pix       = request.form.get('banco_pix', '').strip()
     data_venc_str   = request.form.get('data_vencimento')
     data_pag_str    = request.form.get('data_pagamento')
     data_vencimento = datetime.strptime(data_venc_str, '%Y-%m-%d').date() if data_venc_str else date.today()
     data_pagamento  = datetime.strptime(data_pag_str,  '%Y-%m-%d').date() if data_pag_str  else None
-    status = 'pago' if data_pagamento else 'pendente'
+    observacao      = request.form.get('observacao')
+    dividido        = request.form.get('dividido') == '1'
 
-    db.session.add(Pagamento(
-        aluno_id=aluno_id, valor=valor, forma_pagamento=forma_pagamento,
-        banco_pix=banco_pix if forma_pagamento == 'pix' else None,
-        status=status, data_vencimento=data_vencimento,
-        data_pagamento=data_pagamento,
-        observacao=request.form.get('observacao'),
-        criado_por=session.get('usuario')
-    ))
+    if dividido:
+        # Pagamento dividido: dois registros na mesma transação
+        valor1  = float(request.form.get('valor1', 0))
+        forma1  = request.form.get('forma1')
+        banco1  = request.form.get('banco_pix1', '').strip()
+        valor2  = float(request.form.get('valor2', 0))
+        forma2  = request.form.get('forma2')
+        banco2  = request.form.get('banco_pix2', '').strip()
+        status  = 'pago' if data_pagamento else 'pendente'
 
+        db.session.add(Pagamento(
+            aluno_id=aluno_id, valor=valor1, forma_pagamento=forma1,
+            banco_pix=banco1 if forma1 == 'pix' else None,
+            status=status, data_vencimento=data_vencimento,
+            data_pagamento=data_pagamento,
+            observacao=observacao, criado_por=session.get('usuario')
+        ))
+        db.session.add(Pagamento(
+            aluno_id=aluno_id, valor=valor2, forma_pagamento=forma2,
+            banco_pix=banco2 if forma2 == 'pix' else None,
+            status=status, data_vencimento=data_vencimento,
+            data_pagamento=data_pagamento,
+            observacao=observacao, criado_por=session.get('usuario')
+        ))
+        valor_total = valor1 + valor2
+    else:
+        # Pagamento simples
+        valor           = float(request.form.get('valor', 0))
+        forma_pagamento = request.form.get('forma_pagamento')
+        banco_pix       = request.form.get('banco_pix', '').strip()
+        status          = 'pago' if data_pagamento else 'pendente'
+        valor_total     = valor
+
+        db.session.add(Pagamento(
+            aluno_id=aluno_id, valor=valor, forma_pagamento=forma_pagamento,
+            banco_pix=banco_pix if forma_pagamento == 'pix' else None,
+            status=status, data_vencimento=data_vencimento,
+            data_pagamento=data_pagamento,
+            observacao=observacao, criado_por=session.get('usuario')
+        ))
+
+    # Atualiza vencimento do aluno — apenas uma vez, independente de ser dividido
     if status == 'pago':
         aluno = Aluno.query.get(aluno_id)
         if aluno:
             plano = Plano.query.filter_by(nome=aluno.plano, ativo=True).first()
             if plano:
                 hoje = date.today()
-                base_pag = data_pagamento or hoje
-                # Proteção contra duplicidade: só atualiza vencimento se não houver
-                # outro pagamento pago com a mesma data de vencimento
                 pags_mesmo_venc = Pagamento.query.filter(
                     Pagamento.aluno_id == int(aluno_id),
                     Pagamento.status == 'pago',
@@ -304,14 +332,12 @@ def financeiro_registrar():
                 if pags_mesmo_venc == 0:
                     aluno.vencimento = _calcular_novo_vencimento(
                         aluno.vencimento, plano.dias_validade, hoje)
-                # Reativa o aluno se estava inativo (caso pague de novo)
                 if not aluno.ativo:
                     aluno.ativo = True
 
     db.session.commit()
-    registrar_log('registrou pagamento', f'Aluno ID: {aluno_id} | Valor: R$ {valor}')
+    registrar_log('registrou pagamento', f'Aluno ID: {aluno_id} | Valor: R$ {valor_total}{"  (dividido)" if dividido else ""}')
     flash('Pagamento registrado com sucesso!', 'success')
-    # Se foi pago, redireciona para aba Pagos para mostrar o novo lançamento
     if status == 'pago':
         periodo = request.form.get('_periodo', 'mes_atual')
         inicio  = request.form.get('_inicio', '')
@@ -416,6 +442,8 @@ def financeiro_relatorio_diario():
     import io
 
     data_str       = request.args.get('data', '')
+    hora_ini_str   = request.args.get('hora_ini', '')
+    hora_fim_str   = request.args.get('hora_fim', '')
     formato        = request.args.get('formato', 'pdf')
     nome_ac        = get_param('nome_academia', 'Academia')
     secoes_diario  = request.args.get('secoes', 'd-dinheiro,d-pix,d-cartao').split(',')
@@ -428,9 +456,33 @@ def financeiro_relatorio_diario():
     except:
         data_rel = date.today()
 
+    # Filtro por turno via criado_em (hora que o pagamento foi registrado)
+    fuso = int(get_param('fuso_horario', '-3'))
+
+    # Converte data local para UTC para comparar com criado_em (armazenado em UTC)
+    inicio_dt = datetime(data_rel.year, data_rel.month, data_rel.day, 0, 0, 0) - timedelta(hours=fuso)
+    fim_dt    = datetime(data_rel.year, data_rel.month, data_rel.day, 23, 59, 59) - timedelta(hours=fuso)
+
+    # Aplica filtro de hora se informado
+    turno_ativo = bool(hora_ini_str or hora_fim_str)
+    if hora_ini_str:
+        try:
+            h, m = map(int, hora_ini_str.split(':'))
+            inicio_dt = datetime(data_rel.year, data_rel.month, data_rel.day, h, m, 0) - timedelta(hours=fuso)
+        except:
+            pass
+    if hora_fim_str:
+        try:
+            h, m = map(int, hora_fim_str.split(':'))
+            fim_dt = datetime(data_rel.year, data_rel.month, data_rel.day, h, m, 59) - timedelta(hours=fuso)
+        except:
+            pass
+
     pagamentos = Pagamento.query.filter(
         Pagamento.data_pagamento == data_rel,
-        Pagamento.status == 'pago'
+        Pagamento.status == 'pago',
+        Pagamento.criado_em >= inicio_dt,
+        Pagamento.criado_em <= fim_dt
     ).order_by(Pagamento.forma_pagamento, Pagamento.aluno_id).all()
 
     p_dinheiro = [p for p in pagamentos if p.forma_pagamento == 'dinheiro']
@@ -447,6 +499,13 @@ def financeiro_relatorio_diario():
     data_fmt   = data_rel.strftime('%d/%m/%Y')
     dia_semana = ['Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira',
                   'Sexta-feira','Sábado','Domingo'][data_rel.weekday()]
+    # Texto do turno para cabeçalho
+    if turno_ativo:
+        hora_ini_fmt = hora_ini_str or '00:00'
+        hora_fim_fmt = hora_fim_str or '23:59'
+        turno_fmt    = f'{hora_ini_fmt} às {hora_fim_fmt}'
+    else:
+        turno_fmt = None
 
     if formato == 'csv':
         import csv
@@ -454,6 +513,7 @@ def financeiro_relatorio_diario():
         w = csv.writer(output)
         w.writerow([f'RELATÓRIO DIÁRIO — {nome_ac.upper()}'])
         w.writerow([f'Data: {dia_semana}, {data_fmt}'])
+        if turno_fmt: w.writerow([f'Turno: {turno_fmt}'])
         w.writerow([f'Emitido em: {date.today().strftime("%d/%m/%Y")}'])
         w.writerow([])
         w.writerow(['=== RESUMO DO DIA ==='])
@@ -532,6 +592,8 @@ def financeiro_relatorio_diario():
                 if endereco_ac:
                     self.drawString(0.8*cm, ph-1.0*cm, endereco_ac)
                 info_linha = f'Relatório Diário  |  {dia_semana}, {data_fmt}'
+                if turno_fmt:
+                    info_linha += f'  |  Turno: {turno_fmt}'
                 if telefone_ac:
                     info_linha += f'  |  Tel: {telefone_ac}'
                 self.drawString(0.8*cm, ph-1.3*cm, info_linha)

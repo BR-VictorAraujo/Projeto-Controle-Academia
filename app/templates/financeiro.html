@@ -421,8 +421,38 @@
                     <label class="form-label" style="font-size:13px; font-weight:600; color:#1a1a2e;">
                         <i class="bi bi-calendar3 me-1" style="color:var(--cor-principal);"></i> Data do relatório
                     </label>
-                    <input type="date" id="diario-data" class="form-control" style="max-width:200px;">
-                    <div class="form-text">Deixe em branco para usar a data de hoje</div>
+                    <div class="d-flex gap-2 align-items-end flex-wrap">
+                        <div>
+                            <div style="font-size:11px; color:#6c757d; margin-bottom:4px;">Data</div>
+                            <input type="date" id="diario-data" class="form-control" style="max-width:180px;">
+                        </div>
+                        <div>
+                            <div style="font-size:11px; color:#6c757d; margin-bottom:4px;">Hora início</div>
+                            <input type="time" id="diario-hora-ini" class="form-control" style="max-width:130px;" placeholder="00:00">
+                        </div>
+                        <div>
+                            <div style="font-size:11px; color:#6c757d; margin-bottom:4px;">Hora fim</div>
+                            <input type="time" id="diario-hora-fim" class="form-control" style="max-width:130px;" placeholder="23:59">
+                        </div>
+                    </div>
+                    <div class="form-text mt-1">
+                        Deixe a data em branco para usar hoje. Deixe as horas em branco para o dia todo.
+                    </div>
+                    <!-- Atalhos de turno -->
+                    <div class="d-flex gap-2 mt-2 flex-wrap">
+                        <button type="button" class="periodo-btn" onclick="aplicarTurno('manha')" style="font-size:11px; padding:4px 10px;">
+                            🌅 Manhã (06:00–12:00)
+                        </button>
+                        <button type="button" class="periodo-btn" onclick="aplicarTurno('tarde')" style="font-size:11px; padding:4px 10px;">
+                            ☀️ Tarde (12:00–18:00)
+                        </button>
+                        <button type="button" class="periodo-btn" onclick="aplicarTurno('noite')" style="font-size:11px; padding:4px 10px;">
+                            🌙 Noite (18:00–23:59)
+                        </button>
+                        <button type="button" class="periodo-btn" onclick="aplicarTurno('dia')" style="font-size:11px; padding:4px 10px;">
+                            📅 Dia todo
+                        </button>
+                    </div>
                 </div>
 
                 <div style="font-size:13px; font-weight:600; color:#1a1a2e; margin-bottom:12px;">
@@ -526,12 +556,15 @@
                 <h5 class="modal-title" style="font-size:16px; font-weight:600;">Registrar pagamento</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <form method="POST" action="/financeiro/registrar">
+            <form method="POST" action="/financeiro/registrar" id="form-novo-pag">
                 <input type="hidden" name="_periodo" value="{{ periodo_ativo }}">
                 <input type="hidden" name="_status"  value="{{ status_filtro }}">
                 <input type="hidden" name="_inicio"  value="{{ data_inicio }}">
                 <input type="hidden" name="_fim"     value="{{ data_fim }}">
+                <input type="hidden" name="dividido" id="input-dividido" value="0">
                 <div class="modal-body" style="padding:24px;">
+
+                    <!-- Aluno -->
                     <div class="mb-3">
                         <label class="form-label" style="font-size:13px; font-weight:500;">Aluno *</label>
                         <select name="aluno_id" class="form-select" required id="select-aluno" onchange="preencherValor(this)">
@@ -547,31 +580,110 @@
                             {% endfor %}
                         </select>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label" style="font-size:13px; font-weight:500;">Valor (R$) *</label>
-                        <div style="position:relative;">
-                            <span style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:#6c757d; font-weight:500;">R$</span>
-                            <input type="number" name="valor" id="input-valor" class="form-control" style="padding-left:36px;" step="0.01" min="0" required>
+
+                    <!-- Toggle pagamento dividido -->
+                    <div class="mb-3 d-flex align-items-center justify-content-between"
+                         style="background:#f8f9fa; border-radius:8px; padding:10px 14px;">
+                        <div>
+                            <div style="font-size:13px; font-weight:600; color:#1a1a2e;">
+                                <i class="bi bi-arrow-left-right me-1" style="color:var(--cor-principal);"></i> Pagamento dividido
+                            </div>
+                            <div style="font-size:11px; color:#6c757d;">Ex: metade no PIX, metade em dinheiro</div>
+                        </div>
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input" type="checkbox" id="toggle-dividido"
+                                   style="width:2.5em; height:1.3em; cursor:pointer;"
+                                   onchange="alternarDividido(this.checked)">
                         </div>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label" style="font-size:13px; font-weight:500;">Forma de pagamento *</label>
-                        <select name="forma_pagamento" class="form-select" required id="select-forma-novo"
-                                onchange="calcularAcrescimo('novo'); toggleBanco('novo', this.value)">
-                            {% if formas_ativas.dinheiro %}<option value="dinheiro">💵 Dinheiro</option>{% endif %}
-                            {% if formas_ativas.pix      %}<option value="pix">📱 PIX</option>{% endif %}
-                            {% if formas_ativas.credito  %}<option value="credito">💳 Cartão de Crédito</option>{% endif %}
-                            {% if formas_ativas.debito   %}<option value="debito">💳 Cartão de Débito</option>{% endif %}
-                            {% if formas_ativas.boleto   %}<option value="boleto">🧾 Boleto</option>{% endif %}
-                        </select>
-                        <div id="info-acrescimo-novo" style="display:none; margin-top:6px; padding:8px 12px; background:#fff3e8; border-radius:8px; font-size:12px; color:#e65100;">
-                            <i class="bi bi-info-circle me-1"></i><span id="txt-acrescimo-novo"></span>
+
+                    <!-- PAGAMENTO SIMPLES -->
+                    <div id="bloco-simples">
+                        <div class="mb-3">
+                            <label class="form-label" style="font-size:13px; font-weight:500;">Valor (R$) *</label>
+                            <div style="position:relative;">
+                                <span style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:#6c757d; font-weight:500;">R$</span>
+                                <input type="number" name="valor" id="input-valor" class="form-control" style="padding-left:36px;" step="0.01" min="0">
+                            </div>
                         </div>
-                        <div class="campo-banco" id="banco-novo">
-                            <label class="form-label mt-2" style="font-size:13px; font-weight:500;">Banco do PIX</label>
-                            <input type="text" name="banco_pix" class="form-control" placeholder="Ex: Nubank, Bradesco, Inter...">
+                        <div class="mb-3">
+                            <label class="form-label" style="font-size:13px; font-weight:500;">Forma de pagamento *</label>
+                            <select name="forma_pagamento" class="form-select" id="select-forma-novo"
+                                    onchange="calcularAcrescimo('novo'); toggleBanco('novo', this.value)">
+                                {% if formas_ativas.dinheiro %}<option value="dinheiro">💵 Dinheiro</option>{% endif %}
+                                {% if formas_ativas.pix      %}<option value="pix">📱 PIX</option>{% endif %}
+                                {% if formas_ativas.credito  %}<option value="credito">💳 Cartão de Crédito</option>{% endif %}
+                                {% if formas_ativas.debito   %}<option value="debito">💳 Cartão de Débito</option>{% endif %}
+                                {% if formas_ativas.boleto   %}<option value="boleto">🧾 Boleto</option>{% endif %}
+                            </select>
+                            <div id="info-acrescimo-novo" style="display:none; margin-top:6px; padding:8px 12px; background:#fff3e8; border-radius:8px; font-size:12px; color:#e65100;">
+                                <i class="bi bi-info-circle me-1"></i><span id="txt-acrescimo-novo"></span>
+                            </div>
+                            <div class="campo-banco" id="banco-novo">
+                                <label class="form-label mt-2" style="font-size:13px; font-weight:500;">Banco do PIX</label>
+                                <input type="text" name="banco_pix" class="form-control" placeholder="Ex: Nubank, Bradesco, Inter...">
+                            </div>
                         </div>
                     </div>
+
+                    <!-- PAGAMENTO DIVIDIDO -->
+                    <div id="bloco-dividido" style="display:none;">
+                        <div style="font-size:12px; font-weight:600; color:#6c757d; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:10px;">
+                            Parte 1
+                        </div>
+                        <div class="row g-2 mb-2">
+                            <div class="col-5">
+                                <label class="form-label" style="font-size:12px; font-weight:500;">Valor (R$) *</label>
+                                <input type="number" name="valor1" id="input-valor1" class="form-control form-control-sm"
+                                       step="0.01" min="0" placeholder="0.00" oninput="calcularRestante()">
+                            </div>
+                            <div class="col-7">
+                                <label class="form-label" style="font-size:12px; font-weight:500;">Forma *</label>
+                                <select name="forma1" id="forma1" class="form-select form-select-sm"
+                                        onchange="toggleBancoDividido(1, this.value)">
+                                    {% if formas_ativas.dinheiro %}<option value="dinheiro">💵 Dinheiro</option>{% endif %}
+                                    {% if formas_ativas.pix      %}<option value="pix">📱 PIX</option>{% endif %}
+                                    {% if formas_ativas.credito  %}<option value="credito">💳 Crédito</option>{% endif %}
+                                    {% if formas_ativas.debito   %}<option value="debito">💳 Débito</option>{% endif %}
+                                    {% if formas_ativas.boleto   %}<option value="boleto">🧾 Boleto</option>{% endif %}
+                                </select>
+                            </div>
+                        </div>
+                        <div id="banco-div1" style="display:none;" class="mb-3">
+                            <input type="text" name="banco_pix1" class="form-control form-control-sm" placeholder="Banco do PIX...">
+                        </div>
+
+                        <div style="font-size:12px; font-weight:600; color:#6c757d; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:10px;">
+                            Parte 2
+                        </div>
+                        <div class="row g-2 mb-2">
+                            <div class="col-5">
+                                <label class="form-label" style="font-size:12px; font-weight:500;">Valor (R$) *</label>
+                                <input type="number" name="valor2" id="input-valor2" class="form-control form-control-sm"
+                                       step="0.01" min="0" placeholder="0.00" readonly
+                                       style="background:#f8f9fa;">
+                            </div>
+                            <div class="col-7">
+                                <label class="form-label" style="font-size:12px; font-weight:500;">Forma *</label>
+                                <select name="forma2" id="forma2" class="form-select form-select-sm"
+                                        onchange="toggleBancoDividido(2, this.value)">
+                                    {% if formas_ativas.dinheiro %}<option value="dinheiro">💵 Dinheiro</option>{% endif %}
+                                    {% if formas_ativas.pix      %}<option value="pix">📱 PIX</option>{% endif %}
+                                    {% if formas_ativas.credito  %}<option value="credito">💳 Crédito</option>{% endif %}
+                                    {% if formas_ativas.debito   %}<option value="debito">💳 Débito</option>{% endif %}
+                                    {% if formas_ativas.boleto   %}<option value="boleto">🧾 Boleto</option>{% endif %}
+                                </select>
+                            </div>
+                        </div>
+                        <div id="banco-div2" style="display:none;" class="mb-2">
+                            <input type="text" name="banco_pix2" class="form-control form-control-sm" placeholder="Banco do PIX...">
+                        </div>
+                        <div id="aviso-dividido" style="display:none; padding:8px 12px; background:#fdecea; border-radius:8px; font-size:12px; color:#c62828; margin-bottom:8px;">
+                            <i class="bi bi-exclamation-circle me-1"></i><span id="txt-aviso-dividido"></span>
+                        </div>
+                    </div>
+
+                    <!-- Campos comuns -->
                     <div class="mb-3">
                         <label class="form-label" style="font-size:13px; font-weight:500;">Data de vencimento *</label>
                         <input type="date" name="data_vencimento" class="form-control" required value="{{ hoje }}">
@@ -588,7 +700,9 @@
                 </div>
                 <div class="modal-footer" style="border-top:1px solid #f0f2f5; padding:16px 24px;">
                     <button type="button" class="btn" data-bs-dismiss="modal" style="background:white; border:1px solid #dee2e6; color:#6c757d; padding:8px 20px; border-radius:8px;">Cancelar</button>
-                    <button type="submit" class="btn-principal"><i class="bi bi-check-lg me-1"></i> Salvar</button>
+                    <button type="button" class="btn-principal" onclick="submeterPagamento()">
+                        <i class="bi bi-check-lg me-1"></i> Salvar
+                    </button>
                 </div>
             </form>
         </div>
@@ -867,20 +981,123 @@ function sincronizarDiario() {
 }
 
 function gerarRelatorioDiario() {
-    const data    = document.getElementById('diario-data').value;
-    const secoes  = Object.entries(secoesDiarioAtivas).filter(([,v]) => v).map(([k]) => k).join(',');
+    const data     = document.getElementById('diario-data').value;
+    const horaIni  = document.getElementById('diario-hora-ini').value;
+    const horaFim  = document.getElementById('diario-hora-fim').value;
+    const secoes   = Object.entries(secoesDiarioAtivas).filter(([,v]) => v).map(([k]) => k).join(',');
     if (!secoes) { alert('Selecione ao menos uma seção.'); return; }
     const colsDinheiro = getColsPorSecao('d-dinheiro').join(',');
     const colsPix      = getColsPorSecao('d-pix').join(',');
     const colsCartao   = getColsPorSecao('d-cartao').join(',');
-    const url = `/financeiro/relatorio-diario?data=${data}&formato=${formatoDiario}&secoes=${secoes}`
-              + `&cols_dinheiro=${colsDinheiro}&cols_pix=${colsPix}&cols_cartao=${colsCartao}`;
+    let url = `/financeiro/relatorio-diario?data=${data}&formato=${formatoDiario}&secoes=${secoes}`
+            + `&cols_dinheiro=${colsDinheiro}&cols_pix=${colsPix}&cols_cartao=${colsCartao}`;
+    if (horaIni) url += `&hora_ini=${horaIni}`;
+    if (horaFim) url += `&hora_fim=${horaFim}`;
     bootstrap.Modal.getInstance(document.getElementById('modalRelatorioDiario')).hide();
     window.location.href = url;
+}
+
+function aplicarTurno(turno) {
+    const turnos = {
+        'manha': ['06:00', '12:00'],
+        'tarde':  ['12:00', '18:00'],
+        'noite':  ['18:00', '23:59'],
+        'dia':    ['', ''],
+    };
+    const [ini, fim] = turnos[turno] || ['', ''];
+    document.getElementById('diario-hora-ini').value = ini;
+    document.getElementById('diario-hora-fim').value = fim;
 }
 
 const style = document.createElement('style');
 style.textContent = `.btn-filtrar { background-color: var(--cor-principal); color: white; padding: 7px 18px; border-radius: 8px; font-size: 13px; font-weight: 500; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; }`;
 document.head.appendChild(style);
+
+// ── Pagamento dividido ────────────────────────────────────────────────────────
+let _valorTotal = 0;
+
+function alternarDividido(ativo) {
+    document.getElementById('input-dividido').value = ativo ? '1' : '0';
+    document.getElementById('bloco-simples').style.display  = ativo ? 'none' : 'block';
+    document.getElementById('bloco-dividido').style.display = ativo ? 'block' : 'none';
+
+    // Ao ativar, preenche valor1 com metade do total
+    if (ativo && _valorTotal > 0) {
+        const metade = (_valorTotal / 2).toFixed(2);
+        document.getElementById('input-valor1').value = metade;
+        calcularRestante();
+    }
+
+    // Ajusta required dos campos
+    document.querySelector('[name="valor"]').required          = !ativo;
+    document.querySelector('[name="forma_pagamento"]').required = !ativo;
+    document.getElementById('input-valor1').required           = ativo;
+    document.getElementById('input-valor2').required           = ativo;
+}
+
+function calcularRestante() {
+    const v1 = parseFloat(document.getElementById('input-valor1').value) || 0;
+    const v2 = Math.max(0, _valorTotal - v1);
+    document.getElementById('input-valor2').value = v2.toFixed(2);
+
+    const aviso = document.getElementById('aviso-dividido');
+    const txt   = document.getElementById('txt-aviso-dividido');
+    const soma  = v1 + v2;
+
+    if (v1 <= 0) {
+        aviso.style.display = 'flex'; txt.textContent = 'O valor da parte 1 deve ser maior que zero.';
+    } else if (soma !== _valorTotal && Math.abs(soma - _valorTotal) > 0.01) {
+        aviso.style.display = 'flex'; txt.textContent = `A soma (R$ ${soma.toFixed(2)}) deve ser igual ao total (R$ ${_valorTotal.toFixed(2)}).`;
+    } else {
+        aviso.style.display = 'none';
+    }
+}
+
+function toggleBancoDividido(parte, forma) {
+    const el = document.getElementById('banco-div' + parte);
+    if (el) el.style.display = forma === 'pix' ? 'block' : 'none';
+}
+
+function submeterPagamento() {
+    const dividido = document.getElementById('input-dividido').value === '1';
+    if (dividido) {
+        const v1 = parseFloat(document.getElementById('input-valor1').value) || 0;
+        const v2 = parseFloat(document.getElementById('input-valor2').value) || 0;
+        if (v1 <= 0 || v2 <= 0) {
+            alert('Informe um valor válido maior que zero para ambas as partes.'); return;
+        }
+        if (Math.abs(v1 + v2 - _valorTotal) > 0.01) {
+            alert(`A soma dos valores (R$ ${(v1+v2).toFixed(2)}) deve ser igual ao total (R$ ${_valorTotal.toFixed(2)}).`); return;
+        }
+    } else {
+        const v = parseFloat(document.getElementById('input-valor').value) || 0;
+        if (v <= 0) { alert('Informe o valor do pagamento.'); return; }
+    }
+    document.getElementById('form-novo-pag').submit();
+}
+
+// Sobrescreve preencherValor para salvar o total
+const _preencherValorOriginal = preencherValor;
+function preencherValor(select) {
+    _preencherValorOriginal(select);
+    const opt = select.options[select.selectedIndex];
+    _valorTotal = parseFloat(opt.dataset.valor) || 0;
+    // Se dividido estiver ativo, recalcula
+    if (document.getElementById('input-dividido').value === '1' && _valorTotal > 0) {
+        const metade = (_valorTotal / 2).toFixed(2);
+        document.getElementById('input-valor1').value = metade;
+        calcularRestante();
+    }
+}
+
+// Reset ao fechar o modal
+document.getElementById('modalNovoPagamento').addEventListener('hidden.bs.modal', function() {
+    document.getElementById('toggle-dividido').checked = false;
+    alternarDividido(false);
+    document.getElementById('input-valor1').value = '';
+    document.getElementById('input-valor2').value = '';
+    document.getElementById('aviso-dividido').style.display = 'none';
+    _valorTotal = 0;
+});
 </script>
 {% endblock %}
