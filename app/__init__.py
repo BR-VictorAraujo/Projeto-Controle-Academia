@@ -26,7 +26,6 @@ def create_app():
     from app.routes.financeiro import bp as financeiro_bp
     from app.routes.relatorios import bp as relatorios_bp
     from app.routes.config     import bp as config_bp
-
     app.register_blueprint(auth_bp)
     app.register_blueprint(alunos_bp)
     app.register_blueprint(acessos_bp)
@@ -61,6 +60,8 @@ def create_app():
     @app.context_processor
     def inject_config():
         from app.models import Configuracao
+        from app.version import APP_NOME, APP_VERSAO, APP_BUILD
+
         class SiteConfig:
             nome_academia  = 'Academia'
             cor_principal  = '#FF6B00'
@@ -82,6 +83,29 @@ def create_app():
             SiteConfig.timeout_sessao = configs.get('timeout_sessao', '60')
         except:
             pass
-        return dict(config=SiteConfig())
+
+        # Versao do sistema — injetada em todas as templates sem precisar
+        # passar manualmente em cada render_template().
+        return dict(
+            config=SiteConfig(),
+            app_nome=APP_NOME,
+            app_versao=APP_VERSAO,
+            app_build=APP_BUILD,
+        )
+
+    # Inicia o agendador de backup automatico. Roda em thread de
+    # background dentro do proprio processo Flask — nao depende de
+    # Task Scheduler externo. A configuracao (ativo/horario/intervalo)
+    # e lida do banco a cada execucao, entao mudancas feitas pelo
+    # usuario em Parametros sao aplicadas sem reiniciar o servidor
+    # (ver reconfigurar_agendador, chamado pela rota /parametros).
+    from app import backup_scheduler
+    with app.app_context():
+        try:
+            backup_scheduler.iniciar_agendador(app)
+        except Exception as e:
+            # Nao deixa uma falha no agendamento de backup impedir o
+            # sistema de subir — registra e segue.
+            app.logger.warning(f"Nao foi possivel iniciar o agendador de backup: {e}")
 
     return app

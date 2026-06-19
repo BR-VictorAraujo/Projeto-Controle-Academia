@@ -1,0 +1,120 @@
+[2026-06-18 20:34:01] [LEITOR] Leitor conectado com sucesso
+[2026-06-18 20:34:01] [RECONHECIMENTO] Reconhecimento automatico INICIADO
+[2026-06-18 20:34:01] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:34:05] [RECONHECIMENTO] Reconhecimento automatico INICIADO
+[2026-06-18 20:34:05] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:34:13] [LEITOR] Leitor conectado com sucesso
+[2026-06-18 20:34:14] [RECONHECIMENTO] Reconhecimento automatico INICIADO
+[2026-06-18 20:34:14] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:34:29] [RECONHECIMENTO] Reconhecimento automatico INICIADO
+[2026-06-18 20:34:29] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:34:43] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:34:56] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:35:05] [LEITOR] Leitor conectado com sucesso
+[2026-06-18 20:35:06] [RECONHECIMENTO] Reconhecimento automatico INICIADO
+[2026-06-18 20:35:06] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:35:09] [ACESSO] Reconhecido: Lucas Silveira (ID 78)
+[2026-06-18 20:35:13] [ERRO] Falha ao notificar Flask para Lucas Silveira: HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /acessos/biometria (Caused by NewConnectionError("HTTPConnection(host='localhost', port=5000): Failed to establish a new connection: [WinError 10061] Nenhuma conexão pôde ser feita porque a máquina de destino as recusou ativamente")) - gravando direto no banco
+[2026-06-18 20:35:13] [ACESSO] Reconhecido: Lucas Silveira (ID 78)
+[2026-06-18 20:35:18] [ERRO] Falha ao notificar Flask para Lucas Silveira: HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /acessos/biometria (Caused by NewConnectionError("HTTPConnection(host='localhost', port=5000): Failed to establish a new connection: [WinError 10061] Nenhuma conexão pôde ser feita porque a máquina de destino as recusou ativamente")) - gravando direto no banco
+[2026-06-18 20:35:28] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:35:28] [ACESSO] Reconhecido: Lucas Silveira (ID 78)
+[2026-06-18 20:35:33] [ERRO] Falha ao notificar Flask para Lucas Silveira: HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /acessos/biometria (Caused by NewConnectionError("HTTPConnection(host='localhost', port=5000): Failed to establish a new connection: [WinError 10061] Nenhuma conexão pôde ser feita porque a máquina de destino as recusou ativamente")) - gravando direto no banco
+[2026-06-18 20:35:49] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:36:05] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:36:20] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:36:35] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:38:13] [LEITOR] Leitor conectado com sucesso
+[2026-06-18 20:38:13] [RECONHECIMENTO] Reconhecimento automatico INICIADO
+[2026-06-18 20:38:14] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:38:18] [RECONHECIMENTO] Reconhecimento automatico PAUSADO pelo usuario
+[2026-06-18 20:38:18] [RECONHECIMENTO] Loop de reconhecimento finalizado
+[2026-06-18 20:38:18] [RECONHECIMENTO] Reconhecimento automatico INICIADO
+[2026-06-18 20:38:18] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:38:22] [RECONHECIMENTO] Reconhecimento automatico INICIADO
+[2026-06-18 20:38:22] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:39:41] [LEITOR] Leitor conectado com sucesso
+[2026-06-18 20:39:41] [RECONHECIMENTO] Reconhecimento automatico INICIADO
+[2026-06-18 20:39:41] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:39:57] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:40:12] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:40:28] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:40:43] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:40:59] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:41:14] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:41:29] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:41:45] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:42:00] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:42:16] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:42:31] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:42:47] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:43:03] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:43:18] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:43:34] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:43:49] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:44:05] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:44:20] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:44:36] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:44:51] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:45:06] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:45:19] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:45:31] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:45:44] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:46:00] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:46:15] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:46:28] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:46:39] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:46:48] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:46:56] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:47:04] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:47:12] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:47:33] [LEITOR] Leitor conectado com sucesso
+[2026-06-18 20:47:34] [RECONHECIMENTO] Reconhecimento INICIADO (automatico)
+[2026-06-18 20:47:34] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:47:38] [RECONHECIMENTO] Reconhecimento suspenso (saiu da aba Portaria)
+[2026-06-18 20:47:42] [RECONHECIMENTO] Reconhecimento INICIADO (automatico)
+[2026-06-18 20:47:42] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:47:43] [RECONHECIMENTO] Reconhecimento suspenso (saiu da aba Portaria)
+[2026-06-18 20:47:45] [RECONHECIMENTO] Reconhecimento INICIADO (automatico)
+[2026-06-18 20:47:45] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:47:46] [RECONHECIMENTO] Reconhecimento suspenso (saiu da aba Portaria)
+[2026-06-18 20:51:02] [SISTEMA] Academia AMF — Biometria v1.2.0 (build 2026-06-18) iniciado
+[2026-06-18 20:51:05] [LEITOR] Leitor conectado com sucesso
+[2026-06-18 20:51:05] [RECONHECIMENTO] Reconhecimento INICIADO (automatico)
+[2026-06-18 20:51:05] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:51:11] [RECONHECIMENTO] Reconhecimento suspenso (saiu da aba Portaria)
+[2026-06-18 20:51:14] [RECONHECIMENTO] Reconhecimento INICIADO (automatico)
+[2026-06-18 20:51:14] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:51:17] [RECONHECIMENTO] Reconhecimento PAUSADO (manual)
+[2026-06-18 20:51:18] [RECONHECIMENTO] Loop de reconhecimento finalizado
+[2026-06-18 20:51:19] [RECONHECIMENTO] Reconhecimento INICIADO (manual)
+[2026-06-18 20:51:19] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:51:20] [RECONHECIMENTO] Reconhecimento suspenso (saiu da aba Portaria)
+[2026-06-18 20:52:54] [SISTEMA] Academia AMF — Biometria v1.2.0 (build 2026-06-18) iniciado
+[2026-06-18 20:52:57] [LEITOR] Leitor conectado com sucesso
+[2026-06-18 20:52:58] [RECONHECIMENTO] Reconhecimento INICIADO (automatico)
+[2026-06-18 20:52:58] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:53:09] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:53:22] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:53:36] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:53:50] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:54:01] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:54:12] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:54:24] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:54:38] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:54:54] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:55:12] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:55:24] [RECONHECIMENTO] Reconhecimento suspenso (saiu da aba Portaria)
+[2026-06-18 20:55:32] [SISTEMA] FingerPoint v1.2.0 (build 2026-06-18) iniciado
+[2026-06-18 20:55:38] [LEITOR] Leitor conectado com sucesso
+[2026-06-18 20:55:38] [RECONHECIMENTO] Reconhecimento INICIADO (automatico)
+[2026-06-18 20:55:38] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:55:43] [RECONHECIMENTO] Reconhecimento suspenso (saiu da aba Portaria)
+[2026-06-18 20:56:51] [SISTEMA] FingerPoint v1.2.0 (build 2026-06-18) iniciado
+[2026-06-18 20:56:55] [LEITOR] Leitor conectado com sucesso
+[2026-06-18 20:56:55] [RECONHECIMENTO] Reconhecimento INICIADO (automatico)
+[2026-06-18 20:56:55] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:56:59] [RECONHECIMENTO] Reconhecimento suspenso (saiu da aba Portaria)
+[2026-06-18 20:57:01] [RECONHECIMENTO] Reconhecimento INICIADO (automatico)
+[2026-06-18 20:57:01] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-18 20:57:07] [RECONHECIMENTO] Reconhecimento suspenso (saiu da aba Portaria)

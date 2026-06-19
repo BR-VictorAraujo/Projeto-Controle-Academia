@@ -12,6 +12,12 @@ import time
 import os
 import sys
 
+# ── Versionamento ────────────────────────────────────────────────────────────
+APP_NOME       = "FingerPoint"
+APP_VERSAO     = "1.2.0"   # Versionamento semantico: MAJOR.MINOR.PATCH
+APP_BUILD      = "2026-06-18"
+LEITOR_MODELO  = "Digital Persona U.are.U 4500"
+
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("dark-blue")
 
@@ -29,6 +35,7 @@ sys.path.insert(0, BASE_DIR)
 from bio_config import BioConfig
 from bio_db     import BioDatabase
 from bio_reader import BioReader
+from bio_logger import log_reconhecimento, log_acesso, log_erro, log_leitor
 
 
 class TelaLogin(ctk.CTkFrame):
@@ -38,13 +45,13 @@ class TelaLogin(ctk.CTkFrame):
         self._build()
 
     def _build(self):
-        ctk.CTkLabel(self, text="\U0001f4aa",
+        ctk.CTkLabel(self, text="\U0001f446",
                      font=ctk.CTkFont(size=48)).pack(pady=(40, 0))
-        ctk.CTkLabel(self, text="Academia Gestao",
+        ctk.CTkLabel(self, text=APP_NOME,
                      font=ctk.CTkFont(size=24, weight="bold"),
                      text_color=COR_PRINCIPAL).pack(pady=(4, 2))
-        ctk.CTkLabel(self, text="Modulo de Biometria",
-                     font=ctk.CTkFont(size=13),
+        ctk.CTkLabel(self, text=f"v{APP_VERSAO}  —  {LEITOR_MODELO}",
+                     font=ctk.CTkFont(size=11),
                      text_color=COR_SUBTEXT).pack(pady=(0, 30))
 
         card = ctk.CTkFrame(self, fg_color=COR_CARD, corner_radius=12)
@@ -115,6 +122,11 @@ class TelaApp(ctk.CTkFrame):
         self.db     = db
         self.reader = BioReader(simulado=cfg.get('simulado', True))
         self._aba_ativa = None
+        # Intencao do usuario sobre o reconhecimento. Persiste entre trocas
+        # de aba: se o usuario pausou manualmente, nao queremos retomar
+        # automaticamente quando ele voltar do Cadastro para a Portaria.
+        # Comeca False = "rodar automaticamente" (comportamento padrao).
+        self.reconhecimento_pausado_manualmente = False
         self._build()
         self._abrir_aba("portaria")
 
@@ -128,16 +140,17 @@ class TelaApp(ctk.CTkFrame):
 
         logo_frame = ctk.CTkFrame(sidebar, fg_color="transparent")
         logo_frame.pack(fill="x", padx=16, pady=(16, 4))
-        ctk.CTkLabel(logo_frame, text="\U0001f4aa",
+        # Icone de impressao digital (em vez do braco)
+        ctk.CTkLabel(logo_frame, text="\U0001f446",
                      font=ctk.CTkFont(size=26)).pack(side="left", padx=(0, 8))
         nomes = ctk.CTkFrame(logo_frame, fg_color="transparent")
         nomes.pack(side="left")
-        ctk.CTkLabel(nomes, text="Academia",
+        ctk.CTkLabel(nomes, text=APP_NOME,
                      font=ctk.CTkFont(size=14, weight="bold"),
                      text_color=COR_PRINCIPAL, anchor="w").pack(anchor="w")
-        ctk.CTkLabel(nomes, text="Biometria",
-                     font=ctk.CTkFont(size=10),
-                     text_color=COR_SUBTEXT, anchor="w").pack(anchor="w")
+        ctk.CTkLabel(nomes, text=f"v{APP_VERSAO}",
+                     font=ctk.CTkFont(size=9),
+                     text_color="#555", anchor="w").pack(anchor="w")
 
         ctk.CTkFrame(sidebar, height=1, fg_color="#2a3a5a").pack(
             fill="x", pady=(12, 5))
@@ -166,10 +179,15 @@ class TelaApp(ctk.CTkFrame):
             wraplength=160)
         self._lbl_leitor.pack(padx=12, pady=5)
 
-        modo = "Simulado" if self.cfg.get('simulado') else "Leitor real"
-        ctk.CTkLabel(sidebar, text=f"Modo: {modo}",
+        # Exibe modelo do leitor (em modo simulado, indica entre parenteses)
+        if self.cfg.get('simulado'):
+            txt_leitor = f"{LEITOR_MODELO} (simulado)"
+        else:
+            txt_leitor = LEITOR_MODELO
+        ctk.CTkLabel(sidebar, text=txt_leitor,
                      font=ctk.CTkFont(size=10),
-                     text_color=COR_SUBTEXT).pack(padx=12)
+                     text_color=COR_SUBTEXT,
+                     wraplength=180).pack(padx=12, pady=(0, 4))
 
         ctk.CTkButton(sidebar, text="Sair",
                       fg_color="transparent", hover_color="#fdecea",
@@ -188,9 +206,26 @@ class TelaApp(ctk.CTkFrame):
         if ok:
             self._lbl_leitor.configure(
                 text="  Leitor conectado", text_color=COR_SUCCESS)
+            log_leitor("Leitor conectado com sucesso")
         else:
             self._lbl_leitor.configure(
                 text="  Leitor nao encontrado", text_color=COR_ERROR)
+            log_leitor("Leitor NAO encontrado na inicializacao")
+
+    def atualizar_status_leitor(self):
+        """
+        Reavalia o status real do leitor (reader.dispositivo_presente) e
+        atualiza a sidebar. Chamado pela AbaPortaria sempre que uma captura
+        falha por desconexao, para a UI nao ficar dizendo 'conectado'
+        indefinidamente apos a inicializacao.
+        """
+        presente = getattr(self.reader, 'dispositivo_presente', False)
+        if presente:
+            self._lbl_leitor.configure(
+                text="  Leitor conectado", text_color=COR_SUCCESS)
+        else:
+            self._lbl_leitor.configure(
+                text="  Leitor desconectado", text_color=COR_ERROR)
 
     def _abrir_aba(self, nome):
         if self._aba_ativa == nome:
@@ -203,7 +238,7 @@ class TelaApp(ctk.CTkFrame):
         for w in self._area.winfo_children():
             w.destroy()
         if nome == "portaria":
-            AbaPortaria(self._area, self.cfg, self.db, self.reader).pack(
+            AbaPortaria(self._area, self.cfg, self.db, self.reader, self).pack(
                 fill="both", expand=True)
         else:
             AbaCadastro(self._area, self.cfg, self.db, self.reader).pack(
@@ -211,13 +246,20 @@ class TelaApp(ctk.CTkFrame):
 
 
 class AbaPortaria(ctk.CTkFrame):
-    def __init__(self, master, cfg, db, reader):
+    def __init__(self, master, cfg, db, reader, tela_app=None):
         super().__init__(master, fg_color=COR_DARK)
-        self.cfg    = cfg
-        self.db     = db
-        self.reader = reader
-        self._ativo = False
+        self.cfg      = cfg
+        self.db       = db
+        self.reader   = reader
+        self.tela_app = tela_app  # referencia direta a TelaApp (nao ao frame pai)
+        self._ativo   = False
         self._build()
+        # Auto-inicia o reconhecimento ao abrir a Portaria, exceto se o
+        # usuario tiver pausado manualmente em uma sessao anterior. Isso
+        # respeita a intencao: trocar para Cadastro e voltar nao deve
+        # ignorar uma pausa manual deliberada.
+        if self.tela_app and not self.tela_app.reconhecimento_pausado_manualmente:
+            self.after(500, lambda: self._toggle(manual=False))
 
     def _build(self):
         hdr = ctk.CTkFrame(self, fg_color=COR_CARD, corner_radius=0, height=60)
@@ -280,35 +322,53 @@ class AbaPortaria(ctk.CTkFrame):
         self._lista.pack(fill="x", padx=20, pady=(0, 16))
         self._carregar_historico()
 
-    def _toggle(self):
+    def _toggle(self, manual=True):
+        """
+        Alterna entre rodando/pausado.
+        manual=True: clique do usuario; intencao persiste entre trocas de aba.
+        manual=False: chamada interna (auto-inicio, suspensao por troca de
+        aba). Nao altera a intencao persistente do usuario.
+        """
         if self._ativo:
             self._ativo = False
             self._btn.configure(
                 text="  Iniciar reconhecimento", fg_color=COR_PRINCIPAL)
             self._lbl_instrucao.configure(text="Reconhecimento pausado")
             self._barra.set(0)
+            if manual and self.tela_app:
+                self.tela_app.reconhecimento_pausado_manualmente = True
+            log_reconhecimento(
+                f"Reconhecimento PAUSADO ({'manual' if manual else 'automatico'})")
         else:
             self._ativo = True
             self._btn.configure(
                 text="  Pausar reconhecimento", fg_color="#555")
             self._lbl_instrucao.configure(text="Apoie o dedo no leitor...")
+            if manual and self.tela_app:
+                self.tela_app.reconhecimento_pausado_manualmente = False
+            log_reconhecimento(
+                f"Reconhecimento INICIADO ({'manual' if manual else 'automatico'})")
             threading.Thread(
                 target=self._loop_reconhecimento, daemon=True).start()
 
     def _loop_reconhecimento(self):
         from bio_reader import _lock_leitor
+        import traceback
         templates    = []
         ciclo        = 0
+        falhas_consecutivas = 0
         while self._ativo:
             try:
                 if ciclo % 10 == 0:
                     templates = self.db.buscar_todos_templates()
+                    log_reconhecimento(f"Templates recarregados: {len(templates)} cadastrados")
                 ciclo += 1
 
                 try:
                     self._barra.set(0.3)
                     self._lbl_instrucao.configure(text="Apoie o dedo no leitor...")
                 except Exception:
+                    log_erro("Widget destruido durante loop (tela fechada) - encerrando loop normalmente")
                     return
 
                 if not _lock_leitor.acquire(blocking=False):
@@ -317,16 +377,19 @@ class AbaPortaria(ctk.CTkFrame):
                 _lock_leitor.release()
 
                 resultado = self.reader.reconhecer(templates)
+                falhas_consecutivas = 0  # leitor respondeu, reseta contador de falha
 
                 if not self._ativo:
                     return
 
                 if resultado:
                     aluno = self.db.buscar_aluno(resultado['aluno_id'])
+                    log_acesso(f"Reconhecido: {aluno.get('nome', '?')} (ID {resultado['aluno_id']})")
                     try:
                         self._barra.set(1)
                         self.after(0, lambda a=aluno: self._registrar_acesso(a))
                     except Exception:
+                        log_erro("Widget destruido ao registrar acesso - encerrando loop normalmente")
                         return
                     time.sleep(0.8)
                     try:
@@ -340,6 +403,10 @@ class AbaPortaria(ctk.CTkFrame):
                         self._lbl_instrucao.configure(
                             text="❌ Digital não encontrada — tente novamente",
                             text_color=COR_ERROR)
+                        # Reflete na sidebar se o leitor caiu (ex: access
+                        # violation por dispositivo desconectado/ausente)
+                        if self.tela_app:
+                            self.tela_app.atualizar_status_leitor()
                     except Exception:
                         return
                     time.sleep(1.5)
@@ -351,13 +418,34 @@ class AbaPortaria(ctk.CTkFrame):
                         return
 
             except Exception as e:
+                falhas_consecutivas += 1
+                erro_detalhado = traceback.format_exc()
+                log_erro(f"Excecao no loop de reconhecimento (falha #{falhas_consecutivas}): {e}\n{erro_detalhado}")
+
                 if self._ativo:
                     try:
                         self._lbl_status.configure(
                             text=f"Erro: {e}", text_color=COR_ERROR)
                     except Exception:
                         pass
-                break
+
+                # Tenta se recuperar em vez de matar o loop de primeira:
+                # leitores USB podem falhar pontualmente sem precisar reiniciar o app
+                if falhas_consecutivas >= 5:
+                    log_erro(f"5 falhas consecutivas - encerrando loop de reconhecimento automaticamente")
+                    self._ativo = False
+                    try:
+                        self.after(0, lambda: self._btn.configure(
+                            text="  Iniciar reconhecimento", fg_color=COR_PRINCIPAL))
+                        self.after(0, lambda: self._lbl_instrucao.configure(
+                            text="Reconhecimento parado por falhas repetidas. Clique para reiniciar.",
+                            text_color=COR_ERROR))
+                    except Exception:
+                        pass
+                    break
+                else:
+                    time.sleep(1)  # pequena pausa antes de tentar de novo
+        log_reconhecimento("Loop de reconhecimento finalizado")
 
     def _registrar_acesso(self, aluno):
         import requests
@@ -376,7 +464,8 @@ class AbaPortaria(ctk.CTkFrame):
                 f"http://localhost:{self.cfg.get('flask_port', 5000)}/acessos/biometria",
                 json={"aluno_id": aluno['id']},
                 timeout=3)
-        except Exception:
+        except Exception as e:
+            log_erro(f"Falha ao notificar Flask para {aluno.get('nome','?')}: {e} - gravando direto no banco")
             self.db.registrar_acesso_biometria(aluno['id'])
 
         self._lbl_nome.configure(
@@ -429,7 +518,13 @@ class AbaPortaria(ctk.CTkFrame):
             pass
 
     def destroy(self):
-        self._ativo = False
+        # Sinaliza o loop para parar. Nao bloqueia esperando o lock do
+        # leitor: o loop verifica self._ativo antes de cada iteracao e
+        # encerra naturalmente. O proximo widget (Cadastro) ja consegue
+        # adquirir o lock assim que a captura atual terminar.
+        if self._ativo:
+            self._ativo = False
+            log_reconhecimento("Reconhecimento suspenso (saiu da aba Portaria)")
         super().destroy()
 
 
@@ -710,6 +805,8 @@ class AbaCadastro(ctk.CTkFrame):
                 aluno_id,
                 self._templates[0],
                 self._templates[1])
+            from bio_logger import log_cadastro
+            log_cadastro(f"Digitais salvas para aluno ID {aluno_id} ({self._aluno_sel.get('nome','?')})")
             self._lbl_resultado.configure(
                 text="Digitais salvas com sucesso!",
                 text_color=COR_SUCCESS)
@@ -726,7 +823,7 @@ class AbaCadastro(ctk.CTkFrame):
 class App(ctk.CTk):
     def __init__(self):
         super().__init__()
-        self.title("Academia Gestao - Biometria")
+        self.title(f"{APP_NOME}  v{APP_VERSAO}  —  {LEITOR_MODELO}")
         self.geometry("900x620")
         self.minsize(800, 560)
         self.configure(fg_color=COR_DARK)
@@ -761,5 +858,7 @@ class App(ctk.CTk):
 
 
 if __name__ == "__main__":
+    from bio_logger import log
+    log('SISTEMA', f'{APP_NOME} v{APP_VERSAO} (build {APP_BUILD}) iniciado')
     app = App()
     app.mainloop()

@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, redirect, url_for, request, flash
+from flask import Blueprint, render_template, redirect, url_for, request, flash, jsonify
 from app import db
 from datetime import datetime
 from app.routes.auth import login_required, registrar_log, get_param, validar_senha
@@ -146,19 +146,31 @@ def parametros():
         for chave, padrao in [
             ('senha_tamanho_minimo','6'), ('senha_validade_dias','0'),
             ('senha_aviso_dias','7'), ('dias_alerta_vencimento','7'),
-            ('timeout_sessao','60'), ('fuso_horario','-3')
+            ('timeout_sessao','60'), ('fuso_horario','-3'),
+            # Backup do banco de dados
+            ('backup_pasta_destino', ''), ('backup_modo', 'diario'),
+            ('backup_horario', '03:00'), ('backup_intervalo_horas', '6'),
+            ('backup_manter_qtd', '7'), ('backup_extensao', 'dump'),
         ]:
             set_config(chave, request.form.get(chave, padrao))
         for chave in ['senha_exigir_numero','senha_exigir_maiuscula','senha_exigir_especial',
                       'alertar_senha_vencimento','permitir_doc_duplicado',
                       'bloquear_plano_vencido','alertar_plano_vencimento',
-                      'forma_dinheiro','forma_pix','forma_credito','forma_debito','forma_boleto']:
+                      'forma_dinheiro','forma_pix','forma_credito','forma_debito','forma_boleto',
+                      'backup_automatico_ativo']:
             set_config(chave, '1' if request.form.get(chave) else '0')
         for chave in ['taxa_credito', 'taxa_debito']:
             set_config(chave, request.form.get(chave, '0'))
         db.session.commit()
         registrar_log('alterou parametros', 'Parâmetros do sistema atualizados')
         flash('Parâmetros salvos com sucesso!', 'success')
+
+        # Reagenda o backup automatico imediatamente com a config nova,
+        # sem precisar reiniciar o servidor.
+        from app import backup_scheduler
+        from flask import current_app
+        backup_scheduler.reconfigurar_agendador(current_app._get_current_object())
+
         return redirect(url_for('config.parametros'))
 
     class Params:
@@ -182,6 +194,14 @@ def parametros():
         forma_boleto            = get_param('forma_boleto',            '0')
         taxa_credito            = get_param('taxa_credito',            '0')
         taxa_debito             = get_param('taxa_debito',             '0')
+        # Backup do banco de dados
+        backup_pasta_destino    = get_param('backup_pasta_destino',    '')
+        backup_automatico_ativo = get_param('backup_automatico_ativo', '0')
+        backup_modo             = get_param('backup_modo',             'diario')
+        backup_horario          = get_param('backup_horario',          '03:00')
+        backup_intervalo_horas  = get_param('backup_intervalo_horas',  '6')
+        backup_manter_qtd       = get_param('backup_manter_qtd',       '7')
+        backup_extensao         = get_param('backup_extensao',         'dump')
 
     from app.models import Plano
     planos_ativos = Plano.query.filter_by(ativo=True).order_by(Plano.nome).all()
@@ -228,3 +248,96 @@ def novo_plano():
     registrar_log('criou plano', f'Plano: {nome} | Dias: {dias_validade} | Valor: R$ {valor}')
     flash(f'Plano "{nome}" criado com sucesso!', 'success')
     return redirect(url_for('config.planos'))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Backup do banco de dados
+# ─────────────────────────────────────────────────────────────────────────────
+
+@bp.route('/backup/listar')
+@login_required
+def backup_listar():
+    """Retorna a lista de backups existentes na pasta configurada, em JSON."""
+    from app import backup as backup_mod
+
+    pasta = get_param('backup_pasta_destino', '')
+    if not pasta:
+        return jsonify({'backups': [], 'erro': 'Pasta de destino não configurada.'})
+
+    try:
+        itens = backup_mod.listar_backups(pasta)
+    except Exception as e:
+        return jsonify({'backups': [], 'erro': str(e)}), 500
+
+    # Serializa datetime para string ISO (JSON nao aceita datetime nativo)
+    resultado = [
+        {
+            'nome':       b['nome'],
+            'tamanho_mb': b['tamanho_mb'],
+            'criado_em':  b['criado_em'].isoformat(),
+        }
+        for b in itens
+    ]
+    return jsonify({'backups': resultado})
+
+
+@bp.route('/backup/executar', methods=['POST'])
+@login_required
+def backup_executar():
+    """Dispara um backup manual imediatamente. Usado pelo botão 'Fazer backup agora'."""
+    from app import backup as backup_mod
+    from flask import current_app
+
+    pasta        = get_param('backup_pasta_destino', '')
+    manter_qtd   = int(get_param('backup_manter_qtd', '7') or 7)
+    extensao     = get_param('backup_extensao', 'dump') or 'dump'
+    pg_dump_path = get_param('backup_pg_dump_path', '') or None
+
+    if not pasta:
+        return jsonify({'sucesso': False, 'erro': 'Configure a pasta de destino antes de fazer backup.'}), 400
+
+    try:
+        db_config = backup_mod.extrair_db_config(current_app.config['SQLALCHEMY_DATABASE_URI'])
+        resultado = backup_mod.executar_backup_completo(
+            db_config, pasta, manter_qtd, pg_dump_path, extensao)
+    except backup_mod.BackupError as e:
+        registrar_log('falha ao gerar backup', str(e))
+        return jsonify({'sucesso': False, 'erro': str(e)}), 500
+    except Exception as e:
+        registrar_log('falha ao gerar backup', f'Erro inesperado: {e}')
+        return jsonify({'sucesso': False, 'erro': f'Erro inesperado: {e}'}), 500
+
+    registrar_log('gerou backup manual', f"Arquivo: {resultado['arquivo']} ({resultado['tamanho_mb']}MB)")
+    return jsonify({
+        'sucesso':    True,
+        'arquivo':    resultado['arquivo'],
+        'tamanho_mb': resultado['tamanho_mb'],
+    })
+
+
+@bp.route('/backup/excluir', methods=['POST'])
+@login_required
+def backup_excluir():
+    """Exclui um backup especifico pelo nome do arquivo (relativo a pasta configurada)."""
+    from app import backup as backup_mod
+    import os
+
+    dados = request.get_json(silent=True) or {}
+    nome  = dados.get('nome', '')
+
+    if not nome:
+        return jsonify({'sucesso': False, 'erro': 'Nome do arquivo não informado.'}), 400
+
+    pasta = get_param('backup_pasta_destino', '')
+    if not pasta:
+        return jsonify({'sucesso': False, 'erro': 'Pasta de destino não configurada.'}), 400
+
+    caminho_completo = os.path.join(pasta, nome)
+
+    try:
+        backup_mod.excluir_backup(caminho_completo, pasta)
+    except backup_mod.BackupError as e:
+        return jsonify({'sucesso': False, 'erro': str(e)}), 400
+
+    registrar_log('excluiu backup', f'Arquivo: {nome}')
+    return jsonify({'sucesso': True})
