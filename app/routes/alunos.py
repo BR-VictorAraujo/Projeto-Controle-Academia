@@ -9,8 +9,27 @@ bp = Blueprint('alunos', __name__)
 @bp.route('/alunos')
 @login_required
 def alunos():
-    lista = Aluno.query.order_by(Aluno.nome).all()
-    return render_template('alunos/lista.html', alunos=lista)
+    f_status    = request.args.get('f_status', '')
+    f_biometria = request.args.get('f_biometria', '')
+
+    query = Aluno.query
+    if f_status == 'ativo':
+        query = query.filter_by(ativo=True)
+    elif f_status == 'inativo':
+        query = query.filter_by(ativo=False)
+
+    lista = query.order_by(Aluno.nome).all()
+
+    # Filtro de biometria aplicado em memoria — usa os mesmos campos
+    # biometria_status / biometria_2_status que a tela de detalhes ja le,
+    # e que o FingerPoint sincroniza ao salvar uma digital (ver bio_db.py).
+    if f_biometria == 'com':
+        lista = [a for a in lista if a.biometria_status == 'cadastrada' or a.biometria_2_status == 'cadastrada']
+    elif f_biometria == 'sem':
+        lista = [a for a in lista if a.biometria_status != 'cadastrada' and a.biometria_2_status != 'cadastrada']
+
+    return render_template('alunos/lista.html', alunos=lista,
+                           f_status=f_status, f_biometria=f_biometria)
 
 @bp.route('/alunos/novo', methods=['GET', 'POST'])
 @login_required

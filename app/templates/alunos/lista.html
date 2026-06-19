@@ -47,16 +47,54 @@
     font-size: 15px; font-weight: 700; color: var(--cor-principal);
     flex-shrink: 0;
 }
+.filtro-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 7px 14px; border-radius: 8px;
+    font-size: 13px; font-weight: 500;
+    border: 1.5px solid #dee2e6; background: white; color: #6c757d;
+    text-decoration: none; cursor: pointer; white-space: nowrap;
+}
+.filtro-pill:hover { border-color: var(--cor-principal); color: var(--cor-principal); }
+.filtro-pill.ativo { background: var(--cor-principal); border-color: var(--cor-principal); color: white; }
+.badge-bio-completa { background-color: #e8f5e9; color: #2e7d32; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 500; white-space: nowrap; }
+.badge-bio-parcial  { background-color: #fff3e8; color: #e65100; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 500; white-space: nowrap; }
+.badge-bio-pendente { background-color: #f0f2f5; color: #6c757d;  padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 500; white-space: nowrap; }
 {% endblock %}
 
 {% block conteudo %}
+<div class="card-base mb-3">
+    <div class="row g-3 align-items-end">
+        <div class="col-md-4">
+            <label class="form-label" style="font-size:13px; font-weight:500;">Buscar aluno</label>
+            <div style="position:relative;">
+                <i class="bi bi-search" style="position:absolute; left:10px; top:50%; transform:translateY(-50%); color:#adb5bd;"></i>
+                <input type="text" class="search-box w-100" id="busca" placeholder="Buscar aluno...">
+            </div>
+        </div>
+        <div class="col-md-8 d-flex gap-2 align-items-end flex-wrap">
+            <a href="?f_status=&f_biometria={{ f_biometria }}" class="filtro-pill {% if not f_status %}ativo{% endif %}">Todos</a>
+            <a href="?f_status=ativo&f_biometria={{ f_biometria }}" class="filtro-pill {% if f_status == 'ativo' %}ativo{% endif %}">Ativos</a>
+            <a href="?f_status=inativo&f_biometria={{ f_biometria }}" class="filtro-pill {% if f_status == 'inativo' %}ativo{% endif %}">Inativos</a>
+            <span style="width:1px; background:#dee2e6; align-self:stretch; margin:0 4px;"></span>
+            <a href="?f_status={{ f_status }}&f_biometria=" class="filtro-pill {% if not f_biometria %}ativo{% endif %}">
+                <i class="bi bi-fingerprint"></i> Todos
+            </a>
+            <a href="?f_status={{ f_status }}&f_biometria=com" class="filtro-pill {% if f_biometria == 'com' %}ativo{% endif %}">
+                <i class="bi bi-fingerprint" style="color:{% if f_biometria == 'com' %}white{% else %}#2e7d32{% endif %};"></i> Com biometria
+            </a>
+            <a href="?f_status={{ f_status }}&f_biometria=sem" class="filtro-pill {% if f_biometria == 'sem' %}ativo{% endif %}">
+                <i class="bi bi-fingerprint" style="color:{% if f_biometria == 'sem' %}white{% else %}#c62828{% endif %};"></i> Sem biometria
+            </a>
+        </div>
+    </div>
+</div>
+
 <div class="card-base">
     <div class="d-flex justify-content-between align-items-center mb-3">
-        <div style="position:relative;">
-            <i class="bi bi-search" style="position:absolute; left:10px; top:50%; transform:translateY(-50%); color:#adb5bd;"></i>
-            <input type="text" class="search-box" id="busca" placeholder="Buscar aluno...">
-        </div>
-        <span style="font-size:13px; color:#6c757d;">Total: <strong>{{ alunos|length }}</strong></span>
+        <span style="font-size:13px; color:#6c757d;">
+            {% if f_status or f_biometria %}<i class="bi bi-funnel-fill me-1" style="color:var(--cor-principal);"></i>{% endif %}
+            Exibindo: <strong>{{ alunos|length }}</strong>
+        </span>
     </div>
 
     <table class="table table-borderless mb-0" id="tabela-alunos">
@@ -68,6 +106,7 @@
                 <th>Plano</th>
                 <th>Vencimento</th>
                 <th>Status</th>
+                <th>Biometria</th>
                 <th>Ações</th>
             </tr>
         </thead>
@@ -104,6 +143,17 @@
                         {% endif %}
                     </td>
                     <td>
+                        {% set d1 = aluno.biometria_status == 'cadastrada' %}
+                        {% set d2 = aluno.biometria_2_status == 'cadastrada' %}
+                        {% if d1 and d2 %}
+                            <span class="badge-bio-completa"><i class="bi bi-fingerprint me-1"></i>2/2 digitais</span>
+                        {% elif d1 or d2 %}
+                            <span class="badge-bio-parcial"><i class="bi bi-fingerprint me-1"></i>1/2 digital</span>
+                        {% else %}
+                            <span class="badge-bio-pendente"><i class="bi bi-fingerprint me-1"></i>Pendente</span>
+                        {% endif %}
+                    </td>
+                    <td>
                         <a href="/alunos/{{ aluno.id }}/editar" class="btn-acao" title="Editar">
                             <i class="bi bi-pencil" style="color: var(--cor-principal);"></i>
                         </a>
@@ -119,9 +169,9 @@
                 {% endfor %}
             {% else %}
                 <tr>
-                    <td colspan="7" style="text-align:center; color:#6c757d; padding:40px 0;">
+                    <td colspan="8" style="text-align:center; color:#6c757d; padding:40px 0;">
                         <i class="bi bi-people" style="font-size:32px; display:block; margin-bottom:8px;"></i>
-                        Nenhum aluno cadastrado ainda
+                        Nenhum aluno encontrado com os filtros aplicados
                     </td>
                 </tr>
             {% endif %}
