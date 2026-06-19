@@ -40,7 +40,12 @@ class BioDatabase:
         sql = """
             SELECT a.id, a.nome, a.plano, a.vencimento, a.ativo,
                    a.documento,
-                   (b.template IS NOT NULL) AS tem_biometria
+                   -- BUG CORRIGIDO: antes so verificava 'template',
+                   -- ignorando alunos que tem apenas 'template2' salvo
+                   -- (digital 2/backup) e nenhuma digital na coluna
+                   -- principal. Isso fazia o badge mostrar "pendente"
+                   -- mesmo com biometria de fato cadastrada no banco.
+                   (b.template IS NOT NULL OR b.template2 IS NOT NULL) AS tem_biometria
             FROM alunos a
             LEFT JOIN biometrias b ON b.aluno_id = a.id
             WHERE a.ativo = TRUE
@@ -103,7 +108,17 @@ class BioDatabase:
         return templates
 
     def salvar_templates(self, aluno_id, template1, template2):
-        """Salva ou atualiza as duas digitais do aluno."""
+        """
+        Salva ou atualiza as duas digitais do aluno.
+
+        Alem de gravar na tabela biometrias (template/template2), tambem
+        sincroniza aluno.biometria_status e aluno.biometria_2_status na
+        tabela alunos — sao esses dois campos que a tela web le para
+        mostrar "Cadastrada" ou "Pendente" no detalhe do aluno. Sem essa
+        sincronizacao, o status na web nunca reflete o que foi de fato
+        coletado aqui no FingerPoint, mesmo com o template salvo
+        corretamente no banco.
+        """
         if template1 is None and template2 is None:
             raise ValueError("Nenhuma digital capturada.")
 
@@ -125,7 +140,59 @@ class BioDatabase:
                 INSERT INTO biometrias (aluno_id, template, template2, cadastrado_em, atualizado_em)
                 VALUES (%s, %s, %s, NOW(), NOW())
             """, (aluno_id, template1, template2))
+
+        # Sincroniza os campos de status na tabela alunos — so atualiza
+        # para 'cadastrada' a digital que de fato foi capturada agora
+        # (template1/template2 nao-nulos); nao sobrescreve com 'pendente'
+        # uma digital que ja estava cadastrada de uma sessao anterior.
+        if template1 is not None:
+            cur.execute(
+                "UPDATE alunos SET biometria_status = 'cadastrada' WHERE id = %s",
+                (aluno_id,))
+        if template2 is not None:
+            cur.execute(
+                "UPDATE alunos SET biometria_2_status = 'cadastrada' WHERE id = %s",
+                (aluno_id,))
+
         cur.close()
+
+    def reconciliar_status_biometria(self):
+        """
+        Correcao retroativa: para alunos que ja tem template/template2
+        salvos na tabela biometrias mas cujo aluno.biometria_status /
+        biometria_2_status na tabela alunos ainda esta como 'pendente'
+        (porque versoes anteriores do salvar_templates nao faziam essa
+        sincronizacao), atualiza os campos para refletir a realidade.
+
+        Roda uma vez (ex: ao abrir o FingerPoint) e e seguro chamar
+        multiplas vezes — so corrige o que estiver de fato dessincronizado.
+
+        Retorna a quantidade de campos de status corrigidos.
+        """
+        self._garantir_coluna_template2()
+        cur = self._cursor()
+        cur.execute("""
+            UPDATE alunos a
+            SET biometria_status = 'cadastrada'
+            FROM biometrias b
+            WHERE b.aluno_id = a.id
+              AND b.template IS NOT NULL
+              AND a.biometria_status IS DISTINCT FROM 'cadastrada'
+        """)
+        corrigidos_d1 = cur.rowcount
+
+        cur.execute("""
+            UPDATE alunos a
+            SET biometria_2_status = 'cadastrada'
+            FROM biometrias b
+            WHERE b.aluno_id = a.id
+              AND b.template2 IS NOT NULL
+              AND a.biometria_2_status IS DISTINCT FROM 'cadastrada'
+        """)
+        corrigidos_d2 = cur.rowcount
+        cur.close()
+
+        return corrigidos_d1 + corrigidos_d2
 
     def registrar_acesso_biometria(self, aluno_id):
         """Registra acesso direto no banco (fallback quando API nao responde)."""

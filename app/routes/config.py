@@ -159,6 +159,14 @@ def parametros():
                       'forma_dinheiro','forma_pix','forma_credito','forma_debito','forma_boleto',
                       'backup_automatico_ativo']:
             set_config(chave, '1' if request.form.get(chave) else '0')
+
+        # popup_acessos_ativo usa um campo hidden + checkbox (ver template),
+        # entao SEMPRE vem no POST com valor '1' ou '0' explicito — diferente
+        # dos checkboxes acima que ficam ausentes quando desmarcados. Isso
+        # permite o padrao ser "ativado" sem o primeiro salvamento de
+        # parametros desativar o popup por causa da ausencia do campo.
+        set_config('popup_acessos_ativo', request.form.get('popup_acessos_ativo', '1'))
+
         for chave in ['taxa_credito', 'taxa_debito']:
             set_config(chave, request.form.get(chave, '0'))
         db.session.commit()
@@ -202,6 +210,8 @@ def parametros():
         backup_intervalo_horas  = get_param('backup_intervalo_horas',  '6')
         backup_manter_qtd       = get_param('backup_manter_qtd',       '7')
         backup_extensao         = get_param('backup_extensao',         'dump')
+        # Popup de novas passagens — ativado por padrao (ver nota no POST acima)
+        popup_acessos_ativo     = get_param('popup_acessos_ativo',     '1')
 
     from app.models import Plano
     planos_ativos = Plano.query.filter_by(ativo=True).order_by(Plano.nome).all()

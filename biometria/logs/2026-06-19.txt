@@ -1,0 +1,5 @@
+[2026-06-19 18:06:13] [SISTEMA] FingerPoint v1.2.0 (build 2026-06-18) iniciado
+[2026-06-19 18:06:17] [LEITOR] Leitor conectado com sucesso
+[2026-06-19 18:06:18] [RECONHECIMENTO] Reconhecimento INICIADO (automatico)
+[2026-06-19 18:06:18] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-06-19 18:06:18] [RECONHECIMENTO] Reconhecimento suspenso (saiu da aba Portaria)

@@ -136,6 +136,51 @@
             background: rgba(0,0,0,0.5); z-index: 999;
         }
 
+        /* ==================== POPUP DE PASSAGEM (canto superior direito) ==================== */
+        #popup-passagem-container {
+            position: fixed; top: 20px; right: 20px;
+            z-index: 2000; display: flex; flex-direction: column; gap: 12px;
+            max-width: 380px; pointer-events: none;
+        }
+        .popup-passagem {
+            background: white; border-radius: 14px; padding: 18px 20px;
+            box-shadow: 0 8px 28px rgba(0,0,0,0.2);
+            border-left: 6px solid #2e7d32;
+            display: flex; align-items: center; gap: 16px;
+            pointer-events: all; cursor: pointer;
+            animation: popup-entrada 0.3s ease-out;
+        }
+        .popup-passagem.vencido { border-left-color: #c62828; }
+        .popup-passagem.saindo  { animation: popup-saida 0.3s ease-in forwards; }
+        @keyframes popup-entrada {
+            from { opacity: 0; transform: translateX(40px); }
+            to   { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes popup-saida {
+            from { opacity: 1; transform: translateX(0); }
+            to   { opacity: 0; transform: translateX(40px); }
+        }
+        .popup-avatar {
+            width: 56px; height: 56px; border-radius: 50%; flex-shrink: 0;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 22px; font-weight: 700; overflow: hidden;
+            background: #e8f5e9; color: #2e7d32;
+        }
+        .popup-passagem.vencido .popup-avatar { background: #fdecea; color: #c62828; }
+        .popup-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .popup-info { flex: 1; min-width: 0; }
+        .popup-nome {
+            font-size: 16px; font-weight: 700; color: #1a1a2e;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .popup-detalhe { font-size: 13px; color: #6c757d; margin-top: 3px; }
+        .popup-passagem.vencido .popup-detalhe { color: #c62828; font-weight: 600; }
+        .popup-fechar {
+            font-size: 20px; color: #adb5bd; cursor: pointer;
+            padding: 2px 6px; flex-shrink: 0; line-height: 1;
+        }
+        .popup-fechar:hover { color: #6c757d; }
+
         /* ==================== RESPONSIVO MOBILE ==================== */
         @media (max-width: 768px) {
             .sidebar { transform: translateX(-240px); transition: transform 0.3s ease; height: 100dvh; display: flex; flex-direction: column; }
@@ -164,6 +209,9 @@
 <body>
 
 <div class="overlay-mobile" id="overlay-mobile"></div>
+
+<!-- Popup de novas passagens — visivel em qualquer tela do sistema -->
+<div id="popup-passagem-container"></div>
 
 <!-- Sidebar -->
 <div class="sidebar" id="sidebar">
@@ -291,6 +339,97 @@ function toggleRelatorios() {
     btn.classList.toggle('aberto');
     submenu.classList.toggle('aberto');
 }
+
+// ── Popup de novas passagens (canto superior direito, qualquer tela) ──────────
+// Reaproveita o mesmo endpoint /monitoramento/ultimo que a tela de
+// Monitoramento já usa, evitando duplicar a lógica de detecção de
+// passagem nova no backend.
+(function() {
+    const POPUP_ATIVO = {{ 'true' if config.popup_acessos_ativo == '1' else 'false' }};
+    if (!POPUP_ATIVO) return;
+
+    // Na própria tela de Monitoramento o painel principal já mostra a
+    // passagem em destaque — não duplica como popup ali, só nas demais.
+    const NA_TELA_MONITORAMENTO = window.location.pathname.startsWith('/monitoramento');
+
+    const POPUP_DURACAO_MS = 5000;
+    let ultimoIdPopup = {{ ultimo_id_global if ultimo_id_global is defined else 'null' }};
+    let primeiraVerificacao = true;
+
+    function escaparHtml(texto) {
+        const div = document.createElement('div');
+        div.textContent = texto;
+        return div.innerHTML;
+    }
+
+    function mostrarPopupPassagem(data) {
+        const container = document.getElementById('popup-passagem-container');
+        if (!container) return;
+
+        const vencido = !!data.vencido;
+        const popup = document.createElement('div');
+        popup.className = 'popup-passagem' + (vencido ? ' vencido' : '');
+
+        const avatarHtml = data.foto
+            ? `<img src="${escaparHtml(data.foto)}" alt="">`
+            : escaparHtml((data.nome || '?')[0].toUpperCase());
+
+        popup.innerHTML = `
+            <div class="popup-avatar">${avatarHtml}</div>
+            <div class="popup-info">
+                <div class="popup-nome">${escaparHtml(data.nome || 'Aluno')}</div>
+                <div class="popup-detalhe">
+                    ${vencido ? '⚠️ Vencido em ' + escaparHtml(data.vencimento || '—')
+                              : '✅ Em dia até ' + escaparHtml(data.vencimento || '—')}
+                </div>
+            </div>
+            <span class="popup-fechar">&times;</span>
+        `;
+
+        function remover() {
+            popup.classList.add('saindo');
+            setTimeout(() => popup.remove(), 300);
+        }
+
+        popup.querySelector('.popup-fechar').addEventListener('click', (e) => {
+            e.stopPropagation();
+            remover();
+        });
+        popup.addEventListener('click', () => {
+            window.location.href = '/monitoramento';
+        });
+
+        container.appendChild(popup);
+        setTimeout(remover, POPUP_DURACAO_MS);
+    }
+
+    function verificarNovaPassagemGlobal() {
+        fetch('/monitoramento/ultimo')
+            .then(r => r.json())
+            .then(data => {
+                if (!data.id) return;
+                // Na primeira verificacao apos carregar a pagina, so
+                // memoriza o id atual — nao mostra popup retroativo de
+                // uma passagem que ja tinha acontecido antes de abrir
+                // esta tela.
+                if (primeiraVerificacao) {
+                    ultimoIdPopup = data.id;
+                    primeiraVerificacao = false;
+                    return;
+                }
+                if (data.id !== ultimoIdPopup) {
+                    ultimoIdPopup = data.id;
+                    if (!NA_TELA_MONITORAMENTO) {
+                        mostrarPopupPassagem(data);
+                    }
+                }
+            })
+            .catch(() => {});
+    }
+
+    setInterval(verificarNovaPassagemGlobal, 2000);
+    verificarNovaPassagemGlobal();
+})();
 </script>
 {% block scripts %}{% endblock %}
 </body>

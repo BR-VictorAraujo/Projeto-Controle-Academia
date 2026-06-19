@@ -6,8 +6,8 @@ logs e endpoints de saude.
 """
 
 APP_NOME   = "GymFlow"
-APP_VERSAO = "1.3.0"   # Versionamento semantico: MAJOR.MINOR.PATCH
-APP_BUILD  = "2026-06-18"
+APP_VERSAO = "1.4.0"   # Versionamento semantico: MAJOR.MINOR.PATCH
+APP_BUILD  = "2026-06-19"
 
 
 def info():

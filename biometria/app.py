@@ -14,8 +14,8 @@ import sys
 
 # ── Versionamento ────────────────────────────────────────────────────────────
 APP_NOME       = "FingerPoint"
-APP_VERSAO     = "1.2.0"   # Versionamento semantico: MAJOR.MINOR.PATCH
-APP_BUILD      = "2026-06-18"
+APP_VERSAO     = "1.2.1"   # Versionamento semantico: MAJOR.MINOR.PATCH
+APP_BUILD      = "2026-06-19"
 LEITOR_MODELO  = "Digital Persona U.are.U 4500"
 
 ctk.set_appearance_mode("dark")
@@ -110,6 +110,17 @@ class TelaLogin(ctk.CTkFrame):
         try:
             db = BioDatabase(cfg)
             db.testar_conexao()
+            # Correcao retroativa: sincroniza aluno.biometria_status com
+            # o que ja existe de fato na tabela biometrias. Cobre alunos
+            # cadastrados antes da correcao de salvar_templates passar a
+            # gravar esse status — sem isso, ficariam mostrando "pendente"
+            # na tela web para sempre, mesmo com a digital ja salva.
+            try:
+                qtd = db.reconciliar_status_biometria()
+                if qtd > 0:
+                    log_leitor(f"Reconciliacao de biometria: {qtd} status corrigido(s) retroativamente")
+            except Exception as e:
+                log_erro(f"Falha ao reconciliar status de biometria (nao impede o login): {e}")
             self.on_login(cfg, db)
         except Exception as ex:
             self._status.configure(text=f"Erro: {ex}", text_color=COR_ERROR)
@@ -536,6 +547,7 @@ class AbaCadastro(ctk.CTkFrame):
         self.reader     = reader
         self._aluno_sel = None
         self._templates = [None, None]
+        self._busca_em_andamento = False  # evita disparar busca duplicada se clicar 2x rapido
         self._build()
 
     def _build(self):
@@ -564,8 +576,15 @@ class AbaCadastro(ctk.CTkFrame):
 
         self._entry_busca = ctk.CTkEntry(
             busca_frame, placeholder_text="Buscar por nome ou CPF...", height=36)
-        self._entry_busca.pack(side="left", fill="x", expand=True)
-        self._entry_busca.bind("<KeyRelease>", self._filtrar_alunos)
+        self._entry_busca.pack(side="left", fill="x", expand=True, padx=(0, 8))
+        # Enter no campo dispara a busca, igual ao clique no botao
+        self._entry_busca.bind("<Return>", lambda e: self._executar_busca())
+
+        self._btn_buscar = ctk.CTkButton(
+            busca_frame, text="🔍 Buscar", width=90, height=36,
+            fg_color=COR_PRINCIPAL, hover_color="#cc5500",
+            command=self._executar_busca)
+        self._btn_buscar.pack(side="left")
 
         self._lista_alunos = ctk.CTkScrollableFrame(
             col_esq, fg_color="transparent", height=300)
@@ -651,97 +670,145 @@ class AbaCadastro(ctk.CTkFrame):
         self._lbl_resultado.pack()
 
     def _carregar_alunos(self, filtro=""):
-        for w in self._lista_alunos.winfo_children():
-            w.destroy()
+        """
+        Busca alunos no banco e reconstroi a lista de widgets.
+        Roda em thread separada (chamada por _executar_busca) para nao
+        bloquear a UI durante a query, e so atualiza os widgets de volta
+        na thread principal via self.after(0, ...).
+        """
         try:
             alunos = self.db.listar_alunos(filtro)
-            if not alunos:
-                ctk.CTkLabel(self._lista_alunos,
-                             text="Nenhum aluno encontrado",
-                             text_color=COR_SUBTEXT,
-                             font=ctk.CTkFont(size=11)).pack(pady=10)
-                return
-            for a in alunos:
-                tem_bio     = a.get('tem_biometria', False)
-                selecionado = self._aluno_sel and self._aluno_sel['id'] == a['id']
-
-                row = ctk.CTkFrame(
-                    self._lista_alunos,
-                    fg_color="#fff3e8" if selecionado else "#f8f9fa",
-                    corner_radius=6)
-                row._aluno_id = a['id']
-                row.pack(fill="x", pady=2, padx=2)
-
-                var = ctk.BooleanVar(value=selecionado)
-                chk = ctk.CTkCheckBox(row, text="", variable=var, width=24,
-                                       fg_color=COR_PRINCIPAL,
-                                       hover_color="#cc5500",
-                                       checkmark_color="white",
-                                       command=lambda x=a: self._selecionar_aluno(x))
-                chk.pack(side="left", padx=(8, 0))
-
-                bio_text  = "BIO" if tem_bio else "   "
-                bio_color = COR_SUCCESS if tem_bio else "#333"
-                bio_bg    = "#1b3a1b" if tem_bio else "#2a2a2a"
-                ctk.CTkLabel(row, text=bio_text, width=30,
-                             text_color=bio_color,
-                             fg_color=bio_bg,
-                             corner_radius=4,
-                             font=ctk.CTkFont(size=9, weight="bold")).pack(
-                                 side="left", padx=4, pady=6)
-
-                info = ctk.CTkFrame(row, fg_color="transparent")
-                info.pack(side="left", fill="x", expand=True, padx=4)
-
-                ctk.CTkLabel(info,
-                             text=a['nome'],
-                             text_color=COR_PRINCIPAL if selecionado else COR_TEXT,
-                             font=ctk.CTkFont(size=12, weight="bold"),
-                             anchor="w").pack(fill="x")
-
-                doc = a.get('documento') or ''
-                cpf_plano = f"CPF: {doc if doc else 'Nao cadastrado'}"
-                ativo = a.get('ativo', True)
-                status_text  = "Ativo" if ativo else "Inativo"
-                status_color = "#2e7d32" if ativo else "#c62828"
-                status_bg    = "#e8f5e9" if ativo else "#fdecea"
-
-                linha_info = ctk.CTkFrame(info, fg_color="transparent")
-                linha_info.pack(fill="x")
-                ctk.CTkLabel(linha_info,
-                             text=cpf_plano,
-                             text_color=COR_SUBTEXT,
-                             font=ctk.CTkFont(size=10),
-                             anchor="w").pack(side="left")
-                ctk.CTkLabel(linha_info,
-                             text=status_text,
-                             text_color=status_color,
-                             fg_color=status_bg,
-                             corner_radius=4,
-                             font=ctk.CTkFont(size=9, weight="bold"),
-                             width=44).pack(side="left", padx=(6, 0))
-
-                row.bind("<Button-1>", lambda e, x=a: self._selecionar_aluno(x))
-                for child in row.winfo_children():
-                    child.bind("<Button-1>", lambda e, x=a: self._selecionar_aluno(x))
-                for child in info.winfo_children():
-                    child.bind("<Button-1>", lambda e, x=a: self._selecionar_aluno(x))
-
         except Exception as e:
-            ctk.CTkLabel(self._lista_alunos,
-                         text=f"Erro: {e}",
-                         text_color=COR_ERROR).pack()
+            self.after(0, lambda: self._mostrar_erro_busca(e))
+            return
+        self.after(0, lambda: self._renderizar_lista(alunos))
 
-    def _filtrar_alunos(self, event=None):
-        termo = self._entry_busca.get()
-        if len(termo) >= 2:
-            self._carregar_alunos(termo)
-        elif len(termo) == 0:
+    def _finalizar_busca(self):
+        """Reabilita o botao e libera a trava de busca, chamado sempre ao final
+        (sucesso ou erro), para o usuario poder buscar de novo."""
+        self._busca_em_andamento = False
+        try:
+            self._btn_buscar.configure(state="normal", text="🔍 Buscar")
+        except Exception:
+            pass  # tela pode ter sido destruida (troca de aba) durante a busca
+
+    def _mostrar_erro_busca(self, erro):
+        for w in self._lista_alunos.winfo_children():
+            w.destroy()
+        ctk.CTkLabel(self._lista_alunos,
+                     text=f"Erro: {erro}",
+                     text_color=COR_ERROR).pack()
+        self._finalizar_busca()
+
+    def _renderizar_lista(self, alunos):
+        for w in self._lista_alunos.winfo_children():
+            w.destroy()
+        if not alunos:
+            ctk.CTkLabel(self._lista_alunos,
+                         text="Nenhum aluno encontrado",
+                         text_color=COR_SUBTEXT,
+                         font=ctk.CTkFont(size=11)).pack(pady=10)
+            self._finalizar_busca()
+            return
+        for a in alunos:
+            tem_bio     = a.get('tem_biometria', False)
+            selecionado = self._aluno_sel and self._aluno_sel['id'] == a['id']
+
+            row = ctk.CTkFrame(
+                self._lista_alunos,
+                fg_color="#fff3e8" if selecionado else "#f8f9fa",
+                corner_radius=6)
+            row._aluno_id = a['id']
+            row.pack(fill="x", pady=2, padx=2)
+
+            var = ctk.BooleanVar(value=selecionado)
+            chk = ctk.CTkCheckBox(row, text="", variable=var, width=24,
+                                   fg_color=COR_PRINCIPAL,
+                                   hover_color="#cc5500",
+                                   checkmark_color="white",
+                                   command=lambda x=a: self._selecionar_aluno(x))
+            chk.pack(side="left", padx=(8, 0))
+
+            bio_text  = "BIO" if tem_bio else "   "
+            bio_color = COR_SUCCESS if tem_bio else "#333"
+            bio_bg    = "#1b3a1b" if tem_bio else "#2a2a2a"
+            ctk.CTkLabel(row, text=bio_text, width=30,
+                         text_color=bio_color,
+                         fg_color=bio_bg,
+                         corner_radius=4,
+                         font=ctk.CTkFont(size=9, weight="bold")).pack(
+                             side="left", padx=4, pady=6)
+
+            info = ctk.CTkFrame(row, fg_color="transparent")
+            info.pack(side="left", fill="x", expand=True, padx=4)
+
+            ctk.CTkLabel(info,
+                         text=a['nome'],
+                         text_color=COR_PRINCIPAL if selecionado else COR_TEXT,
+                         font=ctk.CTkFont(size=12, weight="bold"),
+                         anchor="w").pack(fill="x")
+
+            doc = a.get('documento') or ''
+            cpf_plano = f"CPF: {doc if doc else 'Nao cadastrado'}"
+            ativo = a.get('ativo', True)
+            status_text  = "Ativo" if ativo else "Inativo"
+            status_color = "#2e7d32" if ativo else "#c62828"
+            status_bg    = "#e8f5e9" if ativo else "#fdecea"
+
+            linha_info = ctk.CTkFrame(info, fg_color="transparent")
+            linha_info.pack(fill="x")
+            ctk.CTkLabel(linha_info,
+                         text=cpf_plano,
+                         text_color=COR_SUBTEXT,
+                         font=ctk.CTkFont(size=10),
+                         anchor="w").pack(side="left")
+            ctk.CTkLabel(linha_info,
+                         text=status_text,
+                         text_color=status_color,
+                         fg_color=status_bg,
+                         corner_radius=4,
+                         font=ctk.CTkFont(size=9, weight="bold"),
+                         width=44).pack(side="left", padx=(6, 0))
+
+            row.bind("<Button-1>", lambda e, x=a: self._selecionar_aluno(x))
+            for child in row.winfo_children():
+                child.bind("<Button-1>", lambda e, x=a: self._selecionar_aluno(x))
+            for child in info.winfo_children():
+                child.bind("<Button-1>", lambda e, x=a: self._selecionar_aluno(x))
+
+        self._finalizar_busca()
+
+    def _executar_busca(self):
+        """
+        Dispara a busca quando o usuario clica em 'Buscar' ou aperta
+        Enter no campo — nao mais a cada tecla digitada. Evita travar
+        a UI reconstruindo a lista inteira de widgets multiplas vezes
+        por segundo, e da ao usuario controle explicito sobre quando
+        a busca acontece.
+        """
+        if self._busca_em_andamento:
+            return  # ignora clique duplo enquanto a busca anterior ainda roda
+
+        termo = self._entry_busca.get().strip()
+        if len(termo) < 2:
             for w in self._lista_alunos.winfo_children():
                 w.destroy()
-            ctk.CTkLabel(self._lista_alunos, text='Digite para buscar...',
+            ctk.CTkLabel(self._lista_alunos,
+                         text='Digite ao menos 2 caracteres e clique em Buscar',
                          text_color=COR_SUBTEXT,
                          font=ctk.CTkFont(size=11)).pack(pady=20)
+            return
+
+        self._busca_em_andamento = True
+        self._btn_buscar.configure(state="disabled", text="Buscando...")
+        for w in self._lista_alunos.winfo_children():
+            w.destroy()
+        ctk.CTkLabel(self._lista_alunos, text='Buscando...',
+                     text_color=COR_SUBTEXT,
+                     font=ctk.CTkFont(size=11)).pack(pady=20)
+        threading.Thread(
+            target=self._carregar_alunos, args=(termo,), daemon=True
+        ).start()
 
     def _selecionar_aluno(self, aluno):
         self._aluno_sel = aluno
@@ -810,7 +877,10 @@ class AbaCadastro(ctk.CTkFrame):
             self._lbl_resultado.configure(
                 text="Digitais salvas com sucesso!",
                 text_color=COR_SUCCESS)
-            self._carregar_alunos(self._entry_busca.get())
+            threading.Thread(
+                target=self._carregar_alunos,
+                args=(self._entry_busca.get(),), daemon=True
+            ).start()
             self._templates = [None, None]
             self._lbl_d1.configure(text="Nao capturada", text_color=COR_SUBTEXT)
             self._lbl_d2.configure(text="Nao capturada", text_color=COR_SUBTEXT)
@@ -818,6 +888,7 @@ class AbaCadastro(ctk.CTkFrame):
         except Exception as e:
             self._lbl_resultado.configure(
                 text=f"Erro ao salvar: {e}", text_color=COR_ERROR)
+
 
 
 class App(ctk.CTk):

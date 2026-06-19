@@ -243,6 +243,37 @@
         </div>
     </div>
 
+    <!-- ── Notificações ─────────────────────────────────────────────────────── -->
+    <div class="param-card">
+        <div class="param-section-title">
+            <i class="bi bi-bell" style="color: var(--cor-principal);"></i> Notificações
+        </div>
+        <div class="toggle-switch">
+            <div class="toggle-info">
+                <div class="toggle-titulo">Popup de novas passagens</div>
+                <div class="toggle-desc">
+                    Mostra um aviso no canto superior direito sempre que uma biometria
+                    for registrada, mesmo em outras telas do sistema — útil para a
+                    recepção não perder uma passagem enquanto atende outro aluno.
+                </div>
+            </div>
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" name="popup_acessos_ativo_chk"
+                    id="sw-popup-acessos"
+                    {% if params.popup_acessos_ativo == '1' %}checked{% endif %}
+                    onchange="document.getElementById('input-popup-acessos').value = this.checked ? '1' : '0'"
+                    style="width:44px; height:22px; cursor:pointer;">
+            </div>
+        </div>
+        <!-- Campo hidden real enviado no POST — sempre presente com '1' ou
+             '0' explicito, ao contrario do checkbox acima (que so existe
+             no form quando marcado). Isso garante que o padrao "ativado"
+             nao seja perdido no primeiro salvamento de parametros, quando
+             nenhum checkbox foi tocado ainda. -->
+        <input type="hidden" name="popup_acessos_ativo" id="input-popup-acessos"
+               value="{{ params.popup_acessos_ativo or '1' }}">
+    </div>
+
     <!-- ── Formas de pagamento ──────────────────────────────────────────────── -->
     <div class="param-card">
         <div class="param-section-title">

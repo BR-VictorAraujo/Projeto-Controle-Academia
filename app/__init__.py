@@ -63,24 +63,28 @@ def create_app():
         from app.version import APP_NOME, APP_VERSAO, APP_BUILD
 
         class SiteConfig:
-            nome_academia  = 'Academia'
-            cor_principal  = '#FF6B00'
-            cor_sidebar    = '#1a1a2e'
-            logo_url       = ''
-            telefone       = ''
-            email          = ''
-            endereco       = ''
-            timeout_sessao = '60'
+            nome_academia       = 'Academia'
+            cor_principal       = '#FF6B00'
+            cor_sidebar         = '#1a1a2e'
+            logo_url            = ''
+            telefone            = ''
+            email               = ''
+            endereco            = ''
+            timeout_sessao      = '60'
+            # Padrao 'ativado': popup de novas passagens visivel em
+            # qualquer tela do sistema, nao so no Monitoramento.
+            popup_acessos_ativo = '1'
         try:
             configs = {c.chave: c.valor for c in Configuracao.query.all()}
-            SiteConfig.nome_academia  = configs.get('nome_academia',  'Academia')
-            SiteConfig.cor_principal  = configs.get('cor_principal',  '#FF6B00')
-            SiteConfig.cor_sidebar    = configs.get('cor_sidebar',    '#1a1a2e')
-            SiteConfig.logo_url       = configs.get('logo_url',       '')
-            SiteConfig.telefone       = configs.get('telefone',       '')
-            SiteConfig.email          = configs.get('email',          '')
-            SiteConfig.endereco       = configs.get('endereco',       '')
-            SiteConfig.timeout_sessao = configs.get('timeout_sessao', '60')
+            SiteConfig.nome_academia       = configs.get('nome_academia',       'Academia')
+            SiteConfig.cor_principal       = configs.get('cor_principal',       '#FF6B00')
+            SiteConfig.cor_sidebar         = configs.get('cor_sidebar',         '#1a1a2e')
+            SiteConfig.logo_url            = configs.get('logo_url',            '')
+            SiteConfig.telefone            = configs.get('telefone',            '')
+            SiteConfig.email               = configs.get('email',              '')
+            SiteConfig.endereco            = configs.get('endereco',            '')
+            SiteConfig.timeout_sessao      = configs.get('timeout_sessao',      '60')
+            SiteConfig.popup_acessos_ativo = configs.get('popup_acessos_ativo', '1')
         except:
             pass
 
