@@ -261,6 +261,46 @@ def novo_plano():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Tecnologias de acesso
+# ─────────────────────────────────────────────────────────────────────────────
+
+@bp.route('/configuracoes/tecnologias', methods=['GET', 'POST'])
+@login_required
+def tecnologias():
+    """
+    Tela dedicada para ativar/desativar tecnologias de controle de acesso
+    (biometria, RFID, facial). Antes vivia dentro de /parametros, mas foi
+    movida para sua propria aba — sao decisoes de hardware/produto, nao
+    parametros operacionais como senha ou backup, e misturadas la a tela
+    ficava poluida.
+
+    tecnologia_biometria controla se a coluna/filtro de biometria aparece
+    na tela de Alunos (ver app/routes/alunos.py e templates/alunos/lista.html).
+    Vem ativado por padrao porque clientes ja existentes usam biometria hoje.
+    """
+    def set_config(chave, valor):
+        from app.models import Configuracao
+        c = Configuracao.query.filter_by(chave=chave).first()
+        if c: c.valor = valor
+        else: db.session.add(Configuracao(chave=chave, valor=valor))
+
+    if request.method == 'POST':
+        # Hidden+checkbox: sempre vem '1' ou '0' explicito no POST,
+        # diferente de um checkbox puro que fica ausente quando desmarcado.
+        # Garante que o padrao "ativado" nao se perca no primeiro salvamento.
+        set_config('tecnologia_biometria', request.form.get('tecnologia_biometria', '1'))
+        db.session.commit()
+        registrar_log('alterou tecnologias de acesso', 'Configurações de tecnologia atualizadas')
+        flash('Tecnologias de acesso salvas com sucesso!', 'success')
+        return redirect(url_for('config.tecnologias'))
+
+    class Params:
+        tecnologia_biometria = get_param('tecnologia_biometria', '1')
+
+    return render_template('tecnologias.html', params=Params())
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Backup do banco de dados
 # ─────────────────────────────────────────────────────────────────────────────
 

@@ -74,6 +74,11 @@ def create_app():
             # Padrao 'ativado': popup de novas passagens visivel em
             # qualquer tela do sistema, nao so no Monitoramento.
             popup_acessos_ativo = '1'
+            # Tecnologias de acesso ativas — controla se a coluna/filtro
+            # de biometria aparece na tela de Alunos. Ativado por padrao
+            # porque clientes existentes ja usam biometria hoje; clientes
+            # que so usam RFID/manual no futuro podem desativar.
+            tecnologia_biometria = '1'
         try:
             configs = {c.chave: c.valor for c in Configuracao.query.all()}
             SiteConfig.nome_academia       = configs.get('nome_academia',       'Academia')
@@ -85,6 +90,7 @@ def create_app():
             SiteConfig.endereco            = configs.get('endereco',            '')
             SiteConfig.timeout_sessao      = configs.get('timeout_sessao',      '60')
             SiteConfig.popup_acessos_ativo = configs.get('popup_acessos_ativo', '1')
+            SiteConfig.tecnologia_biometria = configs.get('tecnologia_biometria', '1')
         except:
             pass
 

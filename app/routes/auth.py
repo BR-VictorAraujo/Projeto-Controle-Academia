@@ -35,6 +35,55 @@ def get_param(chave, padrao=''):
     c = Configuracao.query.filter_by(chave=chave).first()
     return c.valor if c else padrao
 
+# Opções de itens por página aceitas em todo o sistema — usado tanto para
+# validar o valor recebido via query string quanto para popular o seletor
+# na interface (Alunos, Financeiro, e futuras telas que precisem paginar).
+OPCOES_POR_PAGINA = [20, 50, 100]
+POR_PAGINA_PADRAO = 20
+
+def paginar(query, args=None, padrao=POR_PAGINA_PADRAO, opcoes=None):
+    """
+    Pagina uma query do SQLAlchemy de forma padronizada em todo o sistema.
+
+    Lê 'pagina' e 'por_pagina' da query string (via request.args, ou do
+    dict passado em `args` se a tela precisar combinar com outros filtros
+    já extraídos manualmente). Usa LIMIT/OFFSET no banco — nunca carrega
+    a query inteira na memória antes de paginar, o que é essencial para
+    telas como Alunos e Financeiro que podem crescer para milhares de
+    registros.
+
+    Retorna um objeto com:
+        .items        — lista de registros da página atual
+        .page         — página atual (1-indexed)
+        .per_page     — itens por página nesta consulta
+        .total        — total de registros (sem paginação)
+        .pages        — total de páginas
+        .has_prev / .has_next, .prev_num / .next_num
+
+    `opcoes`: lista de valores permitidos para por_pagina (default
+    OPCOES_POR_PAGINA = [20, 50, 100]). Qualquer valor fora da lista cai
+    no padrão — protege contra alguém forçar ?por_pagina=999999 na URL
+    e arrastar a base inteira de uma vez.
+    """
+    opcoes = opcoes or OPCOES_POR_PAGINA
+    origem = args if args is not None else request.args
+
+    try:
+        pagina = int(origem.get('pagina', 1))
+    except (TypeError, ValueError):
+        pagina = 1
+    if pagina < 1:
+        pagina = 1
+
+    try:
+        por_pagina = int(origem.get('por_pagina', padrao))
+    except (TypeError, ValueError):
+        por_pagina = padrao
+    if por_pagina not in opcoes:
+        por_pagina = padrao
+
+    return query.paginate(page=pagina, per_page=por_pagina, error_out=False)
+
 def validar_documento(tipo, numero):
     numero_limpo = re.sub(r'[^a-zA-Z0-9]', '', numero)
     if tipo == 'cpf':

@@ -1,0 +1,60 @@
+{# ─────────────────────────────────────────────────────────────────────────
+   Macro de paginação reutilizável.
+
+   Uso: {% from '_paginacao.html' import paginacao %}
+        {{ paginacao(paginacao_obj, request.args) }}
+
+   paginacao_obj: objeto retornado por auth.paginar() — tem .page, .pages,
+                  .has_prev, .has_next, .prev_num, .next_num, .total
+   args_atuais:   request.args (ou um dict equivalente) — usado para
+                  preservar todos os filtros já aplicados (f_status,
+                  periodo, etc) ao trocar de página, sem precisar listar
+                  cada filtro manualmente em cada tela que usa o macro.
+───────────────────────────────────────────────────────────────────────── #}
+{% macro paginacao(p, args_atuais) %}
+{% if p.pages > 1 %}
+<nav class="d-flex justify-content-center mt-3" aria-label="Paginação">
+    <ul class="pagination" style="gap:4px;">
+
+        {# Anterior #}
+        <li>
+            {% set args_prev = dict(args_atuais) %}
+            {% set _ = args_prev.update({'pagina': p.prev_num}) %}
+            <a class="page-link-custom {% if not p.has_prev %}disabled{% endif %}"
+               href="{% if p.has_prev %}?{{ args_prev|urlencode }}{% else %}#{% endif %}">
+                <i class="bi bi-chevron-left"></i>
+            </a>
+        </li>
+
+        {# Páginas numeradas — mostra no máximo 7 números, com elipses
+           quando o total de páginas é grande, centralizado na atual #}
+        {% set janela = 2 %}
+        {% for num in range(1, p.pages + 1) %}
+            {% if num == 1 or num == p.pages or (num >= p.page - janela and num <= p.page + janela) %}
+                {% set args_num = dict(args_atuais) %}
+                {% set _ = args_num.update({'pagina': num}) %}
+                <li>
+                    <a class="page-link-custom {% if num == p.page %}ativo{% endif %}"
+                       href="?{{ args_num|urlencode }}">{{ num }}</a>
+                </li>
+            {% elif num == p.page - janela - 1 or num == p.page + janela + 1 %}
+                <li><span class="page-link-custom" style="border:none; cursor:default;">…</span></li>
+            {% endif %}
+        {% endfor %}
+
+        {# Próxima #}
+        <li>
+            {% set args_next = dict(args_atuais) %}
+            {% set _ = args_next.update({'pagina': p.next_num}) %}
+            <a class="page-link-custom {% if not p.has_next %}disabled{% endif %}"
+               href="{% if p.has_next %}?{{ args_next|urlencode }}{% else %}#{% endif %}">
+                <i class="bi bi-chevron-right"></i>
+            </a>
+        </li>
+    </ul>
+</nav>
+<div class="text-center" style="font-size:12px; color:#6c757d; margin-top:-4px;">
+    Página {{ p.page }} de {{ p.pages }} — {{ p.total }} registro{{ 's' if p.total != 1 else '' }} no total
+</div>
+{% endif %}
+{% endmacro %}

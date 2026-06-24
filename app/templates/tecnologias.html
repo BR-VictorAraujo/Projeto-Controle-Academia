@@ -1,0 +1,124 @@
+{% extends 'base.html' %}
+
+{% block titulo %}Tecnologias{% endblock %}
+{% block titulo_pagina %}Tecnologias de acesso{% endblock %}
+{% block subtitulo %}Configure os métodos de controle de entrada da academia{% endblock %}
+
+{% set pagina_ativa = 'configuracoes' %}
+
+{% block estilos %}
+.param-card {
+    background: white; border-radius: 12px; padding: 28px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 24px;
+}
+.param-section-title {
+    font-size: 14px; font-weight: 600; color: #1a1a2e;
+    margin-bottom: 20px; padding-bottom: 12px;
+    border-bottom: 1px solid #f0f2f5;
+    display: flex; align-items: center; gap: 8px;
+}
+.forma-row {
+    display: flex; align-items: center; gap: 16px;
+    padding: 14px 0; border-bottom: 1px solid #f0f2f5;
+    flex-wrap: wrap;
+}
+.forma-row:last-child { border-bottom: none; }
+.forma-icone {
+    width: 40px; height: 40px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; flex-shrink: 0;
+}
+.forma-info { flex: 1; min-width: 140px; }
+.forma-nome { font-size: 14px; font-weight: 600; color: #1a1a2e; }
+.forma-desc { font-size: 12px; color: #6c757d; margin-top: 2px; }
+{% endblock %}
+
+{% block conteudo %}
+<!-- Tabs -->
+<div style="display:flex; gap:8px; margin-bottom:24px; flex-wrap:wrap;">
+    <a href="/configuracoes" style="background:white; border:1px solid #dee2e6; color:#6c757d; padding:8px 20px; border-radius:8px; font-size:13px; text-decoration:none;">
+        <i class="bi bi-palette me-1"></i> Aparência
+    </a>
+    <a href="/usuarios" style="background:white; border:1px solid #dee2e6; color:#6c757d; padding:8px 20px; border-radius:8px; font-size:13px; text-decoration:none;">
+        <i class="bi bi-people me-1"></i> Usuários
+    </a>
+    <a href="/parametros" style="background:white; border:1px solid #dee2e6; color:#6c757d; padding:8px 20px; border-radius:8px; font-size:13px; text-decoration:none;">
+        <i class="bi bi-sliders me-1"></i> Parâmetros
+    </a>
+    <a href="/planos" style="background:white; border:1px solid #dee2e6; color:#6c757d; padding:8px 20px; border-radius:8px; font-size:13px; text-decoration:none;">
+        <i class="bi bi-tag me-1"></i> Planos
+    </a>
+    <a href="/configuracoes/tecnologias" style="background: var(--cor-principal); border:none; color:white; padding:8px 20px; border-radius:8px; font-size:13px; text-decoration:none;">
+        <i class="bi bi-cpu me-1"></i> Tecnologias
+    </a>
+</div>
+
+<form method="POST" action="/configuracoes/tecnologias">
+
+    <div class="param-card">
+        <div class="param-section-title">
+            <i class="bi bi-cpu" style="color: var(--cor-principal);"></i> Tecnologias de acesso
+            <span style="font-size:12px; font-weight:400; color:#6c757d; margin-left:4px;">— ative as tecnologias usadas pela academia para controle de entrada</span>
+        </div>
+
+        <!-- Biometria -->
+        <div class="forma-row">
+            <div class="forma-icone" style="background:#e3f2fd; color:#1565c0;"><i class="bi bi-fingerprint"></i></div>
+            <div class="forma-info">
+                <div class="forma-nome">Biometria digital</div>
+                <div class="forma-desc">Leitor de impressão digital — exibe colunas e filtros de digitais cadastradas na tela de Alunos</div>
+            </div>
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" name="tecnologia_biometria_chk"
+                    id="sw-tec-biometria"
+                    {% if params.tecnologia_biometria == '1' %}checked{% endif %}
+                    onchange="document.getElementById('input-tec-biometria').value = this.checked ? '1' : '0'"
+                    style="width:44px; height:22px; cursor:pointer;">
+            </div>
+        </div>
+        <!-- Hidden real enviado no POST — sempre presente com '1' ou '0',
+             mesmo padrao ja usado em popup_acessos_ativo: garante que o
+             padrao "ativado" nao se perca no primeiro salvamento, ja que
+             clientes existentes ja usam biometria hoje e nao devem ter
+             a feature escondida sem querer. -->
+        <input type="hidden" name="tecnologia_biometria" id="input-tec-biometria"
+               value="{{ params.tecnologia_biometria or '1' }}">
+
+        <!-- RFID — em breve -->
+        <div class="forma-row" style="opacity:0.55;">
+            <div class="forma-icone" style="background:#f3e5f5; color:#6a1b9a;"><i class="bi bi-credit-card-2-front"></i></div>
+            <div class="forma-info">
+                <div class="forma-nome">Cartão RFID <span style="font-size:11px; font-weight:600; background:#f0f2f5; color:#6c757d; padding:2px 8px; border-radius:20px; margin-left:6px;">Em breve</span></div>
+                <div class="forma-desc">Controle de acesso por aproximação de cartão</div>
+            </div>
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" disabled style="width:44px; height:22px;">
+            </div>
+        </div>
+
+        <!-- Reconhecimento facial — em breve -->
+        <div class="forma-row" style="opacity:0.55;">
+            <div class="forma-icone" style="background:#fff3e8; color:var(--cor-principal);"><i class="bi bi-person-bounding-box"></i></div>
+            <div class="forma-info">
+                <div class="forma-nome">Reconhecimento facial <span style="font-size:11px; font-weight:600; background:#f0f2f5; color:#6c757d; padding:2px 8px; border-radius:20px; margin-left:6px;">Em breve</span></div>
+                <div class="forma-desc">Controle de acesso por câmera — a foto do aluno continua disponível para captura independente desta opção</div>
+            </div>
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" disabled style="width:44px; height:22px;">
+            </div>
+        </div>
+
+        <div class="mt-2" style="font-size:12px; color:#6c757d;">
+            <i class="bi bi-info-circle me-1"></i>
+            O cadastro manual (recepção registra a entrada) está sempre disponível, independente das tecnologias ativadas aqui.
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-end">
+        <button type="submit" class="btn-principal">
+            <i class="bi bi-check-lg"></i> Salvar tecnologias
+        </button>
+    </div>
+
+</form>
+{% endblock %}

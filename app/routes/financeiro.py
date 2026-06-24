@@ -3,7 +3,7 @@ from app import db
 from app.models import Aluno
 from datetime import datetime, date, timedelta
 from dateutil.relativedelta import relativedelta
-from app.routes.auth import login_required, registrar_log, get_param
+from app.routes.auth import login_required, registrar_log, get_param, paginar, OPCOES_POR_PAGINA
 
 bp = Blueprint('financeiro', __name__)
 
@@ -157,6 +157,8 @@ def financeiro():
     planos_diaria = [p.nome for p in Plano.query.filter_by(dias_validade=1, ativo=True).all()]
 
     inadimplentes = []
+    pag_inad      = None
+    pag_pagtos    = None
     if status_filtro == 'inadimplentes':
         # Para "todo o período", considera qualquer pagamento pago já registrado
         if periodo_ativo == 'todo_periodo':
@@ -172,13 +174,15 @@ def financeiro():
                 Pagamento.data_pagamento <= ultimo_dia
             ).scalar_subquery()
         # Inadimplentes: apenas alunos ativos, não-diária, com vencimento < hoje e sem pagamento no período
-        inadimplentes = Aluno.query.filter(
+        query_inad = Aluno.query.filter(
             Aluno.ativo == True,
             Aluno.vencimento < hoje,
             ~Aluno.plano.in_(planos_diaria) if planos_diaria else True,
             ~Aluno.id.in_(alunos_com_pagamento)
-        ).order_by(Aluno.nome).all()
-        pagamentos = []
+        ).order_by(Aluno.nome)
+        pag_inad      = paginar(query_inad)
+        inadimplentes = pag_inad.items
+        pagamentos    = []
     else:
         # Pagos: filtra por data_pagamento (quando o dinheiro entrou)
         # Pendentes: filtra por data_vencimento (quando vence)
@@ -210,7 +214,14 @@ def financeiro():
                     )
                 )
             )
-        pagamentos = query.order_by(Pagamento.data_vencimento).all()
+        query = query.order_by(Pagamento.data_vencimento)
+        pag_pagtos = paginar(query)
+        pagamentos = pag_pagtos.items
+
+    # Objeto de paginacao usado pelo template — unifica os dois casos
+    # (inadimplentes ou pagamentos normais) num unico nome, ja que sao
+    # mutuamente exclusivos na mesma renderizacao.
+    pag = pag_inad if status_filtro == 'inadimplentes' else pag_pagtos
 
     # Totais: pagos por data_pagamento, pendentes por data_vencimento
     pagos_periodo     = Pagamento.query.filter(
@@ -252,6 +263,7 @@ def financeiro():
 
     return render_template('financeiro.html',
                            pagamentos=pagamentos, inadimplentes=inadimplentes,
+                           pag=pag, opcoes_por_pagina=OPCOES_POR_PAGINA,
                            total_recebido=total_recebido, total_pendente=total_pendente,
                            total_inadimplentes=total_inadimplentes,
                            total_pagamentos_mes=total_pagamentos_mes,
@@ -276,6 +288,24 @@ def financeiro_registrar():
     observacao      = request.form.get('observacao')
     dividido        = request.form.get('dividido') == '1'
 
+    status_provisorio = 'pago' if data_pagamento else 'pendente'
+
+    # CRITICO: conta pagamentos pagos com este mesmo vencimento ANTES de
+    # inserir o(s) novo(s) registro(s) abaixo. Se contarmos depois do
+    # db.session.add(), o autoflush do SQLAlchemy ja vai ter mandado o
+    # INSERT para o banco assim que a query for executada — fazendo a
+    # contagem incluir o proprio pagamento que acabamos de criar e,
+    # erroneamente, concluir que "já existe pagamento com esse vencimento",
+    # pulando a atualizacao de aluno.vencimento. Esse era o bug: pagamento
+    # ficava registrado como pago, mas o vencimento do aluno nao avançava.
+    pags_mesmo_venc_antes = 0
+    if status_provisorio == 'pago':
+        pags_mesmo_venc_antes = Pagamento.query.filter(
+            Pagamento.aluno_id == int(aluno_id),
+            Pagamento.status == 'pago',
+            Pagamento.data_vencimento == data_vencimento
+        ).count()
+
     if dividido:
         # Pagamento dividido: dois registros na mesma transação
         valor1  = float(request.form.get('valor1', 0))
@@ -284,7 +314,7 @@ def financeiro_registrar():
         valor2  = float(request.form.get('valor2', 0))
         forma2  = request.form.get('forma2')
         banco2  = request.form.get('banco_pix2', '').strip()
-        status  = 'pago' if data_pagamento else 'pendente'
+        status  = status_provisorio
 
         db.session.add(Pagamento(
             aluno_id=aluno_id, valor=valor1, forma_pagamento=forma1,
@@ -306,7 +336,7 @@ def financeiro_registrar():
         valor           = float(request.form.get('valor', 0))
         forma_pagamento = request.form.get('forma_pagamento')
         banco_pix       = request.form.get('banco_pix', '').strip()
-        status          = 'pago' if data_pagamento else 'pendente'
+        status          = status_provisorio
         valor_total     = valor
 
         db.session.add(Pagamento(
@@ -324,12 +354,7 @@ def financeiro_registrar():
             plano = Plano.query.filter_by(nome=aluno.plano, ativo=True).first()
             if plano:
                 hoje = date.today()
-                pags_mesmo_venc = Pagamento.query.filter(
-                    Pagamento.aluno_id == int(aluno_id),
-                    Pagamento.status == 'pago',
-                    Pagamento.data_vencimento == data_vencimento
-                ).count()
-                if pags_mesmo_venc == 0:
+                if pags_mesmo_venc_antes == 0:
                     aluno.vencimento = _calcular_novo_vencimento(
                         aluno.vencimento, plano.dias_validade, hoje)
                 if not aluno.ativo:

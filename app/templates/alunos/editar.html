@@ -181,7 +181,8 @@
         <div class="row g-3 mb-4">
             <div class="col-md-6">
                 <label class="form-label">Nome completo *</label>
-                <input type="text" name="nome" class="form-control" value="{{ aluno.nome }}" required>
+                <input type="text" name="nome" class="form-control" value="{{ aluno.nome }}" maxlength="100" required>
+                <div class="form-text" style="font-size:11px;">Máximo 100 caracteres</div>
             </div>
             <div class="col-md-2">
                 <label class="form-label">Tipo de documento *</label>

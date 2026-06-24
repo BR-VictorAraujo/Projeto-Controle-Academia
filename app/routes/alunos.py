@@ -2,7 +2,7 @@ from flask import Blueprint, render_template, redirect, url_for, request, flash
 from app import db
 from app.models import Aluno, RegistroAcesso
 from datetime import datetime
-from app.routes.auth import login_required, registrar_log, get_param, validar_documento
+from app.routes.auth import login_required, registrar_log, get_param, validar_documento, paginar, OPCOES_POR_PAGINA
 
 bp = Blueprint('alunos', __name__)
 
@@ -18,17 +18,31 @@ def alunos():
     elif f_status == 'inativo':
         query = query.filter_by(ativo=False)
 
-    lista = query.order_by(Aluno.nome).all()
-
-    # Filtro de biometria aplicado em memoria — usa os mesmos campos
-    # biometria_status / biometria_2_status que a tela de detalhes ja le,
-    # e que o FingerPoint sincroniza ao salvar uma digital (ver bio_db.py).
+    # Filtro de biometria movido para o SQL (antes era em memoria, depois
+    # de carregar TODOS os alunos com .all() — isso quebraria a paginacao,
+    # porque filtrar em memoria depois de já ter pego só 20 do banco
+    # poderia sobrar menos de 20 na pagina, ou 0, mesmo havendo mais
+    # alunos com biometria nas paginas seguintes. biometria_status e
+    # biometria_2_status sao colunas reais na tabela alunos, sincronizadas
+    # pelo FingerPoint (ver bio_db.py) — dá para filtrar direto no banco.
     if f_biometria == 'com':
-        lista = [a for a in lista if a.biometria_status == 'cadastrada' or a.biometria_2_status == 'cadastrada']
+        query = query.filter(
+            db.or_(Aluno.biometria_status == 'cadastrada',
+                   Aluno.biometria_2_status == 'cadastrada')
+        )
     elif f_biometria == 'sem':
-        lista = [a for a in lista if a.biometria_status != 'cadastrada' and a.biometria_2_status != 'cadastrada']
+        query = query.filter(
+            Aluno.biometria_status != 'cadastrada',
+            Aluno.biometria_2_status != 'cadastrada'
+        )
 
-    return render_template('alunos/lista.html', alunos=lista,
+    query = query.order_by(Aluno.nome)
+    resultado = paginar(query)
+
+    return render_template('alunos/lista.html',
+                           alunos=resultado.items, pag=resultado,
+                           total_geral=resultado.total,
+                           opcoes_por_pagina=OPCOES_POR_PAGINA,
                            f_status=f_status, f_biometria=f_biometria)
 
 @bp.route('/alunos/novo', methods=['GET', 'POST'])
@@ -50,6 +64,19 @@ def novo_aluno():
 
         data_nascimento = datetime.strptime(data_nasc_str, '%Y-%m-%d').date() if data_nasc_str else None
         vencimento      = datetime.strptime(vencimento_str, '%Y-%m-%d').date() if vencimento_str else None
+
+        # Valida tamanho do nome no backend — o maxlength do HTML pode ser
+        # contornado (POST direto via API, por exemplo), e o limite real
+        # do banco e Aluno.nome = db.String(100). Sem essa validacao, um
+        # nome maior que 100 chars quebra silenciosamente no banco ou
+        # estoura erro feio do driver, em vez de uma mensagem clara.
+        nome = (nome or '').strip()
+        if not nome:
+            flash('O nome do aluno é obrigatório.', 'danger')
+            return render_template('alunos/novo.html', planos=planos)
+        if len(nome) > 100:
+            flash(f'Nome muito longo ({len(nome)} caracteres). O limite é 100 caracteres.', 'danger')
+            return render_template('alunos/novo.html', planos=planos)
 
         valido, erro = validar_documento(tipo_documento, documento)
         if not valido:
@@ -130,6 +157,19 @@ def editar_aluno(id):
     if request.method == 'POST':
         tipo_doc       = request.form.get('tipo_documento')
         novo_documento = request.form.get('documento')
+        novo_nome      = (request.form.get('nome') or '').strip()
+
+        # Mesma validacao defensiva de novo_aluno — limite real do banco
+        # e Aluno.nome = db.String(100); o maxlength do HTML pode ser
+        # contornado, e sem checagem aqui o erro chega feio do driver
+        # do Postgres em vez de uma mensagem clara ao usuario.
+        if not novo_nome:
+            flash('O nome do aluno é obrigatório.', 'danger')
+            return render_template('alunos/editar.html', aluno=aluno, planos=planos, documentos=documentos)
+        if len(novo_nome) > 100:
+            flash(f'Nome muito longo ({len(novo_nome)} caracteres). O limite é 100 caracteres.', 'danger')
+            return render_template('alunos/editar.html', aluno=aluno, planos=planos, documentos=documentos)
+
         valido, erro = validar_documento(tipo_doc, novo_documento)
         if not valido:
             flash(erro, 'danger')
@@ -144,7 +184,7 @@ def editar_aluno(id):
         data_nasc_str  = request.form.get('data_nascimento')
         vencimento_str = request.form.get('vencimento')
 
-        aluno.nome            = request.form.get('nome')
+        aluno.nome            = novo_nome
         aluno.tipo_documento  = tipo_doc
         aluno.documento       = novo_documento
         aluno.telefone        = request.form.get('telefone')

@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% from '_paginacao.html' import paginacao %}
 
 {% block titulo %}Alunos{% endblock %}
 {% block titulo_pagina %}Alunos{% endblock %}
@@ -59,6 +60,16 @@
 .badge-bio-completa { background-color: #e8f5e9; color: #2e7d32; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 500; white-space: nowrap; }
 .badge-bio-parcial  { background-color: #fff3e8; color: #e65100; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 500; white-space: nowrap; }
 .badge-bio-pendente { background-color: #f0f2f5; color: #6c757d;  padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 500; white-space: nowrap; }
+.page-link-custom {
+    display: flex; align-items: center; justify-content: center;
+    min-width: 34px; height: 34px; padding: 0 8px;
+    border: 1.5px solid #dee2e6; border-radius: 8px;
+    color: #6c757d; text-decoration: none; font-size: 13px; font-weight: 500;
+    transition: all 0.15s;
+}
+.page-link-custom:hover { border-color: var(--cor-principal); color: var(--cor-principal); }
+.page-link-custom.ativo { background: var(--cor-principal); border-color: var(--cor-principal); color: white; }
+.page-link-custom.disabled { opacity: 0.4; pointer-events: none; }
 {% endblock %}
 
 {% block conteudo %}
@@ -75,6 +86,7 @@
             <a href="?f_status=&f_biometria={{ f_biometria }}" class="filtro-pill {% if not f_status %}ativo{% endif %}">Todos</a>
             <a href="?f_status=ativo&f_biometria={{ f_biometria }}" class="filtro-pill {% if f_status == 'ativo' %}ativo{% endif %}">Ativos</a>
             <a href="?f_status=inativo&f_biometria={{ f_biometria }}" class="filtro-pill {% if f_status == 'inativo' %}ativo{% endif %}">Inativos</a>
+            {% if config.tecnologia_biometria == '1' %}
             <span style="width:1px; background:#dee2e6; align-self:stretch; margin:0 4px;"></span>
             <a href="?f_status={{ f_status }}&f_biometria=" class="filtro-pill {% if not f_biometria %}ativo{% endif %}">
                 <i class="bi bi-fingerprint"></i> Todos
@@ -85,16 +97,25 @@
             <a href="?f_status={{ f_status }}&f_biometria=sem" class="filtro-pill {% if f_biometria == 'sem' %}ativo{% endif %}">
                 <i class="bi bi-fingerprint" style="color:{% if f_biometria == 'sem' %}white{% else %}#c62828{% endif %};"></i> Sem biometria
             </a>
+            {% endif %}
         </div>
     </div>
 </div>
 
 <div class="card-base">
-    <div class="d-flex justify-content-between align-items-center mb-3">
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
         <span style="font-size:13px; color:#6c757d;">
             {% if f_status or f_biometria %}<i class="bi bi-funnel-fill me-1" style="color:var(--cor-principal);"></i>{% endif %}
-            Exibindo: <strong>{{ alunos|length }}</strong>
+            Exibindo <strong>{{ alunos|length }}</strong> de <strong>{{ total_geral }}</strong>
         </span>
+        <div class="d-flex align-items-center gap-2">
+            <label style="font-size:12px; color:#6c757d;">Por página:</label>
+            <select class="form-select form-select-sm" style="width:auto;" onchange="mudarPorPagina(this.value)">
+                {% for opcao in opcoes_por_pagina %}
+                <option value="{{ opcao }}" {% if pag.per_page == opcao %}selected{% endif %}>{{ opcao }}</option>
+                {% endfor %}
+            </select>
+        </div>
     </div>
 
     <table class="table table-borderless mb-0" id="tabela-alunos">
@@ -106,7 +127,7 @@
                 <th>Plano</th>
                 <th>Vencimento</th>
                 <th>Status</th>
-                <th>Biometria</th>
+                {% if config.tecnologia_biometria == '1' %}<th>Biometria</th>{% endif %}
                 <th>Ações</th>
             </tr>
         </thead>
@@ -142,6 +163,7 @@
                             <span class="badge-inativo">Inativo</span>
                         {% endif %}
                     </td>
+                    {% if config.tecnologia_biometria == '1' %}
                     <td>
                         {% set d1 = aluno.biometria_status == 'cadastrada' %}
                         {% set d2 = aluno.biometria_2_status == 'cadastrada' %}
@@ -153,6 +175,7 @@
                             <span class="badge-bio-pendente"><i class="bi bi-fingerprint me-1"></i>Pendente</span>
                         {% endif %}
                     </td>
+                    {% endif %}
                     <td>
                         <a href="/alunos/{{ aluno.id }}/editar" class="btn-acao" title="Editar">
                             <i class="bi bi-pencil" style="color: var(--cor-principal);"></i>
@@ -169,7 +192,7 @@
                 {% endfor %}
             {% else %}
                 <tr>
-                    <td colspan="8" style="text-align:center; color:#6c757d; padding:40px 0;">
+                    <td colspan="{{ 8 if config.tecnologia_biometria == '1' else 7 }}" style="text-align:center; color:#6c757d; padding:40px 0;">
                         <i class="bi bi-people" style="font-size:32px; display:block; margin-bottom:8px;"></i>
                         Nenhum aluno encontrado com os filtros aplicados
                     </td>
@@ -177,6 +200,7 @@
             {% endif %}
         </tbody>
     </table>
+    {{ paginacao(pag, request.args) }}
 </div>
 
 <!-- Modal exclusão -->
@@ -205,6 +229,11 @@
 
 {% block scripts %}
 <script>
+// Nota: a busca abaixo filtra apenas os itens da PÁGINA ATUAL carregada,
+// não a base inteira de alunos — já que agora a lista é paginada no
+// servidor. Para busca em toda a base, o ideal é integrar com o backend
+// futuramente; por ora mantém o comportamento simples de filtro visual
+// na página exibida.
 document.getElementById('busca').addEventListener('input', function() {
     const termo = this.value.toLowerCase();
     document.querySelectorAll('#tabela-alunos tbody tr').forEach(linha => {
@@ -216,6 +245,13 @@ function confirmarExclusao(id, nome) {
     document.getElementById('modal-nome-aluno').textContent = 'Esta ação não pode ser desfeita. Deseja excluir ' + nome + '?';
     document.getElementById('btn-confirmar-exclusao').href = '/alunos/' + id + '/excluir';
     new bootstrap.Modal(document.getElementById('modalExcluir')).show();
+}
+
+function mudarPorPagina(valor) {
+    const url = new URL(window.location.href);
+    url.searchParams.set('por_pagina', valor);
+    url.searchParams.set('pagina', '1');  // volta pra primeira pagina ao mudar o tamanho
+    window.location.href = url.toString();
 }
 </script>
 {% endblock %}

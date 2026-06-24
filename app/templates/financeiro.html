@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% from '_paginacao.html' import paginacao %}
 
 {% block titulo %}Financeiro{% endblock %}
 {% block titulo_pagina %}Financeiro{% endblock %}
@@ -137,10 +138,10 @@
             <input type="text" class="search-box w-100" id="busca" placeholder="🔍 Nome do aluno...">
         </div>
         <div class="col-md-8 d-flex gap-2 align-items-end flex-wrap">
-            <a href="?status=todos&periodo={{ periodo_ativo }}&inicio={{ data_inicio }}&fim={{ data_fim }}" class="tab-btn {% if status_filtro == 'todos' %}ativo{% endif %}">Todos</a>
-            <a href="?status=pago&periodo={{ periodo_ativo }}&inicio={{ data_inicio }}&fim={{ data_fim }}" class="tab-btn {% if status_filtro == 'pago' %}ativo{% endif %}">Pagos</a>
-            <a href="?status=pendente&periodo={{ periodo_ativo }}&inicio={{ data_inicio }}&fim={{ data_fim }}" class="tab-btn {% if status_filtro == 'pendente' %}ativo{% endif %}">Pendentes</a>
-            <a href="?status=inadimplentes&periodo={{ periodo_ativo }}&inicio={{ data_inicio }}&fim={{ data_fim }}" class="tab-btn {% if status_filtro == 'inadimplentes' %}ativo{% endif %}" style="{% if status_filtro != 'inadimplentes' %}color:#c62828; border-color:#fdecea;{% endif %}">⚠️ Inadimplentes</a>
+            <a href="?status=todos&periodo={{ periodo_ativo }}&inicio={{ data_inicio }}&fim={{ data_fim }}&pagina=1" class="tab-btn {% if status_filtro == 'todos' %}ativo{% endif %}">Todos</a>
+            <a href="?status=pago&periodo={{ periodo_ativo }}&inicio={{ data_inicio }}&fim={{ data_fim }}&pagina=1" class="tab-btn {% if status_filtro == 'pago' %}ativo{% endif %}">Pagos</a>
+            <a href="?status=pendente&periodo={{ periodo_ativo }}&inicio={{ data_inicio }}&fim={{ data_fim }}&pagina=1" class="tab-btn {% if status_filtro == 'pendente' %}ativo{% endif %}">Pendentes</a>
+            <a href="?status=inadimplentes&periodo={{ periodo_ativo }}&inicio={{ data_inicio }}&fim={{ data_fim }}&pagina=1" class="tab-btn {% if status_filtro == 'inadimplentes' %}ativo{% endif %}" style="{% if status_filtro != 'inadimplentes' %}color:#c62828; border-color:#fdecea;{% endif %}">⚠️ Inadimplentes</a>
         </div>
     </div>
 </div>
@@ -162,6 +163,19 @@
 {% endif %}
 
 <div class="fin-card">
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <span style="font-size:13px; color:#6c757d;">
+            Exibindo <strong>{{ pag.items|length }}</strong> de <strong>{{ pag.total }}</strong>
+        </span>
+        <div class="d-flex align-items-center gap-2">
+            <label style="font-size:12px; color:#6c757d;">Por página:</label>
+            <select class="form-select form-select-sm" style="width:auto;" onchange="mudarPorPagina(this.value)">
+                {% for opcao in opcoes_por_pagina %}
+                <option value="{{ opcao }}" {% if pag.per_page == opcao %}selected{% endif %}>{{ opcao }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
     <table class="table table-borderless mb-0" id="tabela-pagamentos">
         <thead><tr><th>Aluno</th><th>Plano</th><th>Valor</th><th>Vencimento</th><th>Pagamento</th><th>Forma</th><th>Status</th><th>Ações</th></tr></thead>
         <tbody>
@@ -244,6 +258,7 @@
             {% endif %}
         </tbody>
     </table>
+    {{ paginacao(pag, request.args) }}
 </div>
 
 <!-- MODAL RELATÓRIO MENSAL -->
@@ -883,7 +898,9 @@ document.getElementById('busca').addEventListener('input', function() {
 function aplicarPeriodoRapido(periodo) {
     const url = new URL(window.location.href);
     url.searchParams.set('periodo', periodo); url.searchParams.delete('inicio'); url.searchParams.delete('fim');
-    url.searchParams.set('status', '{{ status_filtro }}'); window.location.href = url.toString();
+    url.searchParams.set('status', '{{ status_filtro }}');
+    url.searchParams.set('pagina', '1');  // volta pra primeira pagina ao trocar de periodo
+    window.location.href = url.toString();
 }
 function togglePersonalizado() {
     const w = document.getElementById('wrap-personalizado');
@@ -895,7 +912,15 @@ function aplicarPersonalizado() {
     if (!i || !f) { alert('Informe data início e data fim.'); return; }
     const url = new URL(window.location.href);
     url.searchParams.set('periodo','personalizado'); url.searchParams.set('inicio',i); url.searchParams.set('fim',f);
-    url.searchParams.set('status','{{ status_filtro }}'); window.location.href = url.toString();
+    url.searchParams.set('status','{{ status_filtro }}');
+    url.searchParams.set('pagina', '1');
+    window.location.href = url.toString();
+}
+function mudarPorPagina(valor) {
+    const url = new URL(window.location.href);
+    url.searchParams.set('por_pagina', valor);
+    url.searchParams.set('pagina', '1');
+    window.location.href = url.toString();
 }
 
 // ── Colunas ──────────────────────────────────────────────────────────────────
