@@ -35,6 +35,33 @@ def get_param(chave, padrao=''):
     c = Configuracao.query.filter_by(chave=chave).first()
     return c.valor if c else padrao
 
+# Tecnologias com seu valor padrao (biometria ja era usada por clientes
+# existentes antes desta feature existir, entao comeca ativada; as demais
+# ainda nao tem hardware/implementacao real, entao comecam desativadas).
+TECNOLOGIAS_PADRAO = {
+    'biometria': '1',
+    'rfid':      '0',
+    'facial':    '0',
+}
+
+def tecnologia_ativa(nome):
+    """
+    Fonte unica de verdade sobre se uma tecnologia de acesso esta ativa.
+
+    Criada porque a primeira versao da feature de Tecnologias de Acesso
+    so controlava a exibicao de uma coluna na tela de Alunos — nenhuma
+    rota de ingestao (POST /acessos/biometria), consulta (monitoramento,
+    relatorios) ou regra de negocio checava essa configuracao de fato.
+    Resultado: desativar "Biometria" na tela nao impedia nada no sistema,
+    so escondia uma coluna.
+
+    Toda decisao de "essa tecnologia esta ligada?" deve passar por aqui —
+    nunca ler Configuracao diretamente em uma rota ou template. Isso evita
+    que cada tela reimplemente sua propria checagem (e esqueca de alguma).
+    """
+    padrao = TECNOLOGIAS_PADRAO.get(nome, '0')
+    return get_param(f'tecnologia_{nome}', padrao) == '1'
+
 # Opções de itens por página aceitas em todo o sistema — usado tanto para
 # validar o valor recebido via query string quanto para popular o seletor
 # na interface (Alunos, Financeiro, e futuras telas que precisem paginar).

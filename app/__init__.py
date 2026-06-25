@@ -61,6 +61,7 @@ def create_app():
     def inject_config():
         from app.models import Configuracao
         from app.version import APP_NOME, APP_VERSAO, APP_BUILD
+        from app.routes.auth import tecnologia_ativa
 
         class SiteConfig:
             nome_academia       = 'Academia'
@@ -74,11 +75,6 @@ def create_app():
             # Padrao 'ativado': popup de novas passagens visivel em
             # qualquer tela do sistema, nao so no Monitoramento.
             popup_acessos_ativo = '1'
-            # Tecnologias de acesso ativas — controla se a coluna/filtro
-            # de biometria aparece na tela de Alunos. Ativado por padrao
-            # porque clientes existentes ja usam biometria hoje; clientes
-            # que so usam RFID/manual no futuro podem desativar.
-            tecnologia_biometria = '1'
         try:
             configs = {c.chave: c.valor for c in Configuracao.query.all()}
             SiteConfig.nome_academia       = configs.get('nome_academia',       'Academia')
@@ -90,14 +86,31 @@ def create_app():
             SiteConfig.endereco            = configs.get('endereco',            '')
             SiteConfig.timeout_sessao      = configs.get('timeout_sessao',      '60')
             SiteConfig.popup_acessos_ativo = configs.get('popup_acessos_ativo', '1')
-            SiteConfig.tecnologia_biometria = configs.get('tecnologia_biometria', '1')
         except:
             pass
+
+        # Tecnologias de acesso — fonte unica de verdade via
+        # tecnologia_ativa() (app/routes/auth.py). Antes isso vivia
+        # solto dentro do SiteConfig (tecnologia_biometria), o que
+        # so controlava exibicao visual; nenhuma rota de fato respeitava
+        # a configuracao. Templates agora usam {% if tecnologias.biometria %}
+        # em vez de {% if config.tecnologia_biometria == '1' %}.
+        try:
+            tecnologias = {
+                'biometria': tecnologia_ativa('biometria'),
+                'rfid':      tecnologia_ativa('rfid'),
+                'facial':    tecnologia_ativa('facial'),
+            }
+        except:
+            # Fallback seguro: nao impede o sistema de subir, mas tambem
+            # nao assume "tudo ativado" por padrao em caso de erro de banco.
+            tecnologias = {'biometria': True, 'rfid': False, 'facial': False}
 
         # Versao do sistema — injetada em todas as templates sem precisar
         # passar manualmente em cada render_template().
         return dict(
             config=SiteConfig(),
+            tecnologias=tecnologias,
             app_nome=APP_NOME,
             app_versao=APP_VERSAO,
             app_build=APP_BUILD,

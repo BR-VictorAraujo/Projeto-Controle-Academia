@@ -109,7 +109,7 @@
                     </div>
                 </div>
             </div>
-            <div class="col-md-4">
+            <div class="col-md-4{% if not tecnologias.biometria %} d-none{% endif %}">
                 <label class="form-label">Biometria digital</label>
                 <div class="bio-status">
                     <i class="bi bi-fingerprint" style="font-size:28px; color:#adb5bd;"></i>
@@ -125,13 +125,18 @@
                         <div style="font-weight:500; color:#6c757d;">⚠️ Pendente</div>
                     </div>
                 </div>
-                <input type="hidden" name="biometria_status" value="pendente">
-                <input type="hidden" name="biometria_2_status" value="pendente">
                 <div style="font-size:12px; color:#6c757d; margin-top:8px;">
                     <i class="bi bi-info-circle me-1"></i>
                     0/2 digitais — cadastre após salvar o aluno
                 </div>
             </div>
+            <!-- Os campos hidden ficam sempre presentes no form (fora do
+                 bloco visual condicional acima), porque o backend espera
+                 esses dois valores no POST independente da tecnologia
+                 estar ativa ou nao — sao apenas o estado inicial do
+                 registro, nao uma feature visual. -->
+            <input type="hidden" name="biometria_status" value="pendente">
+            <input type="hidden" name="biometria_2_status" value="pendente">
         </div>
     </div>
 

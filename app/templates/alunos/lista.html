@@ -86,7 +86,7 @@
             <a href="?f_status=&f_biometria={{ f_biometria }}" class="filtro-pill {% if not f_status %}ativo{% endif %}">Todos</a>
             <a href="?f_status=ativo&f_biometria={{ f_biometria }}" class="filtro-pill {% if f_status == 'ativo' %}ativo{% endif %}">Ativos</a>
             <a href="?f_status=inativo&f_biometria={{ f_biometria }}" class="filtro-pill {% if f_status == 'inativo' %}ativo{% endif %}">Inativos</a>
-            {% if config.tecnologia_biometria == '1' %}
+            {% if tecnologias.biometria %}
             <span style="width:1px; background:#dee2e6; align-self:stretch; margin:0 4px;"></span>
             <a href="?f_status={{ f_status }}&f_biometria=" class="filtro-pill {% if not f_biometria %}ativo{% endif %}">
                 <i class="bi bi-fingerprint"></i> Todos
@@ -127,7 +127,7 @@
                 <th>Plano</th>
                 <th>Vencimento</th>
                 <th>Status</th>
-                {% if config.tecnologia_biometria == '1' %}<th>Biometria</th>{% endif %}
+                {% if tecnologias.biometria %}<th>Biometria</th>{% endif %}
                 <th>Ações</th>
             </tr>
         </thead>
@@ -163,7 +163,7 @@
                             <span class="badge-inativo">Inativo</span>
                         {% endif %}
                     </td>
-                    {% if config.tecnologia_biometria == '1' %}
+                    {% if tecnologias.biometria %}
                     <td>
                         {% set d1 = aluno.biometria_status == 'cadastrada' %}
                         {% set d2 = aluno.biometria_2_status == 'cadastrada' %}
@@ -192,7 +192,7 @@
                 {% endfor %}
             {% else %}
                 <tr>
-                    <td colspan="{{ 8 if config.tecnologia_biometria == '1' else 7 }}" style="text-align:center; color:#6c757d; padding:40px 0;">
+                    <td colspan="{{ 8 if tecnologias.biometria else 7 }}" style="text-align:center; color:#6c757d; padding:40px 0;">
                         <i class="bi bi-people" style="font-size:32px; display:block; margin-bottom:8px;"></i>
                         Nenhum aluno encontrado com os filtros aplicados
                     </td>

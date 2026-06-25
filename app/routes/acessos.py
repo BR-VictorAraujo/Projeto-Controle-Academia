@@ -4,7 +4,7 @@ from app import db
 from app.models import Aluno, RegistroAcesso
 from datetime import datetime, date, timedelta
 import json
-from app.routes.auth import login_required, registrar_log, get_param
+from app.routes.auth import login_required, registrar_log, get_param, tecnologia_ativa
 
 bp = Blueprint('acessos', __name__)
 
@@ -55,6 +55,21 @@ def acessos():
 @bp.route('/acessos/biometria', methods=['POST'])
 def acesso_biometria():
     # Sem @login_required — chamado internamente pelo app biométrico via localhost
+
+    # Trava de dominio: se a tecnologia de biometria estiver desativada
+    # em Configuracoes > Tecnologias, o evento e rejeitado aqui, no ponto
+    # de entrada — antes, desativar a tecnologia so escondia uma coluna
+    # na tela de Alunos, e o FingerPoint continuava gravando acessos
+    # normalmente via esta rota. Log explicito para facilitar diagnostico
+    # se um cliente desativar a tecnologia sem querer e o leitor "parar
+    # de funcionar" sem mensagem de erro visivel no app desktop.
+    if not tecnologia_ativa('biometria'):
+        registrar_log(
+            'acesso biometria rejeitado',
+            'Tecnologia de biometria esta desativada em Configuracoes > Tecnologias'
+        )
+        return jsonify({'erro': 'Biometria desativada nas configurações do sistema', 'bloqueado': True}), 403
+
     data     = request.get_json(silent=True) or {}
     aluno_id = data.get('aluno_id')
     if not aluno_id:
@@ -116,6 +131,14 @@ def registrar_acesso():
 def monitoramento():
     hoje_local       = _hoje_local()
     inicio_utc, fim_utc = _filtro_periodo(hoje_local, hoje_local)
+
+    # Decisao de produto: passagens HISTORICAS via biometria continuam
+    # visiveis mesmo apos desativar a tecnologia (nao reescrevemos o
+    # passado). O que muda e que NOVOS eventos de biometria nao entram
+    # mais (bloqueados em acesso_biometria()) — entao essa query nao
+    # precisa de filtro extra, ela so vai naturalmente deixar de receber
+    # registros novos do tipo 'biometria' a partir do momento em que a
+    # tecnologia for desativada.
     acessos_recentes = RegistroAcesso.query.filter(
         RegistroAcesso.entrada_em >= inicio_utc,
         RegistroAcesso.entrada_em <  fim_utc

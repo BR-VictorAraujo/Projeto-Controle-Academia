@@ -2,7 +2,7 @@ from flask import Blueprint, render_template, redirect, url_for, request, flash
 from app import db
 from app.models import Aluno, RegistroAcesso
 from datetime import datetime
-from app.routes.auth import login_required, registrar_log, get_param, validar_documento, paginar, OPCOES_POR_PAGINA
+from app.routes.auth import login_required, registrar_log, get_param, validar_documento, paginar, OPCOES_POR_PAGINA, tecnologia_ativa
 
 bp = Blueprint('alunos', __name__)
 
@@ -11,6 +11,14 @@ bp = Blueprint('alunos', __name__)
 def alunos():
     f_status    = request.args.get('f_status', '')
     f_biometria = request.args.get('f_biometria', '')
+
+    # Se a tecnologia de biometria estiver desativada, o filtro/coluna
+    # nao deve existir nem no backend — antes essa checagem so existia
+    # no template (escondia a coluna), mas o filtro continuava
+    # funcionando se alguem montasse a URL manualmente com
+    # ?f_biometria=com. Ignorar aqui fecha essa brecha.
+    if not tecnologia_ativa('biometria'):
+        f_biometria = ''
 
     query = Aluno.query
     if f_status == 'ativo':

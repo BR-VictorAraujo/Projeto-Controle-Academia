@@ -157,7 +157,11 @@
                 </div>
             </div>
 
-            <!-- Biometria -->
+            <!-- Biometria — só exibido se a tecnologia estiver ativa.
+                 Antes esse bloco aparecia incondicionalmente; desativar
+                 a tecnologia em Configuracoes > Tecnologias nao tinha
+                 nenhum efeito aqui. -->
+            {% if tecnologias.biometria %}
             <div class="info-section">
                 <div class="info-section-title">Biometria digital</div>
                 <div class="bio-card">
@@ -187,6 +191,7 @@
                     {{ [aluno.biometria_status, aluno.biometria_2_status]|select('equalto', 'cadastrada')|list|length }}/2 digitais cadastradas
                 </div>
             </div>
+            {% endif %}
 
             <!-- Documentos -->
             <div class="info-section">
