@@ -33,7 +33,7 @@
 .icon-orange { background-color: color-mix(in srgb, var(--cor-principal) 15%, white); color: var(--cor-principal); }
 .icon-blue   { background-color: #e3f2fd; color: #1565c0; }
 .stat-label  { font-size: 13px; color: #6c757d; }
-.stat-value  { font-size: 24px; font-weight: 700; color: #1a1a2e; line-height: 1.2; }
+.stat-value  { font-size: 24px; font-weight: 700; color: #1a1a2e; line-height: 1.2; white-space: nowrap; }
 .badge-pago      { background-color: #e8f5e9; color: #2e7d32; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 500; }
 .badge-pendente  { background-color: #fff3e8; color: #e65100; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 500; }
 .badge-vencido   { background-color: #fdecea; color: #c62828; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 500; }
@@ -66,6 +66,16 @@
 .campo-banco.visivel { display: block; }
 .secao-cols { margin-top: 10px; padding-top: 10px; border-top: 1px dashed #dee2e6; }
 .secao-cols-label { font-size: 11px; font-weight: 600; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+.page-link-custom {
+    display: flex; align-items: center; justify-content: center;
+    min-width: 34px; height: 34px; padding: 0 8px;
+    border: 1.5px solid #dee2e6; border-radius: 8px;
+    color: #6c757d; text-decoration: none; font-size: 13px; font-weight: 500;
+    transition: all 0.15s;
+}
+.page-link-custom:hover { border-color: var(--cor-principal); color: var(--cor-principal); }
+.page-link-custom.ativo { background: var(--cor-principal); border-color: var(--cor-principal); color: white; }
+.page-link-custom.disabled { opacity: 0.4; pointer-events: none; }
 {% endblock %}
 
 {% block conteudo %}
@@ -211,39 +221,39 @@
                 {% endif %}
             {% else %}
                 {% if pagamentos %}
-                    {% for pag in pagamentos %}
+                    {% for pagto in pagamentos %}
                     <tr>
                         <td>
                             <div style="display:flex; align-items:center; gap:10px;">
-                                {% if pag.aluno.foto %}<img src="{{ pag.aluno.foto }}" style="width:32px; height:32px; border-radius:50%; object-fit:cover; border:2px solid var(--cor-principal);">
-                                {% else %}<div style="width:32px; height:32px; border-radius:50%; background:color-mix(in srgb, var(--cor-principal) 15%, white); display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:700; color:var(--cor-principal);">{{ pag.aluno.nome[0].upper() }}</div>{% endif %}
-                                <a href="/alunos/{{ pag.aluno_id }}" style="text-decoration:none; color:#1a1a2e; font-weight:500;">{{ pag.aluno.nome }}</a>
+                                {% if pagto.aluno.foto %}<img src="{{ pagto.aluno.foto }}" style="width:32px; height:32px; border-radius:50%; object-fit:cover; border:2px solid var(--cor-principal);">
+                                {% else %}<div style="width:32px; height:32px; border-radius:50%; background:color-mix(in srgb, var(--cor-principal) 15%, white); display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:700; color:var(--cor-principal);">{{ pagto.aluno.nome[0].upper() }}</div>{% endif %}
+                                <a href="/alunos/{{ pagto.aluno_id }}" style="text-decoration:none; color:#1a1a2e; font-weight:500;">{{ pagto.aluno.nome }}</a>
                             </div>
                         </td>
-                        <td>{{ pag.aluno.plano or '—' }}</td>
-                        <td><strong>R$ {{ '%.2f'|format(pag.valor|float) }}</strong></td>
-                        <td>{{ pag.data_vencimento.strftime('%d/%m/%Y') }}</td>
-                        <td>{{ pag.data_pagamento.strftime('%d/%m/%Y') if pag.data_pagamento else '—' }}</td>
+                        <td>{{ pagto.aluno.plano or '—' }}</td>
+                        <td><strong>R$ {{ '%.2f'|format(pagto.valor|float) }}</strong></td>
+                        <td>{{ pagto.data_vencimento.strftime('%d/%m/%Y') }}</td>
+                        <td>{{ pagto.data_pagamento.strftime('%d/%m/%Y') if pagto.data_pagamento else '—' }}</td>
                         <td>
-                            {% if pag.forma_pagamento == 'dinheiro' %}<span style="font-size:13px;"><i class="bi bi-cash me-1"></i>Dinheiro</span>
-                            {% elif pag.forma_pagamento == 'pix' %}<span style="font-size:13px;"><i class="bi bi-qr-code me-1"></i>PIX{% if pag.banco_pix %} <small style="color:#6c757d;">({{ pag.banco_pix }})</small>{% endif %}</span>
-                            {% elif pag.forma_pagamento == 'credito' %}<span style="font-size:13px;"><i class="bi bi-credit-card me-1"></i>Crédito</span>
-                            {% elif pag.forma_pagamento == 'debito' %}<span style="font-size:13px;"><i class="bi bi-credit-card-2-back me-1"></i>Débito</span>
-                            {% elif pag.forma_pagamento == 'boleto' %}<span style="font-size:13px;"><i class="bi bi-receipt me-1"></i>Boleto</span>
-                            {% else %}{{ pag.forma_pagamento or '—' }}{% endif %}
+                            {% if pagto.forma_pagamento == 'dinheiro' %}<span style="font-size:13px;"><i class="bi bi-cash me-1"></i>Dinheiro</span>
+                            {% elif pagto.forma_pagamento == 'pix' %}<span style="font-size:13px;"><i class="bi bi-qr-code me-1"></i>PIX{% if pagto.banco_pix %} <small style="color:#6c757d;">({{ pagto.banco_pix }})</small>{% endif %}</span>
+                            {% elif pagto.forma_pagamento == 'credito' %}<span style="font-size:13px;"><i class="bi bi-credit-card me-1"></i>Crédito</span>
+                            {% elif pagto.forma_pagamento == 'debito' %}<span style="font-size:13px;"><i class="bi bi-credit-card-2-back me-1"></i>Débito</span>
+                            {% elif pagto.forma_pagamento == 'boleto' %}<span style="font-size:13px;"><i class="bi bi-receipt me-1"></i>Boleto</span>
+                            {% else %}{{ pagto.forma_pagamento or '—' }}{% endif %}
                         </td>
                         <td>
-                            {% if pag.status == 'pago' %}<span class="badge-pago">✅ Pago</span>
-                            {% elif pag.status == 'cancelado' %}<span class="badge-cancelado">Cancelado</span>
+                            {% if pagto.status == 'pago' %}<span class="badge-pago">✅ Pago</span>
+                            {% elif pagto.status == 'cancelado' %}<span class="badge-cancelado">Cancelado</span>
                             {% else %}<span class="badge-pendente">⏳ Pendente</span>{% endif %}
                         </td>
                         <td>
-                            {% if pag.status != 'pago' %}
-                            <button class="btn-acao" title="Confirmar pagamento" onclick="abrirPagamento({{ pag.id }}, '{{ pag.aluno.nome }}', {{ pag.valor }})">
+                            {% if pagto.status != 'pago' %}
+                            <button class="btn-acao" title="Confirmar pagamento" onclick="abrirPagamento({{ pagto.id }}, '{{ pagto.aluno.nome }}', {{ pagto.valor }})">
                                 <i class="bi bi-check-circle" style="color:#2e7d32;"></i>
                             </button>
                             {% endif %}
-                            <button class="btn-acao" title="Excluir" onclick="confirmarExclusao({{ pag.id }}, '{{ pag.aluno.nome }}')">
+                            <button class="btn-acao" title="Excluir" onclick="confirmarExclusao({{ pagto.id }}, '{{ pagto.aluno.nome }}')">
                                 <i class="bi bi-trash" style="color:#c62828;"></i>
                             </button>
                         </td>
@@ -322,6 +332,7 @@
                             <span class="col-tag marcada" data-col="valor"          data-secao="dinheiro" onclick="toggleCol(event,this)">Valor</span>
                             <span class="col-tag"         data-col="cpf"            data-secao="dinheiro" onclick="toggleCol(event,this)">CPF</span>
                             <span class="col-tag"         data-col="telefone"       data-secao="dinheiro" onclick="toggleCol(event,this)">Telefone</span>
+                            <span class="col-tag"         data-col="observacao"     data-secao="dinheiro" onclick="toggleCol(event,this)">Observação</span>
                         </div>
                     </div>
                 </div>
@@ -345,6 +356,7 @@
                             <span class="col-tag marcada" data-col="valor"          data-secao="pix" onclick="toggleCol(event,this)">Valor</span>
                             <span class="col-tag"         data-col="cpf"            data-secao="pix" onclick="toggleCol(event,this)">CPF</span>
                             <span class="col-tag"         data-col="telefone"       data-secao="pix" onclick="toggleCol(event,this)">Telefone</span>
+                            <span class="col-tag"         data-col="observacao"     data-secao="pix" onclick="toggleCol(event,this)">Observação</span>
                         </div>
                     </div>
                 </div>
@@ -368,6 +380,7 @@
                             <span class="col-tag marcada" data-col="valor"          data-secao="cartao" onclick="toggleCol(event,this)">Valor</span>
                             <span class="col-tag"         data-col="cpf"            data-secao="cartao" onclick="toggleCol(event,this)">CPF</span>
                             <span class="col-tag"         data-col="telefone"       data-secao="cartao" onclick="toggleCol(event,this)">Telefone</span>
+                            <span class="col-tag"         data-col="observacao"     data-secao="cartao" onclick="toggleCol(event,this)">Observação</span>
                         </div>
                     </div>
                 </div>
@@ -453,7 +466,6 @@
                     <div class="form-text mt-1">
                         Deixe a data em branco para usar hoje. Deixe as horas em branco para o dia todo.
                     </div>
-                    <!-- Atalhos de turno -->
                     <div class="d-flex gap-2 mt-2 flex-wrap">
                         <button type="button" class="periodo-btn" onclick="aplicarTurno('manha')" style="font-size:11px; padding:4px 10px;">
                             🌅 Manhã (06:00–12:00)
@@ -491,6 +503,7 @@
                             <span class="col-tag marcada" data-col="valor"          data-secao="d-dinheiro" onclick="toggleCol(event,this)">Valor</span>
                             <span class="col-tag"         data-col="cpf"            data-secao="d-dinheiro" onclick="toggleCol(event,this)">CPF</span>
                             <span class="col-tag"         data-col="telefone"       data-secao="d-dinheiro" onclick="toggleCol(event,this)">Telefone</span>
+                            <span class="col-tag"         data-col="observacao"     data-secao="d-dinheiro" onclick="toggleCol(event,this)">Observação</span>
                         </div>
                     </div>
                 </div>
@@ -513,6 +526,7 @@
                             <span class="col-tag marcada" data-col="valor"          data-secao="d-pix" onclick="toggleCol(event,this)">Valor</span>
                             <span class="col-tag"         data-col="cpf"            data-secao="d-pix" onclick="toggleCol(event,this)">CPF</span>
                             <span class="col-tag"         data-col="telefone"       data-secao="d-pix" onclick="toggleCol(event,this)">Telefone</span>
+                            <span class="col-tag"         data-col="observacao"     data-secao="d-pix" onclick="toggleCol(event,this)">Observação</span>
                         </div>
                     </div>
                 </div>
@@ -535,6 +549,7 @@
                             <span class="col-tag marcada" data-col="valor"          data-secao="d-cartao" onclick="toggleCol(event,this)">Valor</span>
                             <span class="col-tag"         data-col="cpf"            data-secao="d-cartao" onclick="toggleCol(event,this)">CPF</span>
                             <span class="col-tag"         data-col="telefone"       data-secao="d-cartao" onclick="toggleCol(event,this)">Telefone</span>
+                            <span class="col-tag"         data-col="observacao"     data-secao="d-cartao" onclick="toggleCol(event,this)">Observação</span>
                         </div>
                     </div>
                 </div>
@@ -810,11 +825,9 @@ function preencherValor(select) {
         calcularAcrescimo('novo');
     }
 
-    // Atualiza visibilidade do campo banco conforme forma selecionada
     const formaEl = document.getElementById('select-forma-novo');
     if (formaEl) toggleBanco('novo', formaEl.value);
 
-    // Calcula data de vencimento automaticamente (mantém o dia do mês)
     const inputVenc = document.querySelector('[name="data_vencimento"]');
     if (inputVenc) {
         const hoje = new Date(); hoje.setHours(0,0,0,0);
@@ -826,19 +839,16 @@ function preencherValor(select) {
         }
 
         if (dias === 1) {
-            // Diária: hoje + 1 dia
             const d = new Date(hoje);
             d.setDate(d.getDate() + 1);
             inputVenc.value = d.toISOString().split('T')[0];
         } else {
-            // Determina quantos meses somar
             let meses;
             if      (dias <= 31)  meses = 1;
             else if (dias <= 92)  meses = 3;
             else if (dias <= 185) meses = 6;
             else                  meses = 12;
 
-            // Parte do vencimento cadastrado, soma meses até passar de hoje
             let base = venc ? new Date(venc + 'T00:00:00') : new Date(hoje);
             let novo = addMeses(base, meses);
             while (novo <= hoje) {
@@ -874,7 +884,6 @@ function abrirPagamento(id, nome, valor) {
     document.getElementById('msg-confirmar-pag').textContent = `Confirmar pagamento de R$ ${parseFloat(valor).toFixed(2)} para ${nome}?`;
     document.getElementById('form-confirmar-pag').action = `/financeiro/${id}/pagar`;
     const info = document.getElementById('info-acrescimo-conf'); if (info) info.style.display = 'none';
-    // Reseta e verifica banco conforme forma atual
     const formaConf = document.getElementById('select-forma-conf');
     if (formaConf) {
         formaConf.selectedIndex = 0;
@@ -899,7 +908,7 @@ function aplicarPeriodoRapido(periodo) {
     const url = new URL(window.location.href);
     url.searchParams.set('periodo', periodo); url.searchParams.delete('inicio'); url.searchParams.delete('fim');
     url.searchParams.set('status', '{{ status_filtro }}');
-    url.searchParams.set('pagina', '1');  // volta pra primeira pagina ao trocar de periodo
+    url.searchParams.set('pagina', '1');
     window.location.href = url.toString();
 }
 function togglePersonalizado() {
@@ -967,10 +976,10 @@ function gerarRelatorio() {
     if (!inicio || !fim) { alert('Informe a data início e a data fim.'); return; }
     const secoes = Object.entries(secoesAtivas).filter(([,v]) => v).map(([k]) => k).join(',');
     if (!secoes) { alert('Selecione ao menos uma seção.'); return; }
-    const colsDinheiro    = getColsPorSecao('dinheiro').join(',');
-    const colsPix         = getColsPorSecao('pix').join(',');
-    const colsCartao      = getColsPorSecao('cartao').join(',');
-    const colsInad        = getColsPorSecao('inadimplentes').join(',');
+    const colsDinheiro = getColsPorSecao('dinheiro').join(',');
+    const colsPix      = getColsPorSecao('pix').join(',');
+    const colsCartao   = getColsPorSecao('cartao').join(',');
+    const colsInad     = getColsPorSecao('inadimplentes').join(',');
     const url = `/financeiro/relatorio-mensal?inicio=${inicio}&fim=${fim}&formato=${formatoAtivo}&secoes=${secoes}`
               + `&cols_dinheiro=${colsDinheiro}&cols_pix=${colsPix}&cols_cartao=${colsCartao}&cols_inad=${colsInad}`;
     bootstrap.Modal.getInstance(document.getElementById('modalRelatorioMensal')).hide();
@@ -1006,10 +1015,10 @@ function sincronizarDiario() {
 }
 
 function gerarRelatorioDiario() {
-    const data     = document.getElementById('diario-data').value;
-    const horaIni  = document.getElementById('diario-hora-ini').value;
-    const horaFim  = document.getElementById('diario-hora-fim').value;
-    const secoes   = Object.entries(secoesDiarioAtivas).filter(([,v]) => v).map(([k]) => k).join(',');
+    const data    = document.getElementById('diario-data').value;
+    const horaIni = document.getElementById('diario-hora-ini').value;
+    const horaFim = document.getElementById('diario-hora-fim').value;
+    const secoes  = Object.entries(secoesDiarioAtivas).filter(([,v]) => v).map(([k]) => k).join(',');
     if (!secoes) { alert('Selecione ao menos uma seção.'); return; }
     const colsDinheiro = getColsPorSecao('d-dinheiro').join(',');
     const colsPix      = getColsPorSecao('d-pix').join(',');
@@ -1046,14 +1055,12 @@ function alternarDividido(ativo) {
     document.getElementById('bloco-simples').style.display  = ativo ? 'none' : 'block';
     document.getElementById('bloco-dividido').style.display = ativo ? 'block' : 'none';
 
-    // Ao ativar: lê o valor do select de aluno (caso já esteja selecionado)
     if (ativo) {
         const sel = document.getElementById('select-aluno');
         const opt = sel ? sel.options[sel.selectedIndex] : null;
         if (opt && opt.dataset.valor) {
             _valorTotal = parseFloat(opt.dataset.valor) || 0;
         }
-        // Também tenta pegar do campo valor simples (caso tenha sido preenchido manualmente)
         if (_valorTotal <= 0) {
             _valorTotal = parseFloat(document.getElementById('input-valor').value) || 0;
         }
@@ -1064,7 +1071,6 @@ function alternarDividido(ativo) {
         }
     }
 
-    // Ajusta required dos campos
     document.querySelector('[name="valor"]').required          = !ativo;
     document.querySelector('[name="forma_pagamento"]').required = !ativo;
     document.getElementById('input-valor1').required           = ativo;
@@ -1112,11 +1118,9 @@ function submeterPagamento() {
     document.getElementById('form-novo-pag').submit();
 }
 
-// Atualiza _valorTotal sempre que aluno for selecionado
 document.getElementById('select-aluno').addEventListener('change', function() {
     const opt = this.options[this.selectedIndex];
     _valorTotal = parseFloat(opt.dataset.valor) || 0;
-    // Se dividido estiver ativo, recalcula automaticamente
     if (document.getElementById('input-dividido').value === '1' && _valorTotal > 0) {
         const metade = (_valorTotal / 2).toFixed(2);
         document.getElementById('input-valor1').value = metade;
@@ -1124,7 +1128,6 @@ document.getElementById('select-aluno').addEventListener('change', function() {
     }
 });
 
-// Reset ao fechar o modal
 document.getElementById('modalNovoPagamento').addEventListener('hidden.bs.modal', function() {
     document.getElementById('toggle-dividido').checked = false;
     alternarDividido(false);

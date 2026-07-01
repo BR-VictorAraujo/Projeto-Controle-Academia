@@ -3,9 +3,32 @@ from app import db
 from app.models import Aluno, LogAuditoria, RegistroAcesso
 from datetime import datetime, date, timedelta
 import json
-from app.routes.auth import login_required, registrar_log, get_param
+from app.routes.auth import login_required, registrar_log, get_param, paginar, OPCOES_POR_PAGINA
 
 bp = Blueprint('relatorios', __name__)
+
+# ── Paginação manual (para listas filtradas em Python) ────────────────────────
+
+class PaginacaoManual:
+    """
+    Objeto de paginação compatível com o macro _paginacao.html,
+    usado quando a lista já está em memória (após filtro Python)
+    e não é possível usar o .paginate() do SQLAlchemy diretamente.
+    """
+    def __init__(self, lista, page, per_page):
+        self.total    = len(lista)
+        self.per_page = per_page
+        self.page     = max(1, page)
+        self.pages    = max(1, (self.total + per_page - 1) // per_page)
+        # Garante que page não ultrapasse o total de páginas
+        if self.page > self.pages:
+            self.page = self.pages
+        self.has_prev = self.page > 1
+        self.has_next = self.page < self.pages
+        self.prev_num = self.page - 1
+        self.next_num = self.page + 1
+        start         = (self.page - 1) * per_page
+        self.items    = lista[start : start + per_page]
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -66,6 +89,12 @@ def relatorios():
     filtro_inicio = request.args.get('inicio', '')
     filtro_fim    = request.args.get('fim', '')
 
+    # Paginação
+    pagina     = request.args.get('pagina',     1,  type=int)
+    por_pagina = request.args.get('por_pagina', 20, type=int)
+    if por_pagina not in OPCOES_POR_PAGINA:
+        por_pagina = OPCOES_POR_PAGINA[0]
+
     f_nome      = request.args.get('f_nome',     '').strip()
     f_plano     = request.args.get('f_plano',    '')
     f_tipo_ac   = request.args.get('f_tipo_ac',  '')
@@ -79,22 +108,26 @@ def relatorios():
 
     # Aniversariantes
     mes_aniversario = request.args.get('mes_aniversario', '')
-    aniversariantes = []
+    aniversariantes_raw = []
     if mes_aniversario:
         try:
             mes_num = int(mes_aniversario)
-            aniversariantes = Aluno.query.filter(
+            aniversariantes_raw = Aluno.query.filter(
                 Aluno.ativo == True,
                 db.extract('month', Aluno.data_nascimento) == mes_num
             ).order_by(db.extract('day', Aluno.data_nascimento)).all()
         except:
             pass
+    pag_aniversariantes = PaginacaoManual(aniversariantes_raw, pagina, por_pagina)
+    aniversariantes     = pag_aniversariantes.items
 
     filtro_aplicado = bool(filtro_inicio and filtro_fim)
-    passagens = []; por_aluno = []; auditoria = []
+    passagens_raw = []; por_aluno_raw = []; auditoria_raw = []
     heatmap = [[0]*24 for _ in range(7)]
     pico_quente = {'dia':0,'hora':0,'valor':0}; pico_frio = {'dia':0,'hora':0,'valor':0}
-    total_passagens = 0; fin_pagamentos = []; fin_resumo = {'recebido':0.0,'pendente':0.0}
+    total_passagens = 0
+    fin_pagamentos = []; fin_resumo = {'recebido':0.0,'pendente':0.0}
+    pag_fin = None
 
     if filtro_aplicado:
         dt_inicio  = datetime.strptime(filtro_inicio, '%Y-%m-%d').date()
@@ -103,11 +136,12 @@ def relatorios():
 
         q = RegistroAcesso.query.filter(RegistroAcesso.entrada_em >= inicio_utc, RegistroAcesso.entrada_em < fim_utc)
         if f_tipo_ac: q = q.filter(RegistroAcesso.tipo == f_tipo_ac)
+        # Carrega tudo para heatmap e filtros Python
         passagens_raw = q.order_by(RegistroAcesso.entrada_em.desc()).all()
         if f_nome:  passagens_raw = [r for r in passagens_raw if f_nome.lower() in r.aluno.nome.lower()]
         if f_plano and tipo_ativo in ('passagens','por_aluno'):
             passagens_raw = [r for r in passagens_raw if r.aluno.plano == f_plano]
-        passagens = passagens_raw; total_passagens = len(passagens)
+        total_passagens = len(passagens_raw)
 
         por_aluno_raw = _agrupar_por_aluno(passagens_raw)
         if f_status:
@@ -116,16 +150,15 @@ def relatorios():
             por_aluno_raw = [i for i in por_aluno_raw if i['aluno'].plano == f_plano]
         if f_ordem == 'mais':    por_aluno_raw = sorted(por_aluno_raw, key=lambda x: x['total'], reverse=True)
         elif f_ordem == 'menos': por_aluno_raw = sorted(por_aluno_raw, key=lambda x: x['total'])
-        por_aluno = por_aluno_raw
 
         qa = LogAuditoria.query.filter(LogAuditoria.criado_em >= inicio_utc, LogAuditoria.criado_em < fim_utc)
         if f_usuario: qa = qa.filter(LogAuditoria.usuario.ilike(f'%{f_usuario}%'))
         if f_acao:    qa = qa.filter(LogAuditoria.acao.ilike(f'%{f_acao}%'))
-        auditoria = qa.order_by(LogAuditoria.criado_em.desc()).limit(200).all()
+        auditoria_raw = qa.order_by(LogAuditoria.criado_em.desc()).limit(500).all()
+
         heatmap, pico_quente, pico_frio = _build_heatmap(passagens_raw)
 
         if tipo_ativo == 'financeiro':
-            # Filtra pagamentos por data_pagamento (pagos) e data_vencimento (pendentes)
             qpag = Pagamento.query.filter(
                 db.or_(
                     db.and_(
@@ -156,11 +189,21 @@ def relatorios():
             if f_forma_pag: qpag = qpag.filter(Pagamento.forma_pagamento == f_forma_pag)
             if f_nome:  qpag = qpag.join(Aluno).filter(Aluno.nome.ilike(f'%{f_nome}%'))
             if f_plano: qpag = qpag.join(Aluno, isouter=True).filter(Aluno.plano == f_plano)
-            fin_pagamentos = qpag.order_by(Pagamento.data_vencimento).all()
-            for p in fin_pagamentos:
+            qpag = qpag.order_by(Pagamento.data_vencimento)
+            # fin_pagamentos usa paginar() do SQLAlchemy direto
+            pag_fin = paginar(qpag)
+            fin_pagamentos = pag_fin.items
+            # Totais calculados sobre TODOS os registros do período (não só a página)
+            for p in qpag.all():
                 if p.status == 'pago': fin_resumo['recebido'] += float(p.valor)
                 else:                  fin_resumo['pendente'] += float(p.valor)
 
+    # Paginações manuais
+    pag_passagens = PaginacaoManual(passagens_raw, pagina, por_pagina)
+    pag_por_aluno = PaginacaoManual(por_aluno_raw, pagina, por_pagina)
+    pag_auditoria = PaginacaoManual(auditoria_raw, pagina, por_pagina)
+
+    # Vencimentos (filtro Python em situacao)
     qv = Aluno.query.filter_by(ativo=True)
     if f_plano and tipo_ativo == 'vencimentos': qv = qv.filter(Aluno.plano == f_plano)
     if f_nome  and tipo_ativo == 'vencimentos': qv = qv.filter(Aluno.nome.ilike(f'%{f_nome}%'))
@@ -171,7 +214,7 @@ def relatorios():
             if a.vencimento and a.vencimento <= sete_dias: return 'vence_breve'
             return 'em_dia'
         vencimentos_raw = [a for a in vencimentos_raw if get_sit(a) == f_situacao]
-    vencimentos = vencimentos_raw
+    pag_vencimentos = PaginacaoManual(vencimentos_raw, pagina, por_pagina)
 
     financeiro = []
     for plano in PlanoModel.query.filter_by(ativo=True).all():
@@ -185,11 +228,25 @@ def relatorios():
     filtros_ativos = sum(1 for v in [f_nome,f_plano,f_tipo_ac,f_status,f_ordem,f_situacao,f_usuario,f_acao,f_pg_status,f_forma_pag] if v)
 
     return render_template('relatorios.html',
-                           passagens=passagens, por_aluno=por_aluno,
+                           # Itens paginados (apenas a página atual)
+                           passagens=pag_passagens.items,
+                           por_aluno=pag_por_aluno.items,
+                           auditoria=pag_auditoria.items,
+                           vencimentos=pag_vencimentos.items,
+                           aniversariantes=aniversariantes,
+                           fin_pagamentos=fin_pagamentos,
+                           # Objetos de paginação para o macro
+                           pag_passagens=pag_passagens,
+                           pag_por_aluno=pag_por_aluno,
+                           pag_auditoria=pag_auditoria,
+                           pag_vencimentos=pag_vencimentos,
+                           pag_aniversariantes=pag_aniversariantes,
+                           pag_fin=pag_fin,
+                           opcoes_por_pagina=OPCOES_POR_PAGINA,
+                           # Totais gerais (sobre todos os dados, não só a página)
                            total_passagens=total_passagens,
-                           auditoria=auditoria, vencimentos=vencimentos,
+                           fin_resumo=fin_resumo,
                            financeiro=financeiro,
-                           fin_pagamentos=fin_pagamentos, fin_resumo=fin_resumo,
                            hoje=hoje, sete_dias=sete_dias,
                            tipo_ativo=tipo_ativo,
                            filtro_inicio=filtro_inicio, filtro_fim=filtro_fim,
@@ -206,7 +263,7 @@ def relatorios():
                            f_usuario=f_usuario, f_acao=f_acao,
                            f_pg_status=f_pg_status, f_forma_pag=f_forma_pag,
                            relatorio_ativo=tipo_ativo,
-                           aniversariantes=aniversariantes,
+                           aniversariantes_raw=aniversariantes_raw,
                            mes_aniversario=mes_aniversario)
 
 # ── Exportar CSV ──────────────────────────────────────────────────────────────
@@ -717,7 +774,6 @@ def exportar_pdf_aniversariantes():
         return '—'
 
     pw, ph = landscape(A4)
-
     endereco_ac_aniv  = get_param('endereco', '')
     telefone_ac_aniv  = get_param('telefone', '')
     hora_emissao_aniv = datetime.now().strftime('%d/%m/%Y às %H:%M')

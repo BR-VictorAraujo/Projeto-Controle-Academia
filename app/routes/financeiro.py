@@ -44,7 +44,6 @@ def corrigir_vencimentos_desatualizados():
     from app.models import Pagamento, Plano
     hoje = date.today()
 
-    # Alunos ativos com vencimento no passado (exceto diárias)
     planos_diaria = [p.nome for p in Plano.query.filter_by(dias_validade=1, ativo=True).all()]
     q = Aluno.query.filter(Aluno.ativo == True, Aluno.vencimento < hoje)
     if planos_diaria:
@@ -57,7 +56,6 @@ def corrigir_vencimentos_desatualizados():
         if not plano:
             continue
 
-        # Só corrige se tiver ao menos um pagamento pago registrado
         tem_pagamento = Pagamento.query.filter(
             Pagamento.aluno_id == aluno.id,
             Pagamento.status == 'pago'
@@ -65,10 +63,8 @@ def corrigir_vencimentos_desatualizados():
         if not tem_pagamento:
             continue
 
-        # Calcula o vencimento correto a partir do vencimento cadastrado
         novo_venc = _calcular_novo_vencimento(aluno.vencimento, plano.dias_validade, hoje)
 
-        # Só atualiza se o novo vencimento for diferente do atual
         if novo_venc != aluno.vencimento:
             aluno.vencimento = novo_venc
             atualizados += 1
@@ -100,9 +96,7 @@ def financeiro():
     from app.models import Pagamento, Plano
     import calendar
 
-    # Regra de negócio: inativa diárias vencidas
     verificar_diarias_vencidas()
-    # Corrige vencimentos desatualizados automaticamente
     corrigir_vencimentos_desatualizados()
 
     hoje          = date.today()
@@ -130,7 +124,6 @@ def financeiro():
         ultimo_dia = date(primeiro_dia.year, primeiro_dia.month,
                           calendar.monthrange(primeiro_dia.year, primeiro_dia.month)[1])
     elif periodo_ativo == 'todo_periodo':
-        # Busca a data do primeiro pagamento PAGO registrado (por data_pagamento)
         from app.models import Pagamento as PagTodo
         primeiro_pag = db.session.query(db.func.min(PagTodo.data_pagamento)).filter(
             PagTodo.status == 'pago',
@@ -153,16 +146,13 @@ def financeiro():
     data_inicio = primeiro_dia.strftime('%Y-%m-%d')
     data_fim    = ultimo_dia.strftime('%Y-%m-%d')
 
-    # Atualiza status de pagamentos vencidos (apenas planos não-diária)
     planos_diaria = [p.nome for p in Plano.query.filter_by(dias_validade=1, ativo=True).all()]
 
     inadimplentes = []
     pag_inad      = None
     pag_pagtos    = None
     if status_filtro == 'inadimplentes':
-        # Para "todo o período", considera qualquer pagamento pago já registrado
         if periodo_ativo == 'todo_periodo':
-            # No todo_periodo, inadimplente é quem tem vencimento passado e nunca pagou
             alunos_com_pagamento = db.session.query(Pagamento.aluno_id).filter(
                 Pagamento.status == 'pago',
                 Pagamento.data_pagamento != None
@@ -173,7 +163,6 @@ def financeiro():
                 Pagamento.data_pagamento >= primeiro_dia,
                 Pagamento.data_pagamento <= ultimo_dia
             ).scalar_subquery()
-        # Inadimplentes: apenas alunos ativos, não-diária, com vencimento < hoje e sem pagamento no período
         query_inad = Aluno.query.filter(
             Aluno.ativo == True,
             Aluno.vencimento < hoje,
@@ -184,8 +173,6 @@ def financeiro():
         inadimplentes = pag_inad.items
         pagamentos    = []
     else:
-        # Pagos: filtra por data_pagamento (quando o dinheiro entrou)
-        # Pendentes: filtra por data_vencimento (quando vence)
         if status_filtro == 'pago':
             query = Pagamento.query.filter(
                 Pagamento.status == 'pago',
@@ -199,7 +186,6 @@ def financeiro():
                 Pagamento.data_vencimento <= ultimo_dia
             )
         else:
-            # Todos: pagos por data_pagamento + pendentes por data_vencimento
             query = Pagamento.query.filter(
                 db.or_(
                     db.and_(
@@ -218,12 +204,8 @@ def financeiro():
         pag_pagtos = paginar(query)
         pagamentos = pag_pagtos.items
 
-    # Objeto de paginacao usado pelo template — unifica os dois casos
-    # (inadimplentes ou pagamentos normais) num unico nome, ja que sao
-    # mutuamente exclusivos na mesma renderizacao.
     pag = pag_inad if status_filtro == 'inadimplentes' else pag_pagtos
 
-    # Totais: pagos por data_pagamento, pendentes por data_vencimento
     pagos_periodo     = Pagamento.query.filter(
         Pagamento.status == 'pago',
         Pagamento.data_pagamento >= primeiro_dia,
@@ -239,7 +221,6 @@ def financeiro():
     total_pendente       = sum(float(p.valor) for p in pendentes_periodo)
     total_pagamentos_mes = len(pagos_periodo)
     total_registros      = len(todos_periodo)
-    # Inadimplentes: alunos ativos não-diária sem pagamento pago no período
     _planos_diaria = [p.nome for p in Plano.query.filter_by(dias_validade=1, ativo=True).all()]
     _alunos_pagos  = {p.aluno_id for p in pagos_periodo}
     _q_inad = Aluno.query.filter(Aluno.ativo == True, Aluno.vencimento < hoje)
@@ -290,14 +271,6 @@ def financeiro_registrar():
 
     status_provisorio = 'pago' if data_pagamento else 'pendente'
 
-    # CRITICO: conta pagamentos pagos com este mesmo vencimento ANTES de
-    # inserir o(s) novo(s) registro(s) abaixo. Se contarmos depois do
-    # db.session.add(), o autoflush do SQLAlchemy ja vai ter mandado o
-    # INSERT para o banco assim que a query for executada — fazendo a
-    # contagem incluir o proprio pagamento que acabamos de criar e,
-    # erroneamente, concluir que "já existe pagamento com esse vencimento",
-    # pulando a atualizacao de aluno.vencimento. Esse era o bug: pagamento
-    # ficava registrado como pago, mas o vencimento do aluno nao avançava.
     pags_mesmo_venc_antes = 0
     if status_provisorio == 'pago':
         pags_mesmo_venc_antes = Pagamento.query.filter(
@@ -307,7 +280,6 @@ def financeiro_registrar():
         ).count()
 
     if dividido:
-        # Pagamento dividido: dois registros na mesma transação
         valor1  = float(request.form.get('valor1', 0))
         forma1  = request.form.get('forma1')
         banco1  = request.form.get('banco_pix1', '').strip()
@@ -332,7 +304,6 @@ def financeiro_registrar():
         ))
         valor_total = valor1 + valor2
     else:
-        # Pagamento simples
         valor           = float(request.form.get('valor', 0))
         forma_pagamento = request.form.get('forma_pagamento')
         banco_pix       = request.form.get('banco_pix', '').strip()
@@ -347,7 +318,6 @@ def financeiro_registrar():
             observacao=observacao, criado_por=session.get('usuario')
         ))
 
-    # Atualiza vencimento do aluno — apenas uma vez, independente de ser dividido
     if status == 'pago':
         aluno = Aluno.query.get(aluno_id)
         if aluno:
@@ -391,9 +361,6 @@ def financeiro_pagar(id):
     plano = Plano.query.filter_by(nome=aluno.plano, ativo=True).first()
     if plano:
         hoje = date.today()
-        base_pag = pag.data_pagamento or hoje
-        # Proteção contra duplicidade: só atualiza vencimento se não houver
-        # outro pagamento pago com a mesma data de vencimento
         from app.models import Pagamento as PagModel
         pags_mesmo_venc = PagModel.query.filter(
             PagModel.aluno_id == aluno.id,
@@ -404,7 +371,6 @@ def financeiro_pagar(id):
         if pags_mesmo_venc == 0:
             aluno.vencimento = _calcular_novo_vencimento(
                 aluno.vencimento, plano.dias_validade, hoje)
-        # Reativa se estava inativo
         if not aluno.ativo:
             aluno.ativo = True
 
@@ -427,25 +393,35 @@ def financeiro_excluir(id):
 
 # ── Relatório Diário ──────────────────────────────────────────────────────────
 
-
 def _row(p, cols, tipo_pag=None):
     """Monta uma linha de dados baseada nas colunas selecionadas."""
     row = []
     for c in cols:
-        if c == 'nome':           row.append(p.aluno.nome)
+        if c == 'nome':             row.append(p.aluno.nome)
         elif c == 'data_pagamento': row.append(p.data_pagamento.strftime('%d/%m/%Y') if p.data_pagamento else '—')
-        elif c == 'plano':        row.append(p.aluno.plano or '—')
-        elif c == 'valor':        row.append(f'R$ {float(p.valor):.2f}')
-        elif c == 'cpf':          row.append(p.aluno.documento if p.aluno.tipo_documento == 'cpf' else '—')
-        elif c == 'telefone':     row.append(p.aluno.telefone or '—')
-        elif c == 'banco':        row.append(p.banco_pix or '—')
-        elif c == 'tipo':         row.append('Crédito' if p.forma_pagamento == 'credito' else 'Débito')
-        else:                     row.append('—')
+        elif c == 'plano':          row.append(p.aluno.plano or '—')
+        elif c == 'valor':          row.append(f'R$ {float(p.valor):.2f}')
+        elif c == 'cpf':            row.append(p.aluno.documento if p.aluno.tipo_documento == 'cpf' else '—')
+        elif c == 'telefone':       row.append(p.aluno.telefone or '—')
+        elif c == 'banco':          row.append(p.banco_pix or '—')
+        elif c == 'tipo':           row.append('Crédito' if p.forma_pagamento == 'credito' else 'Débito')
+        elif c == 'observacao':     row.append(p.observacao or '—')
+        else:                       row.append('—')
     return row
 
 def _header(cols):
-    labels = {'nome':'Nome','data_pagamento':'Data Pagamento','plano':'Plano','valor':'Valor',
-              'cpf':'CPF','telefone':'Telefone','banco':'Banco','tipo':'Tipo','vencimento':'Vencimento'}
+    labels = {
+        'nome':           'Nome',
+        'data_pagamento': 'Data Pagamento',
+        'plano':          'Plano',
+        'valor':          'Valor',
+        'cpf':            'CPF',
+        'telefone':       'Telefone',
+        'banco':          'Banco',
+        'tipo':           'Tipo',
+        'vencimento':     'Vencimento',
+        'observacao':     'Observação',
+    }
     return [labels.get(c, c.title()) for c in cols]
 
 def _row_inad(a, cols, planos_v):
@@ -481,14 +457,11 @@ def financeiro_relatorio_diario():
     except:
         data_rel = date.today()
 
-    # Filtro por turno via criado_em (hora que o pagamento foi registrado)
     fuso = int(get_param('fuso_horario', '-3'))
 
-    # Converte data local para UTC para comparar com criado_em (armazenado em UTC)
     inicio_dt = datetime(data_rel.year, data_rel.month, data_rel.day, 0, 0, 0) - timedelta(hours=fuso)
     fim_dt    = datetime(data_rel.year, data_rel.month, data_rel.day, 23, 59, 59) - timedelta(hours=fuso)
 
-    # Aplica filtro de hora se informado
     turno_ativo = bool(hora_ini_str or hora_fim_str)
     if hora_ini_str:
         try:
@@ -524,7 +497,6 @@ def financeiro_relatorio_diario():
     data_fmt   = data_rel.strftime('%d/%m/%Y')
     dia_semana = ['Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira',
                   'Sexta-feira','Sábado','Domingo'][data_rel.weekday()]
-    # Texto do turno para cabeçalho
     if turno_ativo:
         hora_ini_fmt = hora_ini_str or '00:00'
         hora_fim_fmt = hora_fim_str or '23:59'
@@ -604,7 +576,6 @@ def financeiro_relatorio_diario():
             total = len(self._saved)
             for state in self._saved:
                 self.__dict__.update(state)
-                # Cabeçalho
                 self.setFillColor(SIDEBAR)
                 self.rect(0, ph-1.6*cm, pw, 1.6*cm, fill=1, stroke=0)
                 self.setFillColor(LARANJA)
@@ -625,7 +596,6 @@ def financeiro_relatorio_diario():
                 self.setFillColor(colors.HexColor('#aaaaaa'))
                 self.drawRightString(pw-1*cm, ph-0.7*cm, f'Emitido em {hora_emissao}')
                 self.drawRightString(pw-1*cm, ph-1.0*cm, f'Pág. {self._pageNumber} de {total}')
-                # Rodapé
                 self.setStrokeColor(colors.HexColor('#dee2e6'))
                 self.setLineWidth(0.5)
                 self.line(1*cm, 1.4*cm, pw-1*cm, 1.4*cm)
@@ -698,7 +668,6 @@ def financeiro_relatorio_diario():
         if not registros: return
         els.append(Paragraph(titulo, st_h2))
         els.append(linha())
-        # Paragraph nas células de texto: quebra linha automática em nomes longos
         data = [['#'] + _header(cols)]
         for i, p in enumerate(registros, 1):
             data.append([str(i)] + [Paragraph(str(v), st_cell) for v in _row(p, cols)])
@@ -706,12 +675,11 @@ def financeiro_relatorio_diario():
         if 'valor' in cols: tot[1 + cols.index('valor')] = f'R$ {total_val:.2f}'
         tot[0] = ''
         data.append(tot)
-        # Coluna nome com peso 3x; demais dividem o restante
         n = len(cols)
         larg_total = pw - 3*cm
         larg_num   = 0.8*cm
         if 'nome' in cols:
-            larg_resto = (larg_total - larg_num) / (n + 2)   # nome vale 3 partes
+            larg_resto = (larg_total - larg_num) / (n + 2)
             col_widths = [larg_num] + [larg_resto * 3 if c == 'nome' else larg_resto for c in cols]
         else:
             col_widths = [larg_num] + [(larg_total - larg_num) / n] * n
@@ -780,14 +748,12 @@ def financeiro_relatorio_mensal():
     total_cartao   = sum(float(p.valor) for p in p_cartao)
     total_geral    = total_dinheiro + total_pix + total_cartao
 
-    # Inadimplentes: alunos ativos, não-diária, com vencimento anterior ao fim do período
-    # e sem pagamento pago no período
     planos_diaria = [p.nome for p in Plano.query.filter_by(dias_validade=1, ativo=True).all()]
     alunos_pagos  = {p.aluno_id for p in todos_mes}
     q_inad = Aluno.query.filter(
         Aluno.ativo == True,
-        Aluno.vencimento < hoje,       # só considera inadimplente se já venceu
-        Aluno.vencimento <= ultimo_dia # e se venceu dentro ou antes do período
+        Aluno.vencimento < hoje,
+        Aluno.vencimento <= ultimo_dia
     )
     if planos_diaria:
         q_inad = q_inad.filter(~Aluno.plano.in_(planos_diaria))
@@ -967,19 +933,18 @@ def financeiro_relatorio_mensal():
     st_cell = E('cell', fontSize=8, textColor=colors.HexColor('#333'), leading=10)
 
     def _larguras(cols, larg_total):
-        """Coluna nome com peso 3x; demais dividem o restante igualmente."""
+        """Coluna nome com peso 3x; observacao com peso 2x; demais dividem o restante igualmente."""
         larg_num = 0.8*cm
         n = len(cols)
-        if 'nome' in cols:
-            larg_resto = (larg_total - larg_num) / (n + 2)
-            return [larg_num] + [larg_resto * 3 if c == 'nome' else larg_resto for c in cols]
-        return [larg_num] + [(larg_total - larg_num) / n] * n
+        pesos = {'nome': 3, 'observacao': 2}
+        total_pesos = sum(pesos.get(c, 1) for c in cols)
+        larg_unit = (larg_total - larg_num) / total_pesos
+        return [larg_num] + [larg_unit * pesos.get(c, 1) for c in cols]
 
     def _tbl_mensal(titulo, registros, cols, total_val):
         if not registros: return
         els.append(Paragraph(titulo, st_h2))
         els.append(linha())
-        # Paragraph nas células: quebra linha automática em nomes longos
         data = [['#'] + _header(cols)]
         for i, p in enumerate(registros, 1):
             data.append([str(i)] + [Paragraph(str(v), st_cell) for v in _row(p, cols)])

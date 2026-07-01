@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% from '_paginacao.html' import paginacao %}
 
 {% block titulo %}Relatórios{% endblock %}
 {% block titulo_pagina %}Relatórios{% endblock %}
@@ -145,6 +146,16 @@
     font-size: 13px; font-weight: 600;
     padding: 4px 12px; border-radius: 20px; margin-bottom: 16px;
 }
+.page-link-custom {
+    display: flex; align-items: center; justify-content: center;
+    min-width: 34px; height: 34px; padding: 0 8px;
+    border: 1.5px solid #dee2e6; border-radius: 8px;
+    color: #6c757d; text-decoration: none; font-size: 13px; font-weight: 500;
+    transition: all 0.15s;
+}
+.page-link-custom:hover { border-color: var(--cor-principal); color: var(--cor-principal); }
+.page-link-custom.ativo { background: var(--cor-principal); border-color: var(--cor-principal); color: white; }
+.page-link-custom.disabled { opacity: 0.4; pointer-events: none; }
 {% endblock %}
 
 {% block conteudo %}
@@ -276,10 +287,20 @@
     <div id="rel-passagens" class="relatorio-section" style="display:none;">
         {% if not filtro_aplicado %}
         <div class="card-base empty-state"><i class="bi bi-funnel"></i><p>Selecione <strong>data início</strong> e <strong>data fim</strong> e clique em <strong>Filtrar</strong>.</p></div>
-        {% elif passagens %}
+        {% elif passagens or pag_passagens.total > 0 %}
         <div class="card-base">
             <div id="tabela-passagens">
-                <div class="total-badge"><i class="bi bi-door-open"></i> {{ total_passagens }} passagem{{ 's' if total_passagens != 1 else '' }} no período</div>
+                <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                    <div class="total-badge" style="margin-bottom:0;"><i class="bi bi-door-open"></i> {{ total_passagens }} passagem{{ 's' if total_passagens != 1 else '' }} no período</div>
+                    <div class="d-flex align-items-center gap-2">
+                        <label style="font-size:12px; color:#6c757d;">Por página:</label>
+                        <select class="form-select form-select-sm" style="width:auto;" onchange="mudarPorPagina(this.value)">
+                            {% for opcao in opcoes_por_pagina %}
+                            <option value="{{ opcao }}" {% if pag_passagens.per_page == opcao %}selected{% endif %}>{{ opcao }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
                 <table class="table table-borderless mb-0">
                     <thead><tr><th>Data/Hora</th><th>Aluno</th><th>Plano</th><th>Tipo</th><th>Observação</th></tr></thead>
                     <tbody>
@@ -294,6 +315,7 @@
                         {% endfor %}
                     </tbody>
                 </table>
+                {{ paginacao(pag_passagens, request.args) }}
             </div>
             <div class="heatmap-section">
                 <div id="heatmap-body" style="display:none;">
@@ -331,9 +353,19 @@
     <div id="rel-por_aluno" class="relatorio-section" style="display:none;">
         {% if not filtro_aplicado %}
         <div class="card-base empty-state"><i class="bi bi-funnel"></i><p>Selecione <strong>data início</strong> e <strong>data fim</strong> e clique em <strong>Filtrar</strong>.</p></div>
-        {% elif por_aluno %}
+        {% elif pag_por_aluno.total > 0 %}
         <div class="card-base">
-            <div class="total-badge"><i class="bi bi-people"></i> {{ por_aluno|length }} aluno{{ 's' if por_aluno|length != 1 else '' }} com passagem no período</div>
+            <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                <div class="total-badge" style="margin-bottom:0;"><i class="bi bi-people"></i> {{ pag_por_aluno.total }} aluno{{ 's' if pag_por_aluno.total != 1 else '' }} com passagem no período</div>
+                <div class="d-flex align-items-center gap-2">
+                    <label style="font-size:12px; color:#6c757d;">Por página:</label>
+                    <select class="form-select form-select-sm" style="width:auto;" onchange="mudarPorPagina(this.value)">
+                        {% for opcao in opcoes_por_pagina %}
+                        <option value="{{ opcao }}" {% if pag_por_aluno.per_page == opcao %}selected{% endif %}>{{ opcao }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
             <table class="table table-borderless mb-0">
                 <thead><tr><th>Aluno</th><th>Plano</th><th>Endereço</th><th>Passagens</th><th>Primeira entrada</th><th>Última entrada</th><th>Status</th></tr></thead>
                 <tbody>
@@ -350,6 +382,7 @@
                     {% endfor %}
                 </tbody>
             </table>
+            {{ paginacao(pag_por_aluno, request.args) }}
         </div>
         {% else %}
         <div class="card-base empty-state"><i class="bi bi-person-x"></i><p>Nenhum aluno encontrado com os filtros aplicados.</p></div>
@@ -362,7 +395,17 @@
         <div class="card-base empty-state"><i class="bi bi-funnel"></i><p>Selecione <strong>data início</strong> e <strong>data fim</strong> e clique em <strong>Filtrar</strong>.</p></div>
         {% else %}
         <div class="card-base">
-            <div class="total-badge"><i class="bi bi-calendar-x"></i> {{ vencimentos|length }} aluno{{ 's' if vencimentos|length != 1 else '' }}</div>
+            <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                <div class="total-badge" style="margin-bottom:0;"><i class="bi bi-calendar-x"></i> {{ pag_vencimentos.total }} aluno{{ 's' if pag_vencimentos.total != 1 else '' }}</div>
+                <div class="d-flex align-items-center gap-2">
+                    <label style="font-size:12px; color:#6c757d;">Por página:</label>
+                    <select class="form-select form-select-sm" style="width:auto;" onchange="mudarPorPagina(this.value)">
+                        {% for opcao in opcoes_por_pagina %}
+                        <option value="{{ opcao }}" {% if pag_vencimentos.per_page == opcao %}selected{% endif %}>{{ opcao }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
             <table class="table table-borderless mb-0">
                 <thead><tr><th>Aluno</th><th>Plano</th><th>Vencimento</th><th>Situação</th></tr></thead>
                 <tbody>
@@ -381,6 +424,7 @@
                     {% if not vencimentos %}<tr><td colspan="4" style="text-align:center; color:#6c757d; padding:32px 0;">Nenhum resultado com os filtros aplicados</td></tr>{% endif %}
                 </tbody>
             </table>
+            {{ paginacao(pag_vencimentos, request.args) }}
         </div>
         {% endif %}
     </div>
@@ -389,9 +433,19 @@
     <div id="rel-auditoria" class="relatorio-section" style="display:none;">
         {% if not filtro_aplicado %}
         <div class="card-base empty-state"><i class="bi bi-funnel"></i><p>Selecione <strong>data início</strong> e <strong>data fim</strong> e clique em <strong>Filtrar</strong>.</p></div>
-        {% elif auditoria %}
+        {% elif pag_auditoria.total > 0 %}
         <div class="card-base">
-            <div class="total-badge"><i class="bi bi-shield-check"></i> {{ auditoria|length }} registro{{ 's' if auditoria|length != 1 else '' }}</div>
+            <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                <div class="total-badge" style="margin-bottom:0;"><i class="bi bi-shield-check"></i> {{ pag_auditoria.total }} registro{{ 's' if pag_auditoria.total != 1 else '' }}</div>
+                <div class="d-flex align-items-center gap-2">
+                    <label style="font-size:12px; color:#6c757d;">Por página:</label>
+                    <select class="form-select form-select-sm" style="width:auto;" onchange="mudarPorPagina(this.value)">
+                        {% for opcao in opcoes_por_pagina %}
+                        <option value="{{ opcao }}" {% if pag_auditoria.per_page == opcao %}selected{% endif %}>{{ opcao }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
             <table class="table table-borderless mb-0">
                 <thead><tr><th>Data/Hora</th><th>Usuário</th><th>Ação</th><th>Detalhes</th><th>IP</th></tr></thead>
                 <tbody>
@@ -406,6 +460,7 @@
                     {% endfor %}
                 </tbody>
             </table>
+            {{ paginacao(pag_auditoria, request.args) }}
         </div>
         {% else %}
         <div class="card-base empty-state"><i class="bi bi-shield"></i><p>Nenhum log encontrado com os filtros aplicados.</p></div>
@@ -416,12 +471,20 @@
     <div id="rel-financeiro" class="relatorio-section" style="display:none;">
         {% if not filtro_aplicado %}
         <div class="card-base empty-state"><i class="bi bi-funnel"></i><p>Selecione <strong>data início</strong> e <strong>data fim</strong> e clique em <strong>Filtrar</strong>.</p></div>
-        {% elif fin_pagamentos is defined and fin_pagamentos %}
+        {% elif pag_fin and pag_fin.total > 0 %}
         <div class="card-base">
             <div class="fin-resumo-bar">
                 <div class="fin-resumo-item fin-pago"><i class="bi bi-check-circle me-1"></i>Recebido: <strong>R$ {{ '%.2f'|format(fin_resumo.recebido) }}</strong></div>
                 <div class="fin-resumo-item fin-pend"><i class="bi bi-clock me-1"></i>Pendente: <strong>R$ {{ '%.2f'|format(fin_resumo.pendente) }}</strong></div>
-                <div class="fin-resumo-item" style="background:#f8f9fa; color:#1a1a2e;"><i class="bi bi-receipt me-1"></i>Total: <strong>{{ fin_pagamentos|length }} lançamento{{ 's' if fin_pagamentos|length != 1 else '' }}</strong></div>
+                <div class="fin-resumo-item" style="background:#f8f9fa; color:#1a1a2e;"><i class="bi bi-receipt me-1"></i>Total: <strong>{{ pag_fin.total }} lançamento{{ 's' if pag_fin.total != 1 else '' }}</strong></div>
+            </div>
+            <div class="d-flex justify-content-end align-items-center mb-3 gap-2">
+                <label style="font-size:12px; color:#6c757d;">Por página:</label>
+                <select class="form-select form-select-sm" style="width:auto;" onchange="mudarPorPagina(this.value)">
+                    {% for opcao in opcoes_por_pagina %}
+                    <option value="{{ opcao }}" {% if pag_fin.per_page == opcao %}selected{% endif %}>{{ opcao }}</option>
+                    {% endfor %}
+                </select>
             </div>
             <table class="table table-borderless mb-0">
                 <thead><tr><th>Aluno</th><th>Plano</th><th>Valor</th><th>Vencimento</th><th>Pagamento</th><th>Forma</th><th>Status</th></tr></thead>
@@ -439,6 +502,7 @@
                     {% endfor %}
                 </tbody>
             </table>
+            {{ paginacao(pag_fin, request.args) }}
         </div>
         {% elif filtro_aplicado %}
         <div class="card-base mb-3">
@@ -495,10 +559,20 @@
             <i class="bi bi-cake2" style="color:#e91e8c;"></i>
             <p>Selecione um <strong>mês</strong> para ver os aniversariantes.</p>
         </div>
-        {% elif aniversariantes %}
+        {% elif pag_aniversariantes.total > 0 %}
         <div class="card-base">
-            <div class="badge-aniv">
-                <i class="bi bi-cake2"></i> {{ aniversariantes|length }} aniversariante{{ 's' if aniversariantes|length != 1 else '' }}
+            <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                <div class="badge-aniv" style="margin-bottom:0;">
+                    <i class="bi bi-cake2"></i> {{ pag_aniversariantes.total }} aniversariante{{ 's' if pag_aniversariantes.total != 1 else '' }}
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <label style="font-size:12px; color:#6c757d;">Por página:</label>
+                    <select class="form-select form-select-sm" style="width:auto;" onchange="mudarPorPagina(this.value)">
+                        {% for opcao in opcoes_por_pagina %}
+                        <option value="{{ opcao }}" {% if pag_aniversariantes.per_page == opcao %}selected{% endif %}>{{ opcao }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
             </div>
             <table class="table table-borderless mb-0">
                 <thead><tr><th>Nome</th><th>Data de Nascimento</th><th>Idade</th><th>Telefone</th><th>E-mail</th><th>Plano</th></tr></thead>
@@ -523,6 +597,7 @@
                     {% endfor %}
                 </tbody>
             </table>
+            {{ paginacao(pag_aniversariantes, request.args) }}
         </div>
         {% else %}
         <div class="card-base empty-state">
@@ -551,7 +626,6 @@
                     Período: <strong id="modal-periodo"></strong>
                 </div>
                 <div id="modal-colunas-wrap">
-                    <!-- passagens -->
                     <div id="mcols-passagens" class="modal-cols" style="display:none;">
                         <div class="col-section-title">Colunas</div>
                         <div class="col-check">
@@ -564,7 +638,6 @@
                             <span class="col-tag"         data-col="observacao" onclick="toggleColModal(event,this)">Observação</span>
                         </div>
                     </div>
-                    <!-- por_aluno -->
                     <div id="mcols-por_aluno" class="modal-cols" style="display:none;">
                         <div class="col-section-title">Colunas</div>
                         <div class="col-check">
@@ -579,7 +652,6 @@
                             <span class="col-tag marcada" data-col="status"   onclick="toggleColModal(event,this)">Status</span>
                         </div>
                     </div>
-                    <!-- vencimentos -->
                     <div id="mcols-vencimentos" class="modal-cols" style="display:none;">
                         <div class="col-section-title">Colunas</div>
                         <div class="col-check">
@@ -591,7 +663,6 @@
                             <span class="col-tag marcada" data-col="situacao"   onclick="toggleColModal(event,this)">Situação</span>
                         </div>
                     </div>
-                    <!-- auditoria -->
                     <div id="mcols-auditoria" class="modal-cols" style="display:none;">
                         <div class="col-section-title">Colunas</div>
                         <div class="col-check">
@@ -602,7 +673,6 @@
                             <span class="col-tag"         data-col="ip"        onclick="toggleColModal(event,this)">IP</span>
                         </div>
                     </div>
-                    <!-- financeiro -->
                     <div id="mcols-financeiro" class="modal-cols" style="display:none;">
                         <div class="col-section-title">Colunas</div>
                         <div class="col-check">
@@ -617,7 +687,6 @@
                             <span class="col-tag marcada" data-col="status"     onclick="toggleColModal(event,this)">Status</span>
                         </div>
                     </div>
-                    <!-- aniversariantes -->
                     <div id="mcols-aniversariantes" class="modal-cols" style="display:none;">
                         <div class="col-section-title">Colunas</div>
                         <div class="col-check">
@@ -828,6 +897,13 @@ function mostrarRelatorio(tipo) {
         document.getElementById('heatmap-btn-label').textContent = 'Calor';
     }
     document.getElementById('area-relatorio').scrollIntoView({ behavior: 'smooth' });
+}
+
+function mudarPorPagina(valor) {
+    const url = new URL(window.location.href);
+    url.searchParams.set('por_pagina', valor);
+    url.searchParams.set('pagina', '1');
+    window.location.href = url.toString();
 }
 
 // Modal exportar
