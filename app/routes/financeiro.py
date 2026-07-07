@@ -1,8 +1,7 @@
 from flask import Blueprint, render_template, redirect, url_for, request, flash, session, Response
 from app import db
-from app.models import Aluno
+from app.models import Aluno, RegistroAcesso
 from datetime import datetime, date, timedelta
-from dateutil.relativedelta import relativedelta
 from app.routes.auth import login_required, registrar_log, get_param, paginar, OPCOES_POR_PAGINA
 
 bp = Blueprint('financeiro', __name__)
@@ -36,59 +35,8 @@ def verificar_diarias_vencidas():
 
 
 def corrigir_vencimentos_desatualizados():
-    """
-    Rotina automática: corrige vencimentos de alunos ativos cujo vencimento
-    está no passado E que possuem ao menos um pagamento pago registrado.
-    Alunos sem nenhum pagamento NÃO são alterados.
-    """
     from app.models import Pagamento, Plano
     hoje = date.today()
-
-    planos_diaria = [p.nome for p in Plano.query.filter_by(dias_validade=1, ativo=True).all()]
-    q = Aluno.query.filter(Aluno.ativo == True, Aluno.vencimento < hoje)
-    if planos_diaria:
-        q = q.filter(~Aluno.plano.in_(planos_diaria))
-    alunos = q.all()
-
-    atualizados = 0
-    for aluno in alunos:
-        plano = Plano.query.filter_by(nome=aluno.plano, ativo=True).first()
-        if not plano:
-            continue
-
-        tem_pagamento = Pagamento.query.filter(
-            Pagamento.aluno_id == aluno.id,
-            Pagamento.status == 'pago'
-        ).first()
-        if not tem_pagamento:
-            continue
-
-        novo_venc = _calcular_novo_vencimento(aluno.vencimento, plano.dias_validade, hoje)
-
-        if novo_venc != aluno.vencimento:
-            aluno.vencimento = novo_venc
-            atualizados += 1
-
-    if atualizados:
-        db.session.commit()
-
-def _calcular_novo_vencimento(venc_atual, dias_plano, hoje):
-    """Calcula o próximo vencimento mantendo o dia do mês."""
-    if dias_plano == 1:
-        return hoje + relativedelta(days=1)
-    elif dias_plano <= 31:
-        meses = 1
-    elif dias_plano <= 92:
-        meses = 3
-    elif dias_plano <= 185:
-        meses = 6
-    else:
-        meses = 12
-    base = venc_atual if venc_atual else hoje
-    novo = base + relativedelta(months=meses)
-    while novo <= hoje:
-        novo += relativedelta(months=meses)
-    return novo
 
 @bp.route('/financeiro')
 @login_required
@@ -102,6 +50,7 @@ def financeiro():
     hoje          = date.today()
     status_filtro = request.args.get('status', 'todos')
     periodo_ativo = request.args.get('periodo', 'mes_atual')
+    f_busca       = request.args.get('f_busca', '').strip()
 
     def inicio_semana(d):
         return d - timedelta(days=d.weekday())
@@ -168,7 +117,10 @@ def financeiro():
             Aluno.vencimento < hoje,
             ~Aluno.plano.in_(planos_diaria) if planos_diaria else True,
             ~Aluno.id.in_(alunos_com_pagamento)
-        ).order_by(Aluno.nome)
+        )
+        if f_busca:
+            query_inad = query_inad.filter(Aluno.nome.ilike(f'%{f_busca}%'))
+        query_inad    = query_inad.order_by(Aluno.nome)
         pag_inad      = paginar(query_inad)
         inadimplentes = pag_inad.items
         pagamentos    = []
@@ -200,6 +152,10 @@ def financeiro():
                     )
                 )
             )
+        if f_busca:
+            from app.models import Pagamento as PagBusca
+            query = query.join(Aluno, PagBusca.aluno_id == Aluno.id).filter(
+                Aluno.nome.ilike(f'%{f_busca}%'))
         query = query.order_by(Pagamento.data_vencimento)
         pag_pagtos = paginar(query)
         pagamentos = pag_pagtos.items
@@ -255,7 +211,8 @@ def financeiro():
                            status_filtro=status_filtro, periodo_ativo=periodo_ativo,
                            data_inicio=data_inicio, data_fim=data_fim,
                            formas_ativas=formas_ativas, taxas=taxas,
-                           hoje=hoje.strftime('%Y-%m-%d'))
+                           hoje=hoje.strftime('%Y-%m-%d'),
+                           f_busca=f_busca)
 
 @bp.route('/financeiro/registrar', methods=['POST'])
 @login_required
@@ -270,14 +227,6 @@ def financeiro_registrar():
     dividido        = request.form.get('dividido') == '1'
 
     status_provisorio = 'pago' if data_pagamento else 'pendente'
-
-    pags_mesmo_venc_antes = 0
-    if status_provisorio == 'pago':
-        pags_mesmo_venc_antes = Pagamento.query.filter(
-            Pagamento.aluno_id == int(aluno_id),
-            Pagamento.status == 'pago',
-            Pagamento.data_vencimento == data_vencimento
-        ).count()
 
     if dividido:
         valor1  = float(request.form.get('valor1', 0))
@@ -321,14 +270,9 @@ def financeiro_registrar():
     if status == 'pago':
         aluno = Aluno.query.get(aluno_id)
         if aluno:
-            plano = Plano.query.filter_by(nome=aluno.plano, ativo=True).first()
-            if plano:
-                hoje = date.today()
-                if pags_mesmo_venc_antes == 0:
-                    aluno.vencimento = _calcular_novo_vencimento(
-                        aluno.vencimento, plano.dias_validade, hoje)
-                if not aluno.ativo:
-                    aluno.ativo = True
+            aluno.vencimento = data_vencimento
+            if not aluno.ativo:
+                aluno.ativo = True
 
     db.session.commit()
     registrar_log('registrou pagamento', f'Aluno ID: {aluno_id} | Valor: R$ {valor_total}{"  (dividido)" if dividido else ""}')
@@ -346,7 +290,7 @@ def financeiro_registrar():
 @bp.route('/financeiro/<int:id>/pagar', methods=['POST'])
 @login_required
 def financeiro_pagar(id):
-    from app.models import Pagamento, Plano
+    from app.models import Pagamento
     pag = Pagamento.query.get_or_404(id)
     data_pag_str        = request.form.get('data_pagamento')
     pag.status          = 'pago'
@@ -358,21 +302,9 @@ def financeiro_pagar(id):
         pag.observacao = obs
 
     aluno = pag.aluno
-    plano = Plano.query.filter_by(nome=aluno.plano, ativo=True).first()
-    if plano:
-        hoje = date.today()
-        from app.models import Pagamento as PagModel
-        pags_mesmo_venc = PagModel.query.filter(
-            PagModel.aluno_id == aluno.id,
-            PagModel.status == 'pago',
-            PagModel.data_vencimento == pag.data_vencimento,
-            PagModel.id != id
-        ).count()
-        if pags_mesmo_venc == 0:
-            aluno.vencimento = _calcular_novo_vencimento(
-                aluno.vencimento, plano.dias_validade, hoje)
-        if not aluno.ativo:
-            aluno.ativo = True
+    aluno.vencimento = pag.data_vencimento
+    if not aluno.ativo:
+        aluno.ativo = True
 
     db.session.commit()
     registrar_log('confirmou pagamento', f'Pagamento ID: {id} | Aluno: {pag.aluno.nome}')
@@ -427,13 +359,13 @@ def _header(cols):
 def _row_inad(a, cols, planos_v):
     row = []
     for c in cols:
-        if c == 'nome':       row.append(a.nome)
-        elif c == 'plano':    row.append(a.plano or '—')
+        if c == 'nome':         row.append(a.nome)
+        elif c == 'plano':      row.append(a.plano or '—')
         elif c == 'vencimento': row.append(a.vencimento.strftime('%d/%m/%Y') if a.vencimento else '—')
-        elif c == 'valor':    row.append(f'R$ {planos_v.get(a.plano, 0):.2f}')
-        elif c == 'cpf':      row.append(a.documento if a.tipo_documento == 'cpf' else '—')
-        elif c == 'telefone': row.append(a.telefone or '—')
-        else:                 row.append('—')
+        elif c == 'valor':      row.append(f'R$ {planos_v.get(a.plano, 0):.2f}')
+        elif c == 'cpf':        row.append(a.documento if a.tipo_documento == 'cpf' else '—')
+        elif c == 'telefone':   row.append(a.telefone or '—')
+        else:                   row.append('—')
     return row
 
 @bp.route('/financeiro/relatorio-diario')
@@ -458,7 +390,6 @@ def financeiro_relatorio_diario():
         data_rel = date.today()
 
     fuso = int(get_param('fuso_horario', '-3'))
-
     inicio_dt = datetime(data_rel.year, data_rel.month, data_rel.day, 0, 0, 0) - timedelta(hours=fuso)
     fim_dt    = datetime(data_rel.year, data_rel.month, data_rel.day, 23, 59, 59) - timedelta(hours=fuso)
 
@@ -467,14 +398,12 @@ def financeiro_relatorio_diario():
         try:
             h, m = map(int, hora_ini_str.split(':'))
             inicio_dt = datetime(data_rel.year, data_rel.month, data_rel.day, h, m, 0) - timedelta(hours=fuso)
-        except:
-            pass
+        except: pass
     if hora_fim_str:
         try:
             h, m = map(int, hora_fim_str.split(':'))
             fim_dt = datetime(data_rel.year, data_rel.month, data_rel.day, h, m, 59) - timedelta(hours=fuso)
-        except:
-            pass
+        except: pass
 
     pagamentos = Pagamento.query.filter(
         Pagamento.data_pagamento == data_rel,
@@ -497,12 +426,7 @@ def financeiro_relatorio_diario():
     data_fmt   = data_rel.strftime('%d/%m/%Y')
     dia_semana = ['Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira',
                   'Sexta-feira','Sábado','Domingo'][data_rel.weekday()]
-    if turno_ativo:
-        hora_ini_fmt = hora_ini_str or '00:00'
-        hora_fim_fmt = hora_fim_str or '23:59'
-        turno_fmt    = f'{hora_ini_fmt} às {hora_fim_fmt}'
-    else:
-        turno_fmt = None
+    turno_fmt  = f'{hora_ini_str or "00:00"} às {hora_fim_str or "23:59"}' if turno_ativo else None
 
     if formato == 'csv':
         import csv
@@ -561,8 +485,8 @@ def financeiro_relatorio_diario():
     VERDE   = colors.HexColor('#2e7d32')
     pw, ph  = A4
 
-    endereco_ac = get_param('endereco', '')
-    telefone_ac = get_param('telefone', '')
+    endereco_ac  = get_param('endereco', '')
+    telefone_ac  = get_param('telefone', '')
     hora_emissao = datetime.now().strftime('%d/%m/%Y às %H:%M')
 
     class DiarCanvas(pdfcanvas.Canvas):
@@ -585,13 +509,10 @@ def financeiro_relatorio_diario():
                 self.drawString(0.8*cm, ph-0.7*cm, nome_ac.upper())
                 self.setFont('Helvetica', 8)
                 self.setFillColor(colors.HexColor('#cccccc'))
-                if endereco_ac:
-                    self.drawString(0.8*cm, ph-1.0*cm, endereco_ac)
+                if endereco_ac: self.drawString(0.8*cm, ph-1.0*cm, endereco_ac)
                 info_linha = f'Relatório Diário  |  {dia_semana}, {data_fmt}'
-                if turno_fmt:
-                    info_linha += f'  |  Turno: {turno_fmt}'
-                if telefone_ac:
-                    info_linha += f'  |  Tel: {telefone_ac}'
+                if turno_fmt: info_linha += f'  |  Turno: {turno_fmt}'
+                if telefone_ac: info_linha += f'  |  Tel: {telefone_ac}'
                 self.drawString(0.8*cm, ph-1.3*cm, info_linha)
                 self.setFillColor(colors.HexColor('#aaaaaa'))
                 self.drawRightString(pw-1*cm, ph-0.7*cm, f'Emitido em {hora_emissao}')
@@ -608,9 +529,10 @@ def financeiro_relatorio_diario():
 
     styles = getSampleStyleSheet()
     def E(name, **kw): return ParagraphStyle(name, parent=styles['Normal'], **kw)
-    st_h1 = E('h1', fontSize=18, fontName='Helvetica-Bold', textColor=SIDEBAR, spaceAfter=10)
-    st_h2 = E('h2', fontSize=12, fontName='Helvetica-Bold', textColor=SIDEBAR, spaceAfter=4, spaceBefore=14)
-    st_body = E('body', fontSize=9, textColor=colors.HexColor('#333'), leading=13)
+    st_h1   = E('h1',   fontSize=18, fontName='Helvetica-Bold', textColor=SIDEBAR, spaceAfter=10)
+    st_h2   = E('h2',   fontSize=12, fontName='Helvetica-Bold', textColor=SIDEBAR, spaceAfter=4, spaceBefore=14)
+    st_body = E('body', fontSize=9,  textColor=colors.HexColor('#333'), leading=13)
+    st_cell = E('cell', fontSize=8,  textColor=colors.HexColor('#333'), leading=10)
 
     def linha(): return HRFlowable(width='100%', thickness=0.5, color=colors.HexColor('#dee2e6'), spaceBefore=6, spaceAfter=6)
 
@@ -634,12 +556,10 @@ def financeiro_relatorio_diario():
                             leftMargin=1.5*cm, rightMargin=1.5*cm,
                             topMargin=1.8*cm, bottomMargin=2*cm)
     els = []
-
     els.append(Paragraph('Relatório Diário', st_h1))
     els.append(HRFlowable(width='100%', thickness=2, color=LARANJA, spaceBefore=4, spaceAfter=12))
     els.append(Paragraph(f'{dia_semana}, {data_fmt}', E('sub', fontSize=11, textColor=CINZA)))
     els.append(Spacer(1, 0.4*cm))
-
     els.append(Paragraph('Resumo do Dia', st_h2))
     els.append(linha())
 
@@ -662,7 +582,13 @@ def financeiro_relatorio_diario():
                style=[('LEFTPADDING',(0,0),(-1,-1),3),('RIGHTPADDING',(0,0),(-1,-1),3)]))
     els.append(Spacer(1, 0.5*cm))
 
-    st_cell = E('cell', fontSize=8, textColor=colors.HexColor('#333'), leading=10)
+    def _larguras_diario(cols):
+        larg_num   = 0.8*cm
+        larg_total = pw - 3*cm
+        pesos = {'nome': 3, 'observacao': 2}
+        total_pesos = sum(pesos.get(c, 1) for c in cols)
+        larg_unit = (larg_total - larg_num) / total_pesos
+        return [larg_num] + [larg_unit * pesos.get(c, 1) for c in cols]
 
     def _tbl_secao(titulo, registros, cols, total_val):
         if not registros: return
@@ -673,17 +599,8 @@ def financeiro_relatorio_diario():
             data.append([str(i)] + [Paragraph(str(v), st_cell) for v in _row(p, cols)])
         tot = [''] + [''] * len(cols)
         if 'valor' in cols: tot[1 + cols.index('valor')] = f'R$ {total_val:.2f}'
-        tot[0] = ''
         data.append(tot)
-        n = len(cols)
-        larg_total = pw - 3*cm
-        larg_num   = 0.8*cm
-        if 'nome' in cols:
-            larg_resto = (larg_total - larg_num) / (n + 2)
-            col_widths = [larg_num] + [larg_resto * 3 if c == 'nome' else larg_resto for c in cols]
-        else:
-            col_widths = [larg_num] + [(larg_total - larg_num) / n] * n
-        els.append(tabela(data, col_widths=col_widths, totais=[len(data)-1]))
+        els.append(tabela(data, col_widths=_larguras_diario(cols), totais=[len(data)-1]))
         els.append(Spacer(1, 0.4*cm))
 
     if 'd-dinheiro' in secoes_diario and p_dinheiro: _tbl_secao('💵 Relação de Dinheiro', p_dinheiro, cols_dinheiro, total_dinheiro)
@@ -849,11 +766,9 @@ def financeiro_relatorio_mensal():
                 self.drawString(0.8*cm, ph-0.7*cm, nome_ac.upper())
                 self.setFont('Helvetica', 8)
                 self.setFillColor(colors.HexColor('#cccccc'))
-                if endereco_ac:
-                    self.drawString(0.8*cm, ph-1.0*cm, endereco_ac)
+                if endereco_ac: self.drawString(0.8*cm, ph-1.0*cm, endereco_ac)
                 info_linha = f'Relatório Mensal  |  {nome_mes}'
-                if telefone_ac:
-                    info_linha += f'  |  Tel: {telefone_ac}'
+                if telefone_ac: info_linha += f'  |  Tel: {telefone_ac}'
                 self.drawString(0.8*cm, ph-1.3*cm, info_linha)
                 self.setFillColor(colors.HexColor('#aaaaaa'))
                 self.drawRightString(pw-1*cm, ph-0.7*cm, f'Emitido em {hora_emissao}')
@@ -870,9 +785,10 @@ def financeiro_relatorio_mensal():
 
     styles = getSampleStyleSheet()
     def E(name, **kw): return ParagraphStyle(name, parent=styles['Normal'], **kw)
-    st_h1 = E('h1', fontSize=16, fontName='Helvetica-Bold', textColor=SIDEBAR, spaceAfter=4)
-    st_h2 = E('h2', fontSize=12, fontName='Helvetica-Bold', textColor=SIDEBAR, spaceAfter=4, spaceBefore=14)
-    st_body = E('body', fontSize=9, textColor=colors.HexColor('#333'), leading=13)
+    st_h1   = E('h1',   fontSize=16, fontName='Helvetica-Bold', textColor=SIDEBAR, spaceAfter=4)
+    st_h2   = E('h2',   fontSize=12, fontName='Helvetica-Bold', textColor=SIDEBAR, spaceAfter=4, spaceBefore=14)
+    st_body = E('body', fontSize=9,  textColor=colors.HexColor('#333'), leading=13)
+    st_cell = E('cell', fontSize=8,  textColor=colors.HexColor('#333'), leading=10)
 
     def linha(): return HRFlowable(width='100%', thickness=0.5, color=colors.HexColor('#dee2e6'), spaceBefore=6, spaceAfter=6)
 
@@ -896,7 +812,6 @@ def financeiro_relatorio_mensal():
                             leftMargin=1*cm, rightMargin=1*cm,
                             topMargin=1.6*cm, bottomMargin=1.8*cm)
     els = []
-
     els.append(Paragraph(f'Relatório Mensal — {nome_mes}', st_h1))
     els.append(HRFlowable(width='100%', thickness=2, color=LARANJA, spaceBefore=4, spaceAfter=12))
     els.append(Spacer(1, 0.2*cm))
@@ -930,12 +845,8 @@ def financeiro_relatorio_mensal():
         els.append(tabela(resumo_data, col_widths=[8*cm, 4*cm, 4*cm], totais=[4]))
         els.append(Spacer(1, 0.5*cm))
 
-    st_cell = E('cell', fontSize=8, textColor=colors.HexColor('#333'), leading=10)
-
     def _larguras(cols, larg_total):
-        """Coluna nome com peso 3x; observacao com peso 2x; demais dividem o restante igualmente."""
         larg_num = 0.8*cm
-        n = len(cols)
         pesos = {'nome': 3, 'observacao': 2}
         total_pesos = sum(pesos.get(c, 1) for c in cols)
         larg_unit = (larg_total - larg_num) / total_pesos
@@ -979,3 +890,42 @@ def financeiro_relatorio_mensal():
     buffer.seek(0)
     return Response(buffer.getvalue(), mimetype='application/pdf',
         headers={'Content-Disposition': f'attachment; filename=relatorio_mensal_{primeiro_dia.strftime("%Y%m")}.pdf'})
+
+# ── Inativação automática por inatividade ─────────────────────────────────────
+
+def inativar_alunos_inativos():
+    """
+    Inativa alunos ativos cujo vencimento está há mais de X semanas
+    no passado, conforme configurado em 'semanas_inatividade'.
+    Se semanas_inatividade == '0', a regra está desativada.
+    """
+    semanas = int(get_param('semanas_inatividade', '0'))
+    if semanas <= 0:
+        return 0
+
+    corte = date.today() - timedelta(weeks=semanas)
+
+    alunos = Aluno.query.filter(
+        Aluno.ativo == True,
+        Aluno.vencimento < corte
+    ).all()
+
+    inativados = 0
+    for aluno in alunos:
+        aluno.ativo = False
+        inativados += 1
+
+    if inativados:
+        db.session.commit()
+
+    # Registra data da última execução para detecção de gap no startup
+    from app.models import Configuracao
+    hoje_str = date.today().isoformat()
+    c = Configuracao.query.filter_by(chave='inativacao_ultima_execucao').first()
+    if c:
+        c.valor = hoje_str
+    else:
+        db.session.add(Configuracao(chave='inativacao_ultima_execucao', valor=hoje_str))
+    db.session.commit()
+
+    return inativados

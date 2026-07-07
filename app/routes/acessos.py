@@ -15,26 +15,21 @@ def _filtro_periodo(dt_inicio, dt_fim):
     return inicio_utc, fim_utc
 
 def _hoje_local():
-    """Retorna a data de hoje no fuso horário configurado."""
     fuso = int(get_param('fuso_horario', '-3'))
     return (datetime.utcnow() + timedelta(hours=fuso)).date()
 
 def verificar_diaria_aluno(aluno):
-    """
-    Verifica se o aluno é de plano diário e se o plano venceu.
-    Se venceu, inativa o aluno e retorna True (bloqueado).
-    """
     from app.models import Plano
     if not aluno or not aluno.ativo:
-        return True  # já inativo, bloqueia
+        return True
     plano = Plano.query.filter_by(nome=aluno.plano, ativo=True).first()
     if plano and plano.dias_validade == 1:
         hoje = date.today()
         if aluno.vencimento and aluno.vencimento < hoje:
             aluno.ativo = False
             db.session.commit()
-            return True  # inativou e bloqueia
-    return False  # não é diária ou ainda válido
+            return True
+    return False
 
 @bp.route('/acessos')
 @login_required
@@ -56,13 +51,6 @@ def acessos():
 def acesso_biometria():
     # Sem @login_required — chamado internamente pelo app biométrico via localhost
 
-    # Trava de dominio: se a tecnologia de biometria estiver desativada
-    # em Configuracoes > Tecnologias, o evento e rejeitado aqui, no ponto
-    # de entrada — antes, desativar a tecnologia so escondia uma coluna
-    # na tela de Alunos, e o FingerPoint continuava gravando acessos
-    # normalmente via esta rota. Log explicito para facilitar diagnostico
-    # se um cliente desativar a tecnologia sem querer e o leitor "parar
-    # de funcionar" sem mensagem de erro visivel no app desktop.
     if not tecnologia_ativa('biometria'):
         registrar_log(
             'acesso biometria rejeitado',
@@ -74,29 +62,66 @@ def acesso_biometria():
     aluno_id = data.get('aluno_id')
     if not aluno_id:
         return jsonify({'erro': 'aluno_id obrigatorio'}), 400
+
     try:
         aluno = Aluno.query.get(aluno_id)
         if not aluno:
             return jsonify({'erro': 'Aluno nao encontrado'}), 404
 
+        hoje = date.today()
+
+        # Aluno inativo — bloqueia antes de qualquer outra verificação
+        if not aluno.ativo:
+            registrar_log('acesso biometria bloqueado', f'Aluno: {aluno.nome} | Motivo: inativo')
+            return jsonify({
+                'erro':     'Aluno inativo',
+                'bloqueado': True,
+                'inativo':   True,
+                'nome':      aluno.nome,
+                'plano':     aluno.plano or '',
+                'vencimento': aluno.vencimento.strftime('%d/%m/%Y') if aluno.vencimento else '—',
+                'foto':      aluno.foto or '',
+            }), 403
+
         # Verifica e inativa diária vencida
         if verificar_diaria_aluno(aluno):
-            return jsonify({'erro': 'Plano diário vencido', 'bloqueado': True, 'inativado': True}), 403
+            registrar_log('acesso biometria bloqueado', f'Aluno: {aluno.nome} | Motivo: plano diário vencido')
+            return jsonify({
+                'erro':      'Plano diário vencido',
+                'bloqueado': True,
+                'inativado': True,
+                'nome':      aluno.nome,
+                'plano':     aluno.plano or '',
+                'vencimento': aluno.vencimento.strftime('%d/%m/%Y') if aluno.vencimento else '—',
+                'foto':      aluno.foto or '',
+            }), 403
 
-        hoje = date.today()
         bloquear = get_param('bloquear_plano_vencido', '0') == '1'
         if bloquear and aluno.vencimento and aluno.vencimento < hoje:
-            return jsonify({'erro': 'Plano vencido', 'bloqueado': True}), 403
+            registrar_log('acesso biometria bloqueado', f'Aluno: {aluno.nome} | Motivo: plano vencido')
+            return jsonify({
+                'erro':      'Plano vencido',
+                'bloqueado': True,
+                'vencido':   True,
+                'nome':      aluno.nome,
+                'plano':     aluno.plano or '',
+                'vencimento': aluno.vencimento.strftime('%d/%m/%Y') if aluno.vencimento else '—',
+                'foto':      aluno.foto or '',
+            }), 403
 
         db.session.add(RegistroAcesso(aluno_id=aluno_id, tipo='biometria'))
         db.session.commit()
         registrar_log('registrou acesso', f'Aluno: {aluno.nome} | Tipo: biometria')
         return jsonify({
-            'ok': True,
-            'nome': aluno.nome,
-            'plano': aluno.plano or '',
-            'vencido': bool(aluno.vencimento and aluno.vencimento < hoje)
+            'ok':        True,
+            'nome':      aluno.nome,
+            'plano':     aluno.plano or '',
+            'vencido':   bool(aluno.vencimento and aluno.vencimento < hoje),
+            'vencimento': aluno.vencimento.strftime('%d/%m/%Y') if aluno.vencimento else '—',
+            'foto':      aluno.foto or '',
+            'inativo':   False,
         }), 200
+
     except Exception as e:
         return jsonify({'erro': str(e)}), 500
 
@@ -108,7 +133,6 @@ def registrar_acesso():
     aluno      = Aluno.query.get_or_404(aluno_id)
     hoje       = date.today()
 
-    # Verifica e inativa diária vencida
     if verificar_diaria_aluno(aluno):
         flash(f'Acesso bloqueado! O plano diário de {aluno.nome} venceu e o aluno foi inativado automaticamente.', 'danger')
         return redirect(url_for('acessos.acessos'))
@@ -131,19 +155,10 @@ def registrar_acesso():
 def monitoramento():
     hoje_local       = _hoje_local()
     inicio_utc, fim_utc = _filtro_periodo(hoje_local, hoje_local)
-
-    # Decisao de produto: passagens HISTORICAS via biometria continuam
-    # visiveis mesmo apos desativar a tecnologia (nao reescrevemos o
-    # passado). O que muda e que NOVOS eventos de biometria nao entram
-    # mais (bloqueados em acesso_biometria()) — entao essa query nao
-    # precisa de filtro extra, ela so vai naturalmente deixar de receber
-    # registros novos do tipo 'biometria' a partir do momento em que a
-    # tecnologia for desativada.
     acessos_recentes = RegistroAcesso.query.filter(
         RegistroAcesso.entrada_em >= inicio_utc,
         RegistroAcesso.entrada_em <  fim_utc
     ).order_by(RegistroAcesso.entrada_em.desc()).limit(10).all()
-    # Usa uma única query para contar totais
     todos_hoje      = RegistroAcesso.query.filter(
         RegistroAcesso.entrada_em >= inicio_utc,
         RegistroAcesso.entrada_em <  fim_utc
@@ -163,22 +178,29 @@ def monitoramento_ultimo():
     acesso = RegistroAcesso.query.order_by(RegistroAcesso.entrada_em.desc()).first()
     if not acesso:
         return json.dumps({'id': 0})
+
     fuso           = int(get_param('fuso_horario', '-3'))
     hoje           = _hoje_local()
-    vencido        = False
-    vencimento_str = '—'
-    if acesso.aluno.vencimento:
-        vencido        = acesso.aluno.vencimento < hoje
-        vencimento_str = acesso.aluno.vencimento.strftime('%d/%m/%Y')
-    hora_local = (acesso.entrada_em + timedelta(hours=fuso)).strftime('%H:%M')
-    cadastro   = acesso.aluno.criado_em.strftime('%d/%m/%Y') if acesso.aluno.criado_em else '—'
+    aluno          = acesso.aluno
+    vencido        = bool(aluno.vencimento and aluno.vencimento < hoje)
+    inativo        = not aluno.ativo
+    vencimento_str = aluno.vencimento.strftime('%d/%m/%Y') if aluno.vencimento else '—'
+    hora_local     = (acesso.entrada_em + timedelta(hours=fuso)).strftime('%H:%M')
+    cadastro       = aluno.criado_em.strftime('%d/%m/%Y') if aluno.criado_em else '—'
+
     return json.dumps({
-        'id': acesso.id, 'nome': acesso.aluno.nome,
-        'plano': acesso.aluno.plano or 'Sem plano',
-        'hora': hora_local, 'vencido': vencido, 'vencimento': vencimento_str,
-        'foto': acesso.aluno.foto or '', 'cpf': acesso.aluno.documento or '—',
-        'telefone': acesso.aluno.telefone or '—', 'cadastro': cadastro,
-        'tipo': acesso.tipo or 'manual',
+        'id':         acesso.id,
+        'nome':       aluno.nome,
+        'plano':      aluno.plano or 'Sem plano',
+        'hora':       hora_local,
+        'vencido':    vencido,
+        'inativo':    inativo,
+        'vencimento': vencimento_str,
+        'foto':       aluno.foto or '',
+        'cpf':        aluno.documento or '—',
+        'telefone':   aluno.telefone or '—',
+        'cadastro':   cadastro,
+        'tipo':       acesso.tipo or 'manual',
     })
 
 @bp.route('/monitoramento/recentes')
@@ -192,10 +214,11 @@ def monitoramento_recentes():
         RegistroAcesso.entrada_em <  fim_utc
     ).order_by(RegistroAcesso.entrada_em.desc()).limit(10).all()
     return json.dumps([{
-        'nome': a.aluno.nome,
-        'hora': (a.entrada_em + timedelta(hours=fuso)).strftime('%H:%M'),
-        'plano': a.aluno.plano or 'Sem plano',
-        'vencido': a.aluno.vencimento < hoje if a.aluno.vencimento else False
+        'nome':    a.aluno.nome,
+        'hora':    (a.entrada_em + timedelta(hours=fuso)).strftime('%H:%M'),
+        'plano':   a.aluno.plano or 'Sem plano',
+        'vencido': a.aluno.vencimento < hoje if a.aluno.vencimento else False,
+        'inativo': not a.aluno.ativo,
     } for a in acessos])
 
 @bp.route('/monitoramento/contadores')

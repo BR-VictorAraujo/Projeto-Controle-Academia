@@ -145,7 +145,21 @@
         </div>
         <div class="col-md-4">
             <label class="form-label" style="font-size:13px; font-weight:500;">Buscar aluno</label>
-            <input type="text" class="search-box w-100" id="busca" placeholder="🔍 Nome do aluno...">
+            <form method="GET" action="/financeiro" id="form-busca-fin">
+                <input type="hidden" name="periodo"  value="{{ periodo_ativo }}">
+                <input type="hidden" name="status"   value="{{ status_filtro }}">
+                <input type="hidden" name="inicio"   value="{{ data_inicio }}">
+                <input type="hidden" name="fim"      value="{{ data_fim }}">
+                <div style="display:flex; gap:6px;">
+                    <input type="text" name="f_busca" id="busca" class="search-box"
+                           placeholder="🔍 Nome do aluno..."
+                           value="{{ request.args.get('f_busca', '') }}"
+                           autocomplete="off" style="flex:1; width:auto;">
+                    <button type="submit" class="btn-principal" style="padding:8px 14px; border-radius:8px;">
+                        <i class="bi bi-search"></i>
+                    </button>
+                </div>
+            </form>
         </div>
         <div class="col-md-8 d-flex gap-2 align-items-end flex-wrap">
             <a href="?status=todos&periodo={{ periodo_ativo }}&inicio={{ data_inicio }}&fim={{ data_fim }}&pagina=1" class="tab-btn {% if status_filtro == 'todos' %}ativo{% endif %}">Todos</a>
@@ -470,11 +484,8 @@
                         <button type="button" class="periodo-btn" onclick="aplicarTurno('manha')" style="font-size:11px; padding:4px 10px;">
                             🌅 Manhã (06:00–12:00)
                         </button>
-                        <button type="button" class="periodo-btn" onclick="aplicarTurno('tarde')" style="font-size:11px; padding:4px 10px;">
-                            ☀️ Tarde (12:00–18:00)
-                        </button>
-                        <button type="button" class="periodo-btn" onclick="aplicarTurno('noite')" style="font-size:11px; padding:4px 10px;">
-                            🌙 Noite (18:00–23:59)
+                        <button type="button" class="periodo-btn" onclick="aplicarTurno('tarde_noite')" style="font-size:11px; padding:4px 10px;">
+                            🌆 Tarde/Noite (14:00–22:00)
                         </button>
                         <button type="button" class="periodo-btn" onclick="aplicarTurno('dia')" style="font-size:11px; padding:4px 10px;">
                             📅 Dia todo
@@ -899,9 +910,8 @@ function confirmarExclusao(id, nome) {
     new bootstrap.Modal(document.getElementById('modalExcluir')).show();
 }
 
-document.getElementById('busca').addEventListener('input', function() {
-    const t = this.value.toLowerCase();
-    document.querySelectorAll('#tabela-pagamentos tbody tr').forEach(l => l.style.display = l.textContent.toLowerCase().includes(t) ? '' : 'none');
+document.getElementById('busca').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') document.getElementById('form-busca-fin').submit();
 });
 
 function aplicarPeriodoRapido(periodo) {
@@ -1033,10 +1043,9 @@ function gerarRelatorioDiario() {
 
 function aplicarTurno(turno) {
     const turnos = {
-        'manha': ['06:00', '12:00'],
-        'tarde':  ['12:00', '18:00'],
-        'noite':  ['18:00', '23:59'],
-        'dia':    ['', ''],
+        'manha':      ['06:00', '12:00'],
+        'tarde_noite':['14:00', '22:00'],
+        'dia':        ['', ''],
     };
     const [ini, fim] = turnos[turno] || ['', ''];
     document.getElementById('diario-hora-ini').value = ini;

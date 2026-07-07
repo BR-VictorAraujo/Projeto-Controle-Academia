@@ -35,9 +35,6 @@ def get_param(chave, padrao=''):
     c = Configuracao.query.filter_by(chave=chave).first()
     return c.valor if c else padrao
 
-# Tecnologias com seu valor padrao (biometria ja era usada por clientes
-# existentes antes desta feature existir, entao comeca ativada; as demais
-# ainda nao tem hardware/implementacao real, entao comecam desativadas).
 TECNOLOGIAS_PADRAO = {
     'biometria': '1',
     'rfid':      '0',
@@ -45,53 +42,13 @@ TECNOLOGIAS_PADRAO = {
 }
 
 def tecnologia_ativa(nome):
-    """
-    Fonte unica de verdade sobre se uma tecnologia de acesso esta ativa.
-
-    Criada porque a primeira versao da feature de Tecnologias de Acesso
-    so controlava a exibicao de uma coluna na tela de Alunos — nenhuma
-    rota de ingestao (POST /acessos/biometria), consulta (monitoramento,
-    relatorios) ou regra de negocio checava essa configuracao de fato.
-    Resultado: desativar "Biometria" na tela nao impedia nada no sistema,
-    so escondia uma coluna.
-
-    Toda decisao de "essa tecnologia esta ligada?" deve passar por aqui —
-    nunca ler Configuracao diretamente em uma rota ou template. Isso evita
-    que cada tela reimplemente sua propria checagem (e esqueca de alguma).
-    """
     padrao = TECNOLOGIAS_PADRAO.get(nome, '0')
     return get_param(f'tecnologia_{nome}', padrao) == '1'
 
-# Opções de itens por página aceitas em todo o sistema — usado tanto para
-# validar o valor recebido via query string quanto para popular o seletor
-# na interface (Alunos, Financeiro, e futuras telas que precisem paginar).
 OPCOES_POR_PAGINA = [20, 50, 100]
 POR_PAGINA_PADRAO = 20
 
 def paginar(query, args=None, padrao=POR_PAGINA_PADRAO, opcoes=None):
-    """
-    Pagina uma query do SQLAlchemy de forma padronizada em todo o sistema.
-
-    Lê 'pagina' e 'por_pagina' da query string (via request.args, ou do
-    dict passado em `args` se a tela precisar combinar com outros filtros
-    já extraídos manualmente). Usa LIMIT/OFFSET no banco — nunca carrega
-    a query inteira na memória antes de paginar, o que é essencial para
-    telas como Alunos e Financeiro que podem crescer para milhares de
-    registros.
-
-    Retorna um objeto com:
-        .items        — lista de registros da página atual
-        .page         — página atual (1-indexed)
-        .per_page     — itens por página nesta consulta
-        .total        — total de registros (sem paginação)
-        .pages        — total de páginas
-        .has_prev / .has_next, .prev_num / .next_num
-
-    `opcoes`: lista de valores permitidos para por_pagina (default
-    OPCOES_POR_PAGINA = [20, 50, 100]). Qualquer valor fora da lista cai
-    no padrão — protege contra alguém forçar ?por_pagina=999999 na URL
-    e arrastar a base inteira de uma vez.
-    """
     opcoes = opcoes or OPCOES_POR_PAGINA
     origem = args if args is not None else request.args
 
@@ -194,26 +151,27 @@ def logout():
 @bp.route('/dashboard')
 @login_required
 def dashboard():
-    from app.routes.financeiro import corrigir_vencimentos_desatualizados
-    # Usa fuso horário configurado para data local correta
+    from app.routes.financeiro import (
+        corrigir_vencimentos_desatualizados,
+        inativar_alunos_inativos,
+    )
+
     fuso        = int(get_param('fuso_horario', '-3'))
     hoje        = (datetime.utcnow() + timedelta(hours=fuso)).date()
     dias_alerta = int(get_param('dias_alerta_vencimento', '7'))
     alerta_dias = hoje + timedelta(days=dias_alerta)
 
-    # Corrige vencimentos desatualizados ao abrir o dashboard também
     corrigir_vencimentos_desatualizados()
+    inativar_alunos_inativos()
 
     total_alunos  = Aluno.query.count()
     alunos_ativos = Aluno.query.filter_by(ativo=True).count()
-    # Vencimentos próximos: entre hoje e alerta_dias (excluindo já vencidos)
     vencendo      = Aluno.query.filter(
         Aluno.ativo == True,
         Aluno.vencimento >= hoje,
         Aluno.vencimento <= alerta_dias
     ).count()
 
-    # Acessos hoje usando filtro de período com fuso
     inicio_utc = datetime(hoje.year, hoje.month, hoje.day) - timedelta(hours=fuso)
     fim_utc    = inicio_utc + timedelta(days=1)
     acessos_hoje = RegistroAcesso.query.filter(

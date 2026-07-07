@@ -151,8 +151,11 @@ def parametros():
             ('backup_pasta_destino', ''), ('backup_modo', 'diario'),
             ('backup_horario', '03:00'), ('backup_intervalo_horas', '6'),
             ('backup_manter_qtd', '7'), ('backup_extensao', 'dump'),
+            # Inativação automática por inatividade
+            ('semanas_inatividade', '0'),
         ]:
             set_config(chave, request.form.get(chave, padrao))
+
         for chave in ['senha_exigir_numero','senha_exigir_maiuscula','senha_exigir_especial',
                       'alertar_senha_vencimento','permitir_doc_duplicado',
                       'bloquear_plano_vencido','alertar_plano_vencimento',
@@ -160,21 +163,15 @@ def parametros():
                       'backup_automatico_ativo']:
             set_config(chave, '1' if request.form.get(chave) else '0')
 
-        # popup_acessos_ativo usa um campo hidden + checkbox (ver template),
-        # entao SEMPRE vem no POST com valor '1' ou '0' explicito — diferente
-        # dos checkboxes acima que ficam ausentes quando desmarcados. Isso
-        # permite o padrao ser "ativado" sem o primeiro salvamento de
-        # parametros desativar o popup por causa da ausencia do campo.
         set_config('popup_acessos_ativo', request.form.get('popup_acessos_ativo', '1'))
 
         for chave in ['taxa_credito', 'taxa_debito']:
             set_config(chave, request.form.get(chave, '0'))
+
         db.session.commit()
         registrar_log('alterou parametros', 'Parâmetros do sistema atualizados')
         flash('Parâmetros salvos com sucesso!', 'success')
 
-        # Reagenda o backup automatico imediatamente com a config nova,
-        # sem precisar reiniciar o servidor.
         from app import backup_scheduler
         from flask import current_app
         backup_scheduler.reconfigurar_agendador(current_app._get_current_object())
@@ -202,7 +199,6 @@ def parametros():
         forma_boleto            = get_param('forma_boleto',            '0')
         taxa_credito            = get_param('taxa_credito',            '0')
         taxa_debito             = get_param('taxa_debito',             '0')
-        # Backup do banco de dados
         backup_pasta_destino    = get_param('backup_pasta_destino',    '')
         backup_automatico_ativo = get_param('backup_automatico_ativo', '0')
         backup_modo             = get_param('backup_modo',             'diario')
@@ -210,8 +206,9 @@ def parametros():
         backup_intervalo_horas  = get_param('backup_intervalo_horas',  '6')
         backup_manter_qtd       = get_param('backup_manter_qtd',       '7')
         backup_extensao         = get_param('backup_extensao',         'dump')
-        # Popup de novas passagens — ativado por padrao (ver nota no POST acima)
         popup_acessos_ativo     = get_param('popup_acessos_ativo',     '1')
+        # Inativação automática por inatividade
+        semanas_inatividade     = get_param('semanas_inatividade',     '0')
 
     from app.models import Plano
     planos_ativos = Plano.query.filter_by(ativo=True).order_by(Plano.nome).all()
@@ -267,17 +264,6 @@ def novo_plano():
 @bp.route('/configuracoes/tecnologias', methods=['GET', 'POST'])
 @login_required
 def tecnologias():
-    """
-    Tela dedicada para ativar/desativar tecnologias de controle de acesso
-    (biometria, RFID, facial). Antes vivia dentro de /parametros, mas foi
-    movida para sua propria aba — sao decisoes de hardware/produto, nao
-    parametros operacionais como senha ou backup, e misturadas la a tela
-    ficava poluida.
-
-    tecnologia_biometria controla se a coluna/filtro de biometria aparece
-    na tela de Alunos (ver app/routes/alunos.py e templates/alunos/lista.html).
-    Vem ativado por padrao porque clientes ja existentes usam biometria hoje.
-    """
     def set_config(chave, valor):
         from app.models import Configuracao
         c = Configuracao.query.filter_by(chave=chave).first()
@@ -285,9 +271,6 @@ def tecnologias():
         else: db.session.add(Configuracao(chave=chave, valor=valor))
 
     if request.method == 'POST':
-        # Hidden+checkbox: sempre vem '1' ou '0' explicito no POST,
-        # diferente de um checkbox puro que fica ausente quando desmarcado.
-        # Garante que o padrao "ativado" nao se perca no primeiro salvamento.
         set_config('tecnologia_biometria', request.form.get('tecnologia_biometria', '1'))
         db.session.commit()
         registrar_log('alterou tecnologias de acesso', 'Configurações de tecnologia atualizadas')
@@ -307,7 +290,6 @@ def tecnologias():
 @bp.route('/backup/listar')
 @login_required
 def backup_listar():
-    """Retorna a lista de backups existentes na pasta configurada, em JSON."""
     from app import backup as backup_mod
 
     pasta = get_param('backup_pasta_destino', '')
@@ -319,7 +301,6 @@ def backup_listar():
     except Exception as e:
         return jsonify({'backups': [], 'erro': str(e)}), 500
 
-    # Serializa datetime para string ISO (JSON nao aceita datetime nativo)
     resultado = [
         {
             'nome':       b['nome'],
@@ -334,7 +315,6 @@ def backup_listar():
 @bp.route('/backup/executar', methods=['POST'])
 @login_required
 def backup_executar():
-    """Dispara um backup manual imediatamente. Usado pelo botão 'Fazer backup agora'."""
     from app import backup as backup_mod
     from flask import current_app
 
@@ -368,7 +348,6 @@ def backup_executar():
 @bp.route('/backup/excluir', methods=['POST'])
 @login_required
 def backup_excluir():
-    """Exclui um backup especifico pelo nome do arquivo (relativo a pasta configurada)."""
     from app import backup as backup_mod
     import os
 

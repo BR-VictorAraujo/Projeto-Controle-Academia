@@ -11,28 +11,21 @@ bp = Blueprint('alunos', __name__)
 def alunos():
     f_status    = request.args.get('f_status', '')
     f_biometria = request.args.get('f_biometria', '')
+    f_nome      = request.args.get('f_nome', '').strip()
 
-    # Se a tecnologia de biometria estiver desativada, o filtro/coluna
-    # nao deve existir nem no backend — antes essa checagem so existia
-    # no template (escondia a coluna), mas o filtro continuava
-    # funcionando se alguem montasse a URL manualmente com
-    # ?f_biometria=com. Ignorar aqui fecha essa brecha.
     if not tecnologia_ativa('biometria'):
         f_biometria = ''
 
     query = Aluno.query
+
+    if f_nome:
+        query = query.filter(Aluno.nome.ilike(f'%{f_nome}%'))
+
     if f_status == 'ativo':
         query = query.filter_by(ativo=True)
     elif f_status == 'inativo':
         query = query.filter_by(ativo=False)
 
-    # Filtro de biometria movido para o SQL (antes era em memoria, depois
-    # de carregar TODOS os alunos com .all() — isso quebraria a paginacao,
-    # porque filtrar em memoria depois de já ter pego só 20 do banco
-    # poderia sobrar menos de 20 na pagina, ou 0, mesmo havendo mais
-    # alunos com biometria nas paginas seguintes. biometria_status e
-    # biometria_2_status sao colunas reais na tabela alunos, sincronizadas
-    # pelo FingerPoint (ver bio_db.py) — dá para filtrar direto no banco.
     if f_biometria == 'com':
         query = query.filter(
             db.or_(Aluno.biometria_status == 'cadastrada',
@@ -51,7 +44,8 @@ def alunos():
                            alunos=resultado.items, pag=resultado,
                            total_geral=resultado.total,
                            opcoes_por_pagina=OPCOES_POR_PAGINA,
-                           f_status=f_status, f_biometria=f_biometria)
+                           f_status=f_status, f_biometria=f_biometria,
+                           f_nome=f_nome)
 
 @bp.route('/alunos/novo', methods=['GET', 'POST'])
 @login_required
@@ -73,11 +67,6 @@ def novo_aluno():
         data_nascimento = datetime.strptime(data_nasc_str, '%Y-%m-%d').date() if data_nasc_str else None
         vencimento      = datetime.strptime(vencimento_str, '%Y-%m-%d').date() if vencimento_str else None
 
-        # Valida tamanho do nome no backend — o maxlength do HTML pode ser
-        # contornado (POST direto via API, por exemplo), e o limite real
-        # do banco e Aluno.nome = db.String(100). Sem essa validacao, um
-        # nome maior que 100 chars quebra silenciosamente no banco ou
-        # estoura erro feio do driver, em vez de uma mensagem clara.
         nome = (nome or '').strip()
         if not nome:
             flash('O nome do aluno é obrigatório.', 'danger')
@@ -109,7 +98,7 @@ def novo_aluno():
                     f.write(base64.b64decode(img_data))
                 foto_path = f'/static/fotos/{filename}'
             except Exception:
-                foto_path = None  # ignora erro de foto, não impede o cadastro
+                foto_path = None
 
         aluno = Aluno(nome=nome, tipo_documento=tipo_documento, documento=documento,
                       telefone=telefone, email=email, plano=plano,
@@ -167,10 +156,6 @@ def editar_aluno(id):
         novo_documento = request.form.get('documento')
         novo_nome      = (request.form.get('nome') or '').strip()
 
-        # Mesma validacao defensiva de novo_aluno — limite real do banco
-        # e Aluno.nome = db.String(100); o maxlength do HTML pode ser
-        # contornado, e sem checagem aqui o erro chega feio do driver
-        # do Postgres em vez de uma mensagem clara ao usuario.
         if not novo_nome:
             flash('O nome do aluno é obrigatório.', 'danger')
             return render_template('alunos/editar.html', aluno=aluno, planos=planos, documentos=documentos)
@@ -201,14 +186,12 @@ def editar_aluno(id):
         aluno.ativo           = request.form.get('ativo') == '1'
         aluno.endereco        = request.form.get('endereco', '')
         aluno.data_nascimento = datetime.strptime(data_nasc_str, '%Y-%m-%d').date() if data_nasc_str else None
-
-        aluno.vencimento = datetime.strptime(vencimento_str, '%Y-%m-%d').date() if vencimento_str else None
+        aluno.vencimento      = datetime.strptime(vencimento_str, '%Y-%m-%d').date() if vencimento_str else None
 
         foto_base64 = request.form.get('foto_base64')
         if foto_base64 and foto_base64.startswith('data:image'):
             try:
                 import uuid, base64, os
-                # Remove foto antiga do disco
                 if aluno.foto:
                     foto_antiga = os.path.join('app', aluno.foto.lstrip('/'))
                     if os.path.exists(foto_antiga):
@@ -221,7 +204,7 @@ def editar_aluno(id):
                     f.write(base64.b64decode(img_data))
                 aluno.foto = f'/static/fotos/{filename}'
             except Exception:
-                pass  # ignora erro de foto, não impede a edição
+                pass
 
         db.session.commit()
         registrar_log('editou aluno', f'ID: {id} | Nome: {aluno.nome}')
@@ -238,7 +221,6 @@ def excluir_aluno(id):
     aluno = Aluno.query.get_or_404(id)
     nome  = aluno.nome
 
-    # Remove foto do disco
     if aluno.foto:
         try:
             foto_path = os.path.join('app', aluno.foto.lstrip('/'))
@@ -247,7 +229,6 @@ def excluir_aluno(id):
         except Exception:
             pass
 
-    # Remove documentos do disco
     documentos = DocumentoAluno.query.filter_by(aluno_id=id).all()
     for doc in documentos:
         try:
@@ -281,7 +262,6 @@ def upload_documento(id):
         flash('Formato inválido. Use PDF, JPG ou PNG.', 'danger')
         return redirect(url_for('alunos.editar_aluno', id=id))
 
-    # Valida tamanho máximo 10MB
     arquivo.seek(0, 2)
     tamanho_mb = arquivo.tell() / (1024 * 1024)
     arquivo.seek(0)

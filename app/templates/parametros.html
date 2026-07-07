@@ -243,6 +243,19 @@
                     <option value="30" {% if params.dias_alerta_vencimento == '30' %}selected{% endif %}>30 dias</option>
                 </select>
             </div>
+            <!-- ── Inativação automática por inatividade ──────────────────── -->
+            <div class="col-md-3">
+                <label class="form-label">Inativação automática por inatividade</label>
+                <select name="semanas_inatividade" class="form-select">
+                    <option value="0" {% if params.semanas_inatividade == '0' or not params.semanas_inatividade %}selected{% endif %}>Desativado</option>
+                    <option value="1" {% if params.semanas_inatividade == '1' %}selected{% endif %}>1 semana</option>
+                    <option value="2" {% if params.semanas_inatividade == '2' %}selected{% endif %}>2 semanas</option>
+                    <option value="3" {% if params.semanas_inatividade == '3' %}selected{% endif %}>3 semanas</option>
+                    <option value="4" {% if params.semanas_inatividade == '4' %}selected{% endif %}>4 semanas</option>
+                    <option value="6" {% if params.semanas_inatividade == '6' %}selected{% endif %}>6 semanas</option>
+                </select>
+                <div class="form-text">Alunos sem passagem após 3 dias do cadastro são inativados automaticamente.</div>
+            </div>
         </div>
     </div>
 
@@ -268,11 +281,6 @@
                     style="width:44px; height:22px; cursor:pointer;">
             </div>
         </div>
-        <!-- Campo hidden real enviado no POST — sempre presente com '1' ou
-             '0' explicito, ao contrario do checkbox acima (que so existe
-             no form quando marcado). Isso garante que o padrao "ativado"
-             nao seja perdido no primeiro salvamento de parametros, quando
-             nenhum checkbox foi tocado ainda. -->
         <input type="hidden" name="popup_acessos_ativo" id="input-popup-acessos"
                value="{{ params.popup_acessos_ativo or '1' }}">
     </div>
@@ -284,7 +292,6 @@
             <span style="font-size:12px; font-weight:400; color:#6c757d; margin-left:4px;">— ative as formas aceitas pela academia</span>
         </div>
 
-        <!-- Dinheiro -->
         <div class="forma-row">
             <div class="forma-icone" style="background:#e8f5e9; color:#2e7d32;"><i class="bi bi-cash"></i></div>
             <div class="forma-info">
@@ -299,7 +306,6 @@
             </div>
         </div>
 
-        <!-- PIX -->
         <div class="forma-row">
             <div class="forma-icone" style="background:#e3f2fd; color:#1565c0;"><i class="bi bi-qr-code"></i></div>
             <div class="forma-info">
@@ -314,7 +320,6 @@
             </div>
         </div>
 
-        <!-- Cartão de Crédito -->
         <div class="forma-row">
             <div class="forma-icone" style="background:#fff3e8; color:var(--cor-principal);"><i class="bi bi-credit-card"></i></div>
             <div class="forma-info">
@@ -336,13 +341,10 @@
                        min="0" max="100" step="0.1"
                        oninput="recalcularTodos()">
                 <span class="taxa-label">%</span>
-                <span class="preview-valor" id="preview-credito">
-                    + R$ 0,00
-                </span>
+                <span class="preview-valor" id="preview-credito">+ R$ 0,00</span>
             </div>
         </div>
 
-        <!-- Cartão de Débito -->
         <div class="forma-row">
             <div class="forma-icone" style="background:#f3e5f5; color:#6a1b9a;"><i class="bi bi-credit-card-2-back"></i></div>
             <div class="forma-info">
@@ -364,13 +366,10 @@
                        min="0" max="100" step="0.1"
                        oninput="recalcularTodos()">
                 <span class="taxa-label">%</span>
-                <span class="preview-valor" id="preview-debito">
-                    + R$ 0,00
-                </span>
+                <span class="preview-valor" id="preview-debito">+ R$ 0,00</span>
             </div>
         </div>
 
-        <!-- Boleto -->
         <div class="forma-row">
             <div class="forma-icone" style="background:#fdecea; color:#c62828;"><i class="bi bi-receipt"></i></div>
             <div class="forma-info">
@@ -385,7 +384,6 @@
             </div>
         </div>
 
-        <!-- Simulação por plano -->
         <div class="mt-4 p-3" style="background:#f8f9fa; border-radius:10px;">
             <div style="font-size:12px; color:#6c757d; margin-bottom:12px; font-weight:500;">
                 <i class="bi bi-calculator me-1"></i> Simulação de acréscimo por plano cadastrado
@@ -421,7 +419,6 @@
                     </tbody>
                 </table>
             </div>
-            <!-- Dados dos planos para JS -->
             <script>
             const PLANOS = [
                 {% for plano in planos_ativos %}
@@ -495,14 +492,12 @@
             </div>
         </div>
 
-        <!-- Formato e rotatividade valem tanto para backup manual quanto automatico,
-             entao ficam sempre habilitados, independente do toggle abaixo. -->
         <div class="row g-3" style="margin-top:16px;">
             <div class="col-md-4">
                 <label class="form-label">Formato do arquivo</label>
                 <select name="backup_extensao" class="form-select">
-                    <option value="dump"    {% if params.backup_extensao == 'dump' or not params.backup_extensao %}selected{% endif %}>.dump</option>
-                    <option value="backup"  {% if params.backup_extensao == 'backup' %}selected{% endif %}>.backup</option>
+                    <option value="dump"   {% if params.backup_extensao == 'dump' or not params.backup_extensao %}selected{% endif %}>.dump</option>
+                    <option value="backup" {% if params.backup_extensao == 'backup' %}selected{% endif %}>.backup</option>
                 </select>
                 <div class="form-text">Mesmo formato (pg_dump -Fc), só muda a extensão do arquivo</div>
             </div>
@@ -519,8 +514,6 @@
             </div>
         </div>
 
-        <!-- Frequência: so faz sentido com o automatico ativado, entao fica
-             condicionada visualmente ao toggle. -->
         <div id="backup-auto-config" style="{% if params.backup_automatico_ativo != '1' %}opacity:0.4; pointer-events:none;{% endif %} margin-top:20px; padding-top:16px; border-top:1px dashed #dee2e6;">
             <label class="form-label">Frequência</label>
             <div class="d-flex gap-2 mb-3">
@@ -561,7 +554,6 @@
         </div>
         <div id="backup-agora-resultado" class="mt-2" style="display:none; font-size:13px;"></div>
 
-        <!-- Lista de backups existentes -->
         <div class="mt-4 pt-3" style="border-top:1px solid #f0f2f5;">
             <div style="font-size:12px; font-weight:600; color:#6c757d; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:10px;">
                 Backups salvos
@@ -593,14 +585,8 @@ function recalcularTodos() {
     ['credito', 'debito'].forEach(forma => {
         const ativo = document.getElementById('sw-' + forma).checked;
         const taxa  = parseFloat(document.getElementById('taxa-' + forma).value) || 0;
-
-        // Preview inline no campo de taxa (acréscimo sobre R$100 como exemplo)
-        const prev = document.getElementById('preview-' + forma);
+        const prev  = document.getElementById('preview-' + forma);
         if (prev) prev.textContent = '+ R$ ' + (100 * taxa / 100).toFixed(2).replace('.', ',');
-
-
-
-        // Células da tabela de planos
         if (typeof PLANOS !== 'undefined') {
             const prefixo = forma === 'credito' ? 'cred' : 'deb';
             PLANOS.forEach(p => {
@@ -612,25 +598,17 @@ function recalcularTodos() {
                 if (span) span.textContent = 'R$ ' + total.toFixed(2).replace('.', ',');
             });
         }
-        // Cabeçalho da coluna
         const th2 = document.getElementById('th-' + forma);
         if (th2) th2.style.display = ativo ? '' : 'none';
     });
 }
-
-// Inicializa ao carregar
 recalcularTodos();
 
 // ── Backup ────────────────────────────────────────────────────────────────────
 function toggleBackupAuto(ativo) {
     const config = document.getElementById('backup-auto-config');
-    if (ativo) {
-        config.style.opacity = '1';
-        config.style.pointerEvents = 'all';
-    } else {
-        config.style.opacity = '0.4';
-        config.style.pointerEvents = 'none';
-    }
+    config.style.opacity      = ativo ? '1'   : '0.4';
+    config.style.pointerEvents = ativo ? 'all' : 'none';
 }
 
 function selecionarModoBackup(modo) {
@@ -645,7 +623,6 @@ function formatarTamanho(mb) {
     if (mb < 1) return (mb * 1024).toFixed(0) + ' KB';
     return mb.toFixed(2).replace('.', ',') + ' MB';
 }
-
 function formatarDataBackup(isoStr) {
     const d = new Date(isoStr);
     return d.toLocaleDateString('pt-BR') + ' às ' + d.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
@@ -683,11 +660,9 @@ function fazerBackupAgora() {
     const btn = document.getElementById('btn-backup-agora');
     const resultado = document.getElementById('backup-agora-resultado');
     const textoOriginal = btn.innerHTML;
-
     btn.disabled = true;
     btn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i> Fazendo backup...';
     resultado.style.display = 'none';
-
     fetch('/backup/executar', { method: 'POST' })
         .then(r => r.json())
         .then(data => {
@@ -711,7 +686,6 @@ function fazerBackupAgora() {
 
 function excluirBackup(nomeArquivo) {
     if (!confirm(`Excluir o backup "${nomeArquivo}"? Esta ação não pode ser desfeita.`)) return;
-
     fetch('/backup/excluir', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -719,16 +693,12 @@ function excluirBackup(nomeArquivo) {
     })
         .then(r => r.json())
         .then(data => {
-            if (data.sucesso) {
-                carregarListaBackups();
-            } else {
-                alert(data.erro || 'Erro ao excluir backup');
-            }
+            if (data.sucesso) carregarListaBackups();
+            else alert(data.erro || 'Erro ao excluir backup');
         })
         .catch(() => alert('Erro de comunicação com o servidor'));
 }
 
-// Carrega a lista de backups ao abrir a pagina
 carregarListaBackups();
 </script>
 {% endblock %}

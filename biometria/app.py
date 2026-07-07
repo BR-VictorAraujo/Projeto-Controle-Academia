@@ -14,8 +14,8 @@ import sys
 
 # ── Versionamento ────────────────────────────────────────────────────────────
 APP_NOME       = "FingerPoint"
-APP_VERSAO     = "1.2.1"   # Versionamento semantico: MAJOR.MINOR.PATCH
-APP_BUILD      = "2026-06-19"
+APP_VERSAO     = "1.2.2"
+APP_BUILD      = "2026-07-02"
 LEITOR_MODELO  = "Digital Persona U.are.U 4500"
 
 ctk.set_appearance_mode("dark")
@@ -26,6 +26,7 @@ COR_DARK      = "#f0f2f5"
 COR_CARD      = "#ffffff"
 COR_SUCCESS   = "#2e7d32"
 COR_ERROR     = "#c62828"
+COR_INATIVO   = "#E65100"  # laranja escuro — aluno inativo
 COR_TEXT      = "#1a1a2e"
 COR_SUBTEXT   = "#6c757d"
 
@@ -110,11 +111,6 @@ class TelaLogin(ctk.CTkFrame):
         try:
             db = BioDatabase(cfg)
             db.testar_conexao()
-            # Correcao retroativa: sincroniza aluno.biometria_status com
-            # o que ja existe de fato na tabela biometrias. Cobre alunos
-            # cadastrados antes da correcao de salvar_templates passar a
-            # gravar esse status — sem isso, ficariam mostrando "pendente"
-            # na tela web para sempre, mesmo com a digital ja salva.
             try:
                 qtd = db.reconciliar_status_biometria()
                 if qtd > 0:
@@ -133,10 +129,6 @@ class TelaApp(ctk.CTkFrame):
         self.db     = db
         self.reader = BioReader(simulado=cfg.get('simulado', True))
         self._aba_ativa = None
-        # Intencao do usuario sobre o reconhecimento. Persiste entre trocas
-        # de aba: se o usuario pausou manualmente, nao queremos retomar
-        # automaticamente quando ele voltar do Cadastro para a Portaria.
-        # Comeca False = "rodar automaticamente" (comportamento padrao).
         self.reconhecimento_pausado_manualmente = False
         self._build()
         self._abrir_aba("portaria")
@@ -151,7 +143,6 @@ class TelaApp(ctk.CTkFrame):
 
         logo_frame = ctk.CTkFrame(sidebar, fg_color="transparent")
         logo_frame.pack(fill="x", padx=16, pady=(16, 4))
-        # Icone de impressao digital (em vez do braco)
         ctk.CTkLabel(logo_frame, text="\U0001f446",
                      font=ctk.CTkFont(size=26)).pack(side="left", padx=(0, 8))
         nomes = ctk.CTkFrame(logo_frame, fg_color="transparent")
@@ -190,7 +181,6 @@ class TelaApp(ctk.CTkFrame):
             wraplength=160)
         self._lbl_leitor.pack(padx=12, pady=5)
 
-        # Exibe modelo do leitor (em modo simulado, indica entre parenteses)
         if self.cfg.get('simulado'):
             txt_leitor = f"{LEITOR_MODELO} (simulado)"
         else:
@@ -224,12 +214,6 @@ class TelaApp(ctk.CTkFrame):
             log_leitor("Leitor NAO encontrado na inicializacao")
 
     def atualizar_status_leitor(self):
-        """
-        Reavalia o status real do leitor (reader.dispositivo_presente) e
-        atualiza a sidebar. Chamado pela AbaPortaria sempre que uma captura
-        falha por desconexao, para a UI nao ficar dizendo 'conectado'
-        indefinidamente apos a inicializacao.
-        """
         presente = getattr(self.reader, 'dispositivo_presente', False)
         if presente:
             self._lbl_leitor.configure(
@@ -262,13 +246,9 @@ class AbaPortaria(ctk.CTkFrame):
         self.cfg      = cfg
         self.db       = db
         self.reader   = reader
-        self.tela_app = tela_app  # referencia direta a TelaApp (nao ao frame pai)
+        self.tela_app = tela_app
         self._ativo   = False
         self._build()
-        # Auto-inicia o reconhecimento ao abrir a Portaria, exceto se o
-        # usuario tiver pausado manualmente em uma sessao anterior. Isso
-        # respeita a intencao: trocar para Cadastro e voltar nao deve
-        # ignorar uma pausa manual deliberada.
         if self.tela_app and not self.tela_app.reconhecimento_pausado_manualmente:
             self.after(500, lambda: self._toggle(manual=False))
 
@@ -334,12 +314,6 @@ class AbaPortaria(ctk.CTkFrame):
         self._carregar_historico()
 
     def _toggle(self, manual=True):
-        """
-        Alterna entre rodando/pausado.
-        manual=True: clique do usuario; intencao persiste entre trocas de aba.
-        manual=False: chamada interna (auto-inicio, suspensao por troca de
-        aba). Nao altera a intencao persistente do usuario.
-        """
         if self._ativo:
             self._ativo = False
             self._btn.configure(
@@ -388,7 +362,7 @@ class AbaPortaria(ctk.CTkFrame):
                 _lock_leitor.release()
 
                 resultado = self.reader.reconhecer(templates)
-                falhas_consecutivas = 0  # leitor respondeu, reseta contador de falha
+                falhas_consecutivas = 0
 
                 if not self._ativo:
                     return
@@ -414,8 +388,6 @@ class AbaPortaria(ctk.CTkFrame):
                         self._lbl_instrucao.configure(
                             text="❌ Digital não encontrada — tente novamente",
                             text_color=COR_ERROR)
-                        # Reflete na sidebar se o leitor caiu (ex: access
-                        # violation por dispositivo desconectado/ausente)
                         if self.tela_app:
                             self.tela_app.atualizar_status_leitor()
                     except Exception:
@@ -440,8 +412,6 @@ class AbaPortaria(ctk.CTkFrame):
                     except Exception:
                         pass
 
-                # Tenta se recuperar em vez de matar o loop de primeira:
-                # leitores USB podem falhar pontualmente sem precisar reiniciar o app
                 if falhas_consecutivas >= 5:
                     log_erro(f"5 falhas consecutivas - encerrando loop de reconhecimento automaticamente")
                     self._ativo = False
@@ -455,46 +425,68 @@ class AbaPortaria(ctk.CTkFrame):
                         pass
                     break
                 else:
-                    time.sleep(1)  # pequena pausa antes de tentar de novo
+                    time.sleep(1)
         log_reconhecimento("Loop de reconhecimento finalizado")
 
     def _registrar_acesso(self, aluno):
         import requests
-        from datetime import date
 
-        hoje = date.today()
+        nome  = aluno.get('nome', '?')
+        plano = aluno.get('plano') or 'Sem plano'
+
+        inativo       = False
         plano_vencido = False
-        if aluno.get('vencimento'):
-            venc = aluno['vencimento']
-            if hasattr(venc, 'date'):
-                venc = venc.date()
-            plano_vencido = venc < hoje
 
         try:
             resp = requests.post(
                 f"http://localhost:{self.cfg.get('flask_port', 5000)}/acessos/biometria",
                 json={"aluno_id": aluno['id']},
                 timeout=3)
+
+            dados = {}
+            try:
+                dados = resp.json()
+            except Exception:
+                pass
+
+            nome  = dados.get('nome',  nome)
+            plano = dados.get('plano', plano)
+
+            if resp.status_code == 200:
+                inativo       = False
+                plano_vencido = dados.get('vencido', False)
+            elif resp.status_code == 403:
+                inativo       = dados.get('inativo', False)
+                plano_vencido = dados.get('vencido', False) or (
+                    not inativo and dados.get('bloqueado', False))
+
         except Exception as e:
-            log_erro(f"Falha ao notificar Flask para {aluno.get('nome','?')}: {e} - gravando direto no banco")
-            self.db.registrar_acesso_biometria(aluno['id'])
+            log_erro(f"Falha ao notificar Flask para {nome}: {e} - gravando direto no banco")
+            resultado = self.db.registrar_acesso_biometria(aluno['id'])
+            if isinstance(resultado, dict):
+                inativo       = resultado.get('inativo', False)
+                plano_vencido = resultado.get('vencido', False)
+                nome          = resultado.get('nome', nome)
+                plano         = resultado.get('plano', plano)
 
-        self._lbl_nome.configure(
-            text=aluno['nome'],
-            text_color=COR_ERROR if plano_vencido else COR_SUCCESS)
-        self._lbl_plano.configure(
-            text=aluno.get('plano') or 'Sem plano',
-            text_color=COR_TEXT)
-
-        if plano_vencido:
-            self._icone.configure(text="\u26a0\ufe0f")
-            self._lbl_status.configure(
-                text="PLANO VENCIDO", text_color=COR_ERROR)
+        # Prioridade: inativo > vencido > liberado
+        if inativo:
+            self._icone.configure(text="⛔")
+            self._lbl_nome.configure(text=nome, text_color=COR_INATIVO)
+            self._lbl_status.configure(text="ALUNO INATIVO", text_color=COR_INATIVO)
+            self._barra.configure(progress_color=COR_INATIVO)
+        elif plano_vencido:
+            self._icone.configure(text="⚠️")
+            self._lbl_nome.configure(text=nome, text_color=COR_ERROR)
+            self._lbl_status.configure(text="PLANO VENCIDO", text_color=COR_ERROR)
+            self._barra.configure(progress_color=COR_ERROR)
         else:
-            self._icone.configure(text="\u2705")
-            self._lbl_status.configure(
-                text="Acesso liberado", text_color=COR_SUCCESS)
+            self._icone.configure(text="✅")
+            self._lbl_nome.configure(text=nome, text_color=COR_SUCCESS)
+            self._lbl_status.configure(text="Acesso liberado", text_color=COR_SUCCESS)
+            self._barra.configure(progress_color=COR_PRINCIPAL)
 
+        self._lbl_plano.configure(text=plano, text_color=COR_TEXT)
         self._carregar_historico()
 
     def _carregar_historico(self):
@@ -529,10 +521,6 @@ class AbaPortaria(ctk.CTkFrame):
             pass
 
     def destroy(self):
-        # Sinaliza o loop para parar. Nao bloqueia esperando o lock do
-        # leitor: o loop verifica self._ativo antes de cada iteracao e
-        # encerra naturalmente. O proximo widget (Cadastro) ja consegue
-        # adquirir o lock assim que a captura atual terminar.
         if self._ativo:
             self._ativo = False
             log_reconhecimento("Reconhecimento suspenso (saiu da aba Portaria)")
@@ -547,7 +535,7 @@ class AbaCadastro(ctk.CTkFrame):
         self.reader     = reader
         self._aluno_sel = None
         self._templates = [None, None]
-        self._busca_em_andamento = False  # evita disparar busca duplicada se clicar 2x rapido
+        self._busca_em_andamento = False
         self._build()
 
     def _build(self):
@@ -577,7 +565,6 @@ class AbaCadastro(ctk.CTkFrame):
         self._entry_busca = ctk.CTkEntry(
             busca_frame, placeholder_text="Buscar por nome ou CPF...", height=36)
         self._entry_busca.pack(side="left", fill="x", expand=True, padx=(0, 8))
-        # Enter no campo dispara a busca, igual ao clique no botao
         self._entry_busca.bind("<Return>", lambda e: self._executar_busca())
 
         self._btn_buscar = ctk.CTkButton(
@@ -670,12 +657,6 @@ class AbaCadastro(ctk.CTkFrame):
         self._lbl_resultado.pack()
 
     def _carregar_alunos(self, filtro=""):
-        """
-        Busca alunos no banco e reconstroi a lista de widgets.
-        Roda em thread separada (chamada por _executar_busca) para nao
-        bloquear a UI durante a query, e so atualiza os widgets de volta
-        na thread principal via self.after(0, ...).
-        """
         try:
             alunos = self.db.listar_alunos(filtro)
         except Exception as e:
@@ -684,13 +665,11 @@ class AbaCadastro(ctk.CTkFrame):
         self.after(0, lambda: self._renderizar_lista(alunos))
 
     def _finalizar_busca(self):
-        """Reabilita o botao e libera a trava de busca, chamado sempre ao final
-        (sucesso ou erro), para o usuario poder buscar de novo."""
         self._busca_em_andamento = False
         try:
             self._btn_buscar.configure(state="normal", text="🔍 Buscar")
         except Exception:
-            pass  # tela pode ter sido destruida (troca de aba) durante a busca
+            pass
 
     def _mostrar_erro_busca(self, erro):
         for w in self._lista_alunos.winfo_children():
@@ -749,8 +728,8 @@ class AbaCadastro(ctk.CTkFrame):
                          anchor="w").pack(fill="x")
 
             doc = a.get('documento') or ''
-            cpf_plano = f"CPF: {doc if doc else 'Nao cadastrado'}"
-            ativo = a.get('ativo', True)
+            cpf_plano    = f"CPF: {doc if doc else 'Nao cadastrado'}"
+            ativo        = a.get('ativo', True)
             status_text  = "Ativo" if ativo else "Inativo"
             status_color = "#2e7d32" if ativo else "#c62828"
             status_bg    = "#e8f5e9" if ativo else "#fdecea"
@@ -779,16 +758,8 @@ class AbaCadastro(ctk.CTkFrame):
         self._finalizar_busca()
 
     def _executar_busca(self):
-        """
-        Dispara a busca quando o usuario clica em 'Buscar' ou aperta
-        Enter no campo — nao mais a cada tecla digitada. Evita travar
-        a UI reconstruindo a lista inteira de widgets multiplas vezes
-        por segundo, e da ao usuario controle explicito sobre quando
-        a busca acontece.
-        """
         if self._busca_em_andamento:
-            return  # ignora clique duplo enquanto a busca anterior ainda roda
-
+            return
         termo = self._entry_busca.get().strip()
         if len(termo) < 2:
             for w in self._lista_alunos.winfo_children():
@@ -798,7 +769,6 @@ class AbaCadastro(ctk.CTkFrame):
                          text_color=COR_SUBTEXT,
                          font=ctk.CTkFont(size=11)).pack(pady=20)
             return
-
         self._busca_em_andamento = True
         self._btn_buscar.configure(state="disabled", text="Buscando...")
         for w in self._lista_alunos.winfo_children():
@@ -867,7 +837,6 @@ class AbaCadastro(ctk.CTkFrame):
                     "Deseja substituir pelas novas capturas?")
                 if not resp:
                     return
-
             self.db.salvar_templates(
                 aluno_id,
                 self._templates[0],
@@ -890,7 +859,6 @@ class AbaCadastro(ctk.CTkFrame):
                 text=f"Erro ao salvar: {e}", text_color=COR_ERROR)
 
 
-
 class App(ctk.CTk):
     def __init__(self):
         super().__init__()
@@ -903,7 +871,6 @@ class App(ctk.CTk):
         self.mostrar_login()
 
     def _fechar(self):
-        """Fecha o app completamente ao clicar no X — encerra todas as threads."""
         try:
             if self._tela_atual:
                 self._tela_atual.destroy()

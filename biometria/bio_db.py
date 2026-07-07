@@ -40,11 +40,6 @@ class BioDatabase:
         sql = """
             SELECT a.id, a.nome, a.plano, a.vencimento, a.ativo,
                    a.documento,
-                   -- BUG CORRIGIDO: antes so verificava 'template',
-                   -- ignorando alunos que tem apenas 'template2' salvo
-                   -- (digital 2/backup) e nenhuma digital na coluna
-                   -- principal. Isso fazia o badge mostrar "pendente"
-                   -- mesmo com biometria de fato cadastrada no banco.
                    (b.template IS NOT NULL OR b.template2 IS NOT NULL) AS tem_biometria
             FROM alunos a
             LEFT JOIN biometrias b ON b.aluno_id = a.id
@@ -64,7 +59,7 @@ class BioDatabase:
     def buscar_aluno(self, aluno_id):
         cur = self._cursor()
         cur.execute(
-            "SELECT id, nome, plano, vencimento, foto FROM alunos WHERE id = %s",
+            "SELECT id, nome, plano, vencimento, foto, ativo FROM alunos WHERE id = %s",
             (aluno_id,))
         row = cur.fetchone()
         cur.close()
@@ -108,17 +103,6 @@ class BioDatabase:
         return templates
 
     def salvar_templates(self, aluno_id, template1, template2):
-        """
-        Salva ou atualiza as duas digitais do aluno.
-
-        Alem de gravar na tabela biometrias (template/template2), tambem
-        sincroniza aluno.biometria_status e aluno.biometria_2_status na
-        tabela alunos — sao esses dois campos que a tela web le para
-        mostrar "Cadastrada" ou "Pendente" no detalhe do aluno. Sem essa
-        sincronizacao, o status na web nunca reflete o que foi de fato
-        coletado aqui no FingerPoint, mesmo com o template salvo
-        corretamente no banco.
-        """
         if template1 is None and template2 is None:
             raise ValueError("Nenhuma digital capturada.")
 
@@ -141,10 +125,6 @@ class BioDatabase:
                 VALUES (%s, %s, %s, NOW(), NOW())
             """, (aluno_id, template1, template2))
 
-        # Sincroniza os campos de status na tabela alunos — so atualiza
-        # para 'cadastrada' a digital que de fato foi capturada agora
-        # (template1/template2 nao-nulos); nao sobrescreve com 'pendente'
-        # uma digital que ja estava cadastrada de uma sessao anterior.
         if template1 is not None:
             cur.execute(
                 "UPDATE alunos SET biometria_status = 'cadastrada' WHERE id = %s",
@@ -157,18 +137,6 @@ class BioDatabase:
         cur.close()
 
     def reconciliar_status_biometria(self):
-        """
-        Correcao retroativa: para alunos que ja tem template/template2
-        salvos na tabela biometrias mas cujo aluno.biometria_status /
-        biometria_2_status na tabela alunos ainda esta como 'pendente'
-        (porque versoes anteriores do salvar_templates nao faziam essa
-        sincronizacao), atualiza os campos para refletir a realidade.
-
-        Roda uma vez (ex: ao abrir o FingerPoint) e e seguro chamar
-        multiplas vezes — so corrige o que estiver de fato dessincronizado.
-
-        Retorna a quantidade de campos de status corrigidos.
-        """
         self._garantir_coluna_template2()
         cur = self._cursor()
         cur.execute("""
@@ -191,17 +159,60 @@ class BioDatabase:
         """)
         corrigidos_d2 = cur.rowcount
         cur.close()
-
         return corrigidos_d1 + corrigidos_d2
 
     def registrar_acesso_biometria(self, aluno_id):
-        """Registra acesso direto no banco (fallback quando API nao responde)."""
+        """
+        Fallback: grava acesso direto no banco quando a API Flask não responde.
+
+        Verifica se o aluno está ativo antes de gravar — evita registrar
+        acesso de aluno inativo quando o Flask está offline. Retorna um
+        dict com o resultado para que o FingerPoint possa exibir o estado
+        correto na tela (verde/vermelho/laranja).
+        """
+        from datetime import date
         cur = self._cursor()
+
+        # Busca aluno com os campos necessários para validação
+        cur.execute("""
+            SELECT id, nome, plano, vencimento, ativo, foto
+            FROM alunos WHERE id = %s
+        """, (aluno_id,))
+        aluno = cur.fetchone()
+
+        if not aluno:
+            cur.close()
+            return {'ok': False, 'erro': 'Aluno não encontrado'}
+
+        # Bloqueia aluno inativo
+        if not aluno['ativo']:
+            cur.close()
+            return {
+                'ok':      False,
+                'bloqueado': True,
+                'inativo': True,
+                'nome':    aluno['nome'],
+                'plano':   aluno['plano'] or '',
+                'vencimento': aluno['vencimento'].strftime('%d/%m/%Y') if aluno['vencimento'] else '—',
+            }
+
+        hoje    = date.today()
+        vencido = bool(aluno['vencimento'] and aluno['vencimento'] < hoje)
+
         cur.execute("""
             INSERT INTO registros_acesso (aluno_id, tipo, entrada_em)
             VALUES (%s, 'biometria', NOW())
         """, (aluno_id,))
         cur.close()
+
+        return {
+            'ok':        True,
+            'nome':      aluno['nome'],
+            'plano':     aluno['plano'] or '',
+            'vencido':   vencido,
+            'inativo':   False,
+            'vencimento': aluno['vencimento'].strftime('%d/%m/%Y') if aluno['vencimento'] else '—',
+        }
 
     def acessos_hoje_biometria(self):
         """Retorna acessos via biometria de hoje."""

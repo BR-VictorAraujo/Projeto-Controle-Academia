@@ -1,0 +1,29 @@
+[2026-07-02 00:22:08] [SISTEMA] FingerPoint v1.2.1 (build 2026-06-19) iniciado
+[2026-07-02 00:22:12] [LEITOR] Reconciliacao de biometria: 10 status corrigido(s) retroativamente
+[2026-07-02 00:22:12] [LEITOR] Leitor conectado com sucesso
+[2026-07-02 00:22:13] [RECONHECIMENTO] Reconhecimento INICIADO (automatico)
+[2026-07-02 00:22:13] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-07-02 00:22:16] [ACESSO] Reconhecido: Teste 2 (ID 119)
+[2026-07-02 00:22:20] [ERRO] Falha ao notificar Flask para Teste 2: HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /acessos/biometria (Caused by NewConnectionError("HTTPConnection(host='localhost', port=5000): Failed to establish a new connection: [WinError 10061] Nenhuma conexão pôde ser feita porque a máquina de destino as recusou ativamente")) - gravando direto no banco
+[2026-07-02 00:22:33] [ACESSO] Reconhecido: Lucas Silveira (ID 78)
+[2026-07-02 00:22:37] [ERRO] Falha ao notificar Flask para Lucas Silveira: HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /acessos/biometria (Caused by NewConnectionError("HTTPConnection(host='localhost', port=5000): Failed to establish a new connection: [WinError 10061] Nenhuma conexão pôde ser feita porque a máquina de destino as recusou ativamente")) - gravando direto no banco
+[2026-07-02 00:22:45] [ACESSO] Reconhecido: Caio Freitas (ID 45)
+[2026-07-02 00:22:49] [ERRO] Falha ao notificar Flask para Caio Freitas: HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /acessos/biometria (Caused by NewConnectionError("HTTPConnection(host='localhost', port=5000): Failed to establish a new connection: [WinError 10061] Nenhuma conexão pôde ser feita porque a máquina de destino as recusou ativamente")) - gravando direto no banco
+[2026-07-02 00:23:02] [SISTEMA] FingerPoint v1.2.1 (build 2026-06-19) iniciado
+[2026-07-02 00:23:05] [LEITOR] Leitor conectado com sucesso
+[2026-07-02 00:23:05] [RECONHECIMENTO] Reconhecimento INICIADO (automatico)
+[2026-07-02 00:23:05] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-07-02 00:23:08] [ACESSO] Reconhecido: Lucas Silveira (ID 78)
+[2026-07-02 00:23:14] [ACESSO] Reconhecido: Teste 2 (ID 119)
+[2026-07-02 00:23:24] [ACESSO] Reconhecido: Jorge Esteves (ID 76)
+[2026-07-02 00:23:29] [ACESSO] Reconhecido: Teste 2 (ID 119)
+[2026-07-02 00:23:44] [ACESSO] Reconhecido: Edna Pompeu (ID 97)
+[2026-07-02 00:23:49] [ACESSO] Reconhecido: Edna Pompeu (ID 97)
+[2026-07-02 00:23:54] [ACESSO] Reconhecido: Lucas Silveira (ID 78)
+[2026-07-02 00:23:57] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
+[2026-07-02 00:24:00] [ACESSO] Reconhecido: Caio Freitas (ID 45)
+[2026-07-02 00:24:05] [ACESSO] Reconhecido: Teste 2 (ID 119)
+[2026-07-02 00:24:15] [ACESSO] Reconhecido: Jorge Esteves (ID 76)
+[2026-07-02 00:24:20] [ACESSO] Reconhecido: Caio Freitas (ID 45)
+[2026-07-02 00:24:25] [ACESSO] Reconhecido: Jorge Esteves (ID 76)
+[2026-07-02 00:24:46] [RECONHECIMENTO] Templates recarregados: 10 cadastrados
