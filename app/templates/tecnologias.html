@@ -31,6 +31,41 @@
 .forma-info { flex: 1; min-width: 140px; }
 .forma-nome { font-size: 14px; font-weight: 600; color: #1a1a2e; }
 .forma-desc { font-size: 12px; color: #6c757d; margin-top: 2px; }
+
+.gateway-opcao {
+    border: 2px solid #dee2e6;
+    border-radius: 12px;
+    padding: 18px;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    height: 100%;
+}
+.gateway-opcao:hover { border-color: var(--cor-principal); }
+.gateway-opcao.selecionada {
+    border-color: var(--cor-principal);
+    background: color-mix(in srgb, var(--cor-principal) 6%, white);
+}
+.gateway-icone {
+    width: 40px; height: 40px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; flex-shrink: 0;
+    background: #f0f2f5; color: #6c757d;
+}
+.gateway-opcao.selecionada .gateway-icone {
+    background: var(--cor-principal); color: white;
+}
+.gateway-nome { font-size: 14px; font-weight: 600; color: #1a1a2e; margin-bottom: 2px; }
+.gateway-status { font-size: 12px; display: inline-flex; align-items: center; gap: 4px; margin-top: 6px; }
+.status-ok    { color: #2e7d32; }
+.status-falta { color: #c62828; }
+.badge-ativo-gw {
+    background: var(--cor-principal); color: white;
+    font-size: 10px; font-weight: 600; padding: 2px 8px;
+    border-radius: 10px; margin-left: 8px; text-transform: uppercase;
+}
 {% endblock %}
 
 {% block conteudo %}
@@ -114,11 +149,75 @@
         </div>
     </div>
 
+    <!-- Gateway de pagamento recorrente -->
+    <div class="param-card">
+        <div class="param-section-title">
+            <i class="bi bi-credit-card-2-front" style="color: var(--cor-principal);"></i> Gateway de pagamento recorrente
+            <span style="font-size:12px; font-weight:400; color:#6c757d; margin-left:4px;">— define qual integração processa as cobranças automáticas via cartão</span>
+        </div>
+
+        <p style="font-size:12px; color:#6c757d; margin-bottom:16px;">
+            Assinaturas já criadas continuam sendo gerenciadas pelo gateway com que foram
+            criadas, mesmo que você troque essa opção depois.
+        </p>
+
+        <input type="hidden" name="gateway_pagamento_recorrente" id="input-gateway" value="{{ params.gateway_pagamento_recorrente }}">
+
+        <div class="row g-3">
+            <div class="col-md-6">
+                <div class="gateway-opcao {% if params.gateway_pagamento_recorrente == 'cielo' %}selecionada{% endif %}"
+                     id="opcao-cielo" onclick="selecionarGateway('cielo')">
+                    <div class="gateway-icone"><i class="bi bi-bank"></i></div>
+                    <div>
+                        <div class="gateway-nome">
+                            Cielo
+                            {% if params.gateway_pagamento_recorrente == 'cielo' %}<span class="badge-ativo-gw">Ativo</span>{% endif %}
+                        </div>
+                        <div class="forma-desc">Link de Pagamento com recorrência</div>
+                        {% if params.cielo_configurado %}
+                            <div class="gateway-status status-ok"><i class="bi bi-check-circle-fill"></i> Credenciais configuradas</div>
+                        {% else %}
+                            <div class="gateway-status status-falta"><i class="bi bi-exclamation-circle-fill"></i> Credenciais não configuradas</div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="gateway-opcao {% if params.gateway_pagamento_recorrente == 'asaas' %}selecionada{% endif %}"
+                     id="opcao-asaas" onclick="selecionarGateway('asaas')">
+                    <div class="gateway-icone"><i class="bi bi-wallet2"></i></div>
+                    <div>
+                        <div class="gateway-nome">
+                            Asaas
+                            {% if params.gateway_pagamento_recorrente == 'asaas' %}<span class="badge-ativo-gw">Ativo</span>{% endif %}
+                        </div>
+                        <div class="forma-desc">Link de Pagamento com assinatura</div>
+                        {% if params.asaas_configurado %}
+                            <div class="gateway-status status-ok"><i class="bi bi-check-circle-fill"></i> Credenciais configuradas</div>
+                        {% else %}
+                            <div class="gateway-status status-falta"><i class="bi bi-exclamation-circle-fill"></i> Credenciais não configuradas</div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="d-flex justify-content-end">
         <button type="submit" class="btn-principal">
-            <i class="bi bi-check-lg"></i> Salvar tecnologias
+            <i class="bi bi-check-lg"></i> Salvar configurações
         </button>
     </div>
 
 </form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function selecionarGateway(gw) {
+    document.getElementById('input-gateway').value = gw;
+    document.getElementById('opcao-cielo').classList.toggle('selecionada', gw === 'cielo');
+    document.getElementById('opcao-asaas').classList.toggle('selecionada', gw === 'asaas');
+}
+</script>
 {% endblock %}

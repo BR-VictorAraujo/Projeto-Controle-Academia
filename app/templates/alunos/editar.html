@@ -97,6 +97,29 @@
 .doc-tipo  { font-size: 12px; font-weight: 600; color: #6c757d; text-transform: uppercase; }
 .doc-nome  { font-size: 13px; font-weight: 500; color: #1a1a2e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .doc-data  { font-size: 11px; color: #adb5bd; }
+
+/* Cobrança Recorrente */
+.recorrencia-status {
+    display: flex; align-items: center; gap: 14px;
+    padding: 14px 16px; border-radius: 10px;
+    border: 2px dashed #dee2e6; background: #f8f9fa;
+    margin-bottom: 12px;
+}
+.recorrencia-status.st-ativa        { background:#e8f5e9; border-color:#2e7d32; border-style:solid; }
+.recorrencia-status.st-alerta       { background:#fff8e1; border-color:#f9a825; border-style:solid; }
+.recorrencia-status.st-bloqueada    { background:#fdecea; border-color:#c62828; border-style:solid; }
+.recorrencia-status.st-neutra       { background:#f8f9fa; border-color:#dee2e6; }
+.recorrencia-icone { font-size:26px; }
+.recorrencia-titulo { font-weight:600; font-size:14px; color:#1a1a2e; }
+.recorrencia-detalhe { font-size:12px; color:#6c757d; margin-top:2px; }
+.btn-recorrencia {
+    padding: 9px 20px; border-radius: 8px; font-size: 13px;
+    font-weight: 500; border: none; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 6px;
+}
+.btn-recorrencia-enviar   { background-color: var(--cor-principal); color: white; }
+.btn-recorrencia-cancelar { background-color: #fdecea; color: #c62828; }
+.btn-recorrencia:disabled { opacity: 0.6; cursor: not-allowed; }
 {% endblock %}
 
 {% block conteudo %}
@@ -256,6 +279,16 @@
         </div>
 
     </form>
+</div>
+
+<!-- COBRANÇA RECORRENTE -->
+<div class="form-card mt-4">
+    <div class="form-section-title">Cobrança Recorrente (Cartão)</div>
+    <div id="recorrencia-container">
+        <div class="text-muted" style="font-size:13px;">
+            <i class="bi bi-hourglass-split me-1"></i> Carregando status...
+        </div>
+    </div>
 </div>
 
 <!-- DOCUMENTOS -->
@@ -438,5 +471,164 @@ function confirmarExclusao(id, nome) {
     document.getElementById('btn-confirmar-exclusao').href = '/alunos/' + id + '/excluir';
     new bootstrap.Modal(document.getElementById('modalExcluir')).show();
 }
+
+// ─────────────────────────────────────────────────────────────────────
+// Cobrança Recorrente
+// ─────────────────────────────────────────────────────────────────────
+const ALUNO_ID = {{ aluno.id }};
+
+const RECORRENCIA_LABELS = {
+    'link_enviado':            { texto: 'Link enviado — aguardando adesão do aluno', icone: 'bi-envelope-check', classe: 'st-alerta' },
+    'ativa':                   { texto: 'Recorrência ativa',                         icone: 'bi-check-circle',   classe: 'st-ativa' },
+    'bloqueada_inadimplencia': { texto: 'Bloqueada por inadimplência',                icone: 'bi-exclamation-octagon', classe: 'st-bloqueada' },
+    'aguardando_decisao_ciclo':{ texto: 'Ciclo do plano terminando — decisão necessária', icone: 'bi-clock-history', classe: 'st-alerta' },
+    'cancelada':                { texto: 'Recorrência cancelada',                     icone: 'bi-x-circle',       classe: 'st-neutra' },
+    'expirada_cartao':          { texto: 'Cartão expirado — recorrência encerrada',   icone: 'bi-credit-card-2-front', classe: 'st-bloqueada' },
+};
+
+function formatarMoeda(v) {
+    return 'R$ ' + Number(v).toFixed(2).replace('.', ',');
+}
+
+function formatarData(iso) {
+    if (!iso) return '—';
+    const [ano, mes, dia] = iso.split('-');
+    return `${dia}/${mes}/${ano}`;
+}
+
+function renderRecorrencia(dados) {
+    const container = document.getElementById('recorrencia-container');
+
+    if (!dados.existe) {
+        container.innerHTML = `
+            <div class="recorrencia-status st-neutra">
+                <i class="bi bi-credit-card recorrencia-icone" style="color:#adb5bd;"></i>
+                <div style="flex:1;">
+                    <div class="recorrencia-titulo">Nenhuma recorrência configurada</div>
+                    <div class="recorrencia-detalhe">O aluno paga no fluxo manual (balcão) atualmente.</div>
+                </div>
+                <button class="btn-recorrencia btn-recorrencia-enviar" onclick="enviarLinkAdesao()">
+                    <i class="bi bi-send"></i> Enviar link de adesão
+                </button>
+            </div>`;
+        return;
+    }
+
+    const info = RECORRENCIA_LABELS[dados.status] || { texto: dados.status, icone: 'bi-question-circle', classe: 'st-neutra' };
+    const podecancelar = ['ativa', 'link_enviado', 'aguardando_decisao_ciclo'].includes(dados.status);
+    const podeReenviar  = ['cancelada', 'expirada_cartao'].includes(dados.status);
+
+    let alertaTentativas = '';
+    if (dados.tentativas_negadas > 0 && dados.status !== 'bloqueada_inadimplencia') {
+        alertaTentativas = `<div class="recorrencia-detalhe" style="color:#f9a825;">
+            <i class="bi bi-exclamation-triangle me-1"></i>${dados.tentativas_negadas}/4 tentativas negadas
+        </div>`;
+    }
+
+    let linkCopiar = '';
+    if (dados.status === 'link_enviado' && dados.url_link_pagamento) {
+        linkCopiar = `<div class="recorrencia-detalhe" style="margin-top:8px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+            <span style="font-weight:500;">Link para enviar ao aluno:</span>
+            <input type="text" readonly value="${dados.url_link_pagamento}" id="campo-link-copiar"
+                style="flex:1; min-width:200px; font-size:12px; padding:4px 8px; border:1px solid #dee2e6; border-radius:6px; background:#f8f9fa;">
+            <button type="button" class="btn-recorrencia btn-recorrencia-enviar" style="padding:6px 12px;" onclick="copiarLink()">
+                <i class="bi bi-clipboard"></i> Copiar
+            </button>
+        </div>`;
+    }
+
+    let ultimoPagamentoHtml = '';
+    if (dados.ultimo_pagamento) {
+        const p = dados.ultimo_pagamento;
+        ultimoPagamentoHtml = `<div class="recorrencia-detalhe" style="margin-top:10px; padding-top:10px; border-top:1px dashed #dee2e6;">
+            Último pagamento: <strong>${formatarMoeda(p.valor)}</strong> em ${formatarData(p.data_pagamento)}
+        </div>`;
+    }
+
+    let botoes = '';
+    if (podecancelar) {
+        botoes += `<button class="btn-recorrencia btn-recorrencia-cancelar" onclick="cancelarRecorrencia(${dados.id})">
+            <i class="bi bi-x-lg"></i> Cancelar recorrência
+        </button>`;
+    }
+    if (podeReenviar) {
+        botoes += `<button class="btn-recorrencia btn-recorrencia-enviar" onclick="enviarLinkAdesao()">
+            <i class="bi bi-send"></i> Enviar novo link
+        </button>`;
+    }
+
+    container.innerHTML = `
+        <div class="recorrencia-status ${info.classe}">
+            <i class="bi ${info.icone} recorrencia-icone"></i>
+            <div style="flex:1;">
+                <div class="recorrencia-titulo">${info.texto}</div>
+                <div class="recorrencia-detalhe">
+                    ${formatarMoeda(dados.valor_mensal)}/mês
+                    ${dados.proxima_cobranca ? ' · próxima cobrança em ' + formatarData(dados.proxima_cobranca) : ''}
+                    ${dados.data_fim_ciclo ? ' · ciclo até ' + formatarData(dados.data_fim_ciclo) : ''}
+                </div>
+                ${alertaTentativas}
+                ${linkCopiar}
+                ${ultimoPagamentoHtml}
+            </div>
+            ${botoes}
+        </div>`;
+}
+
+function copiarLink() {
+    const campo = document.getElementById('campo-link-copiar');
+    campo.select();
+    navigator.clipboard.writeText(campo.value).then(() => {
+        alert('Link copiado! Agora é só colar na conversa do WhatsApp ou e-mail do aluno.');
+    }).catch(() => {
+        alert('Não foi possível copiar automaticamente — selecione e copie manualmente o texto do campo.');
+    });
+}
+
+function carregarRecorrencia() {
+    fetch(`/api/v1/pagamentos/assinaturas/aluno/${ALUNO_ID}`)
+        .then(r => r.json())
+        .then(renderRecorrencia)
+        .catch(() => {
+            document.getElementById('recorrencia-container').innerHTML =
+                '<div class="text-danger" style="font-size:13px;"><i class="bi bi-x-circle me-1"></i>Erro ao carregar status.</div>';
+        });
+}
+
+function enviarLinkAdesao() {
+    if (!confirm('Enviar link de adesão para este aluno?')) return;
+    fetch('/api/v1/pagamentos/assinaturas', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: `aluno_id=${ALUNO_ID}`,
+    })
+        .then(r => r.json().then(dados => ({ ok: r.ok, dados })))
+        .then(({ ok, dados }) => {
+            if (!ok) {
+                alert('Erro: ' + (dados.erro || 'falha desconhecida'));
+                return;
+            }
+            alert('Link gerado com sucesso.');
+            carregarRecorrencia();
+        })
+        .catch(() => alert('Erro de comunicação ao gerar o link.'));
+}
+
+function cancelarRecorrencia(assinaturaId) {
+    if (!confirm('Cancelar a recorrência deste aluno? O acesso é mantido até o fim do ciclo já pago.')) return;
+    fetch(`/api/v1/pagamentos/assinaturas/${assinaturaId}`, { method: 'DELETE' })
+        .then(r => r.json().then(dados => ({ ok: r.ok, dados })))
+        .then(({ ok, dados }) => {
+            if (!ok) {
+                alert('Erro: ' + (dados.erro || 'falha desconhecida'));
+                return;
+            }
+            alert('Recorrência cancelada.');
+            carregarRecorrencia();
+        })
+        .catch(() => alert('Erro de comunicação ao cancelar.'));
+}
+
+carregarRecorrencia();
 </script>
 {% endblock %}

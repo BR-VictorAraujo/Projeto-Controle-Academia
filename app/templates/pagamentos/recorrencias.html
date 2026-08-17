@@ -1,0 +1,223 @@
+{% extends 'base.html' %}
+{% from '_paginacao.html' import paginacao %}
+
+{% block titulo %}Recorrências{% endblock %}
+{% block titulo_pagina %}Cobrança Recorrente{% endblock %}
+{% block subtitulo %}Assinaturas via cartão de crédito{% endblock %}
+
+{% set pagina_ativa = 'recorrencias' %}
+
+{% block topbar_direita %}
+<a href="/api/v1/pagamentos/recorrencias/logs" class="btn-principal"
+    style="background:white; color:#1a1a2e; border:1.5px solid #dee2e6;">
+    <i class="bi bi-journal-text" style="color:var(--cor-principal);"></i> Log de Integração
+</a>
+<span style="font-size:13px; color:#6c757d;">Olá, <strong>{{ session.get('usuario', 'Administrador') }}</strong></span>
+{% endblock %}
+
+{% block estilos %}
+.rec-card { background: white; border-radius: 12px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+.stat-card { background: white; border-radius: 12px; padding: 20px 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); display: flex; align-items: center; gap: 16px; }
+.stat-icon { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0; }
+.icon-green  { background-color: #e8f5e9; color: #2e7d32; }
+.icon-red    { background-color: #fdecea; color: #c62828; }
+.icon-orange { background-color: #fff8e1; color: #f9a825; }
+.icon-blue   { background-color: #e3f2fd; color: #1565c0; }
+.stat-label  { font-size: 13px; color: #6c757d; }
+.stat-value  { font-size: 24px; font-weight: 700; color: #1a1a2e; line-height: 1.2; }
+.badge-rec-ativa      { background-color: #e8f5e9; color: #2e7d32; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 500; }
+.badge-rec-bloqueada  { background-color: #fdecea; color: #c62828; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 500; }
+.badge-rec-alerta     { background-color: #fff8e1; color: #f9a825; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 500; }
+.badge-rec-neutra     { background-color: #f0f2f5; color: #6c757d; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 500; }
+.tab-btn { padding: 7px 16px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; border: 1px solid #dee2e6; background: white; color: #6c757d; text-decoration: none; white-space: nowrap; }
+.tab-btn.ativo { background: var(--cor-principal); color: white; border-color: var(--cor-principal); }
+.search-box { border: 1px solid #dee2e6; border-radius: 8px; padding: 8px 14px; font-size: 14px; width: 220px; outline: none; }
+.search-box:focus { border-color: var(--cor-principal); }
+.btn-acao { background: none; border: none; padding: 4px 8px; border-radius: 6px; cursor: pointer; font-size: 15px; }
+.btn-acao:hover { background-color: #f0f2f5; }
+{% endblock %}
+
+{% block conteudo %}
+
+<!-- CARDS DE RESUMO -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon icon-green"><i class="bi bi-check-circle-fill"></i></div>
+            <div><div class="stat-label">Ativas</div><div class="stat-value">{{ contagens.ativa }}</div></div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon icon-red"><i class="bi bi-exclamation-octagon-fill"></i></div>
+            <div><div class="stat-label">Bloqueadas (inadimplência)</div><div class="stat-value">{{ contagens.bloqueada_inadimplencia }}</div></div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon icon-orange"><i class="bi bi-clock-history"></i></div>
+            <div><div class="stat-label">Fim de ciclo — decisão</div><div class="stat-value">{{ contagens.aguardando_decisao_ciclo }}</div></div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon icon-blue"><i class="bi bi-envelope-check"></i></div>
+            <div><div class="stat-label">Link enviado (pendente)</div><div class="stat-value">{{ contagens.link_enviado }}</div></div>
+        </div>
+    </div>
+</div>
+
+<div class="rec-card mb-3">
+    <div class="row g-3 align-items-end">
+        <div class="col-md-4">
+            <label class="form-label" style="font-size:13px; font-weight:500;">Buscar aluno</label>
+            <form method="GET" action="/api/v1/pagamentos/recorrencias" id="form-busca-rec">
+                <input type="hidden" name="status" value="{{ status_filtro }}">
+                <div style="display:flex; gap:6px;">
+                    <input type="text" name="f_busca" id="busca" class="search-box"
+                           placeholder="🔍 Nome do aluno..."
+                           value="{{ request.args.get('f_busca', '') }}"
+                           autocomplete="off" style="flex:1; width:auto;">
+                    <button type="submit" class="btn-principal" style="padding:8px 14px; border-radius:8px;">
+                        <i class="bi bi-search"></i>
+                    </button>
+                </div>
+            </form>
+        </div>
+        <div class="col-md-8 d-flex gap-2 align-items-end flex-wrap">
+            <a href="?status=todos"                    class="tab-btn {% if status_filtro == 'todos' %}ativo{% endif %}">Todos</a>
+            <a href="?status=ativa"                     class="tab-btn {% if status_filtro == 'ativa' %}ativo{% endif %}">Ativas</a>
+            <a href="?status=bloqueada_inadimplencia"   class="tab-btn {% if status_filtro == 'bloqueada_inadimplencia' %}ativo{% endif %}" style="{% if status_filtro != 'bloqueada_inadimplencia' %}color:#c62828; border-color:#fdecea;{% endif %}">⚠️ Bloqueadas</a>
+            <a href="?status=aguardando_decisao_ciclo"  class="tab-btn {% if status_filtro == 'aguardando_decisao_ciclo' %}ativo{% endif %}" style="{% if status_filtro != 'aguardando_decisao_ciclo' %}color:#f9a825; border-color:#fff8e1;{% endif %}">Fim de ciclo</a>
+            <a href="?status=link_enviado"              class="tab-btn {% if status_filtro == 'link_enviado' %}ativo{% endif %}">Link enviado</a>
+            <a href="?status=cancelada"                 class="tab-btn {% if status_filtro == 'cancelada' %}ativo{% endif %}">Canceladas</a>
+        </div>
+    </div>
+</div>
+
+<div class="rec-card">
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <span style="font-size:13px; color:#6c757d;">
+            Exibindo <strong>{{ pag.items|length }}</strong> de <strong>{{ pag.total }}</strong>
+        </span>
+        <div class="d-flex align-items-center gap-2">
+            <label style="font-size:12px; color:#6c757d;">Por página:</label>
+            <select class="form-select form-select-sm" style="width:auto;" onchange="mudarPorPagina(this.value)">
+                {% for opcao in opcoes_por_pagina %}
+                <option value="{{ opcao }}" {% if pag.per_page == opcao %}selected{% endif %}>{{ opcao }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+    <table class="table table-borderless mb-0">
+        <thead>
+            <tr>
+                <th>Aluno</th><th>Plano</th><th>Valor/mês</th><th>Próxima cobrança</th>
+                <th>Tentativas negadas</th><th>Status</th><th>Ações</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% if pag.items %}
+                {% for a in pag.items %}
+                <tr>
+                    <td>
+                        <div style="display:flex; align-items:center; gap:10px;">
+                            {% if a.aluno.foto %}<img src="{{ a.aluno.foto }}" style="width:32px; height:32px; border-radius:50%; object-fit:cover; border:2px solid var(--cor-principal);">
+                            {% else %}<div style="width:32px; height:32px; border-radius:50%; background:color-mix(in srgb, var(--cor-principal) 15%, white); display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:700; color:var(--cor-principal);">{{ a.aluno.nome[0].upper() }}</div>{% endif %}
+                            <a href="/alunos/{{ a.aluno_id }}/editar" style="text-decoration:none; color:#1a1a2e; font-weight:500;">{{ a.aluno.nome }}</a>
+                        </div>
+                    </td>
+                    <td>{{ a.plano.nome if a.plano else '—' }}</td>
+                    <td><strong>R$ {{ '%.2f'|format(a.valor_mensal|float) }}</strong></td>
+                    <td>{{ a.proxima_cobranca.strftime('%d/%m/%Y') if a.proxima_cobranca else '—' }}</td>
+                    <td>
+                        {% if a.tentativas_negadas > 0 %}
+                            <span style="color:#c62828; font-weight:600;">{{ a.tentativas_negadas }}/4</span>
+                        {% else %}
+                            <span style="color:#adb5bd;">—</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if a.status == 'ativa' %}<span class="badge-rec-ativa">✅ Ativa</span>
+                        {% elif a.status == 'bloqueada_inadimplencia' %}<span class="badge-rec-bloqueada">⛔ Bloqueada</span>
+                        {% elif a.status == 'aguardando_decisao_ciclo' %}<span class="badge-rec-alerta">⏳ Fim de ciclo</span>
+                        {% elif a.status == 'link_enviado' %}<span class="badge-rec-alerta">✉️ Link enviado</span>
+                        {% elif a.status == 'cancelada' %}<span class="badge-rec-neutra">Cancelada</span>
+                        {% elif a.status == 'expirada_cartao' %}<span class="badge-rec-bloqueada">💳 Cartão expirado</span>
+                        {% else %}<span class="badge-rec-neutra">{{ a.status }}</span>{% endif %}
+                    </td>
+                    <td>
+                        <a href="/alunos/{{ a.aluno_id }}/editar" class="btn-acao" title="Ver ficha do aluno">
+                            <i class="bi bi-person-lines-fill" style="color:#1565c0;"></i>
+                        </a>
+                        {% if a.status in ['ativa', 'link_enviado', 'aguardando_decisao_ciclo'] %}
+                        <button class="btn-acao" title="Cancelar recorrência" onclick="cancelarRec({{ a.id }}, '{{ a.aluno.nome }}')">
+                            <i class="bi bi-x-circle" style="color:#c62828;"></i>
+                        </button>
+                        {% endif %}
+                        {% set ultimo_pag = ultimos_pagamentos.get(a.id) %}
+                        {% if ultimo_pag and ultimo_pag.status == 'pago' %}
+                            {% if a.gateway == 'asaas' %}
+                            <button class="btn-acao" title="Estornar último pagamento (R$ {{ '%.2f'|format(ultimo_pag.valor|float) }} em {{ ultimo_pag.data_pagamento.strftime('%d/%m/%Y') }})"
+                                onclick="estornarPagamento({{ ultimo_pag.id }}, '{{ a.aluno.nome }}', {{ ultimo_pag.valor }})">
+                                <i class="bi bi-arrow-counterclockwise" style="color:#e65100;"></i>
+                            </button>
+                            {% else %}
+                            <span class="btn-acao" style="cursor:default; opacity:0.5;" title="Estorno via Cielo é manual — fale com a administração">
+                                <i class="bi bi-arrow-counterclockwise" style="color:#adb5bd;"></i>
+                            </span>
+                            {% endif %}
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            {% else %}
+                <tr><td colspan="7" style="text-align:center; color:#6c757d; padding:40px 0;">
+                    <i class="bi bi-credit-card" style="font-size:32px; display:block; margin-bottom:8px;"></i>
+                    Nenhuma assinatura recorrente encontrada
+                </td></tr>
+            {% endif %}
+        </tbody>
+    </table>
+    {{ paginacao(pag, request.args) }}
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function mudarPorPagina(valor) {
+    const url = new URL(window.location.href);
+    url.searchParams.set('por_pagina', valor);
+    url.searchParams.set('pagina', '1');
+    window.location.href = url.toString();
+}
+
+document.getElementById('busca').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') document.getElementById('form-busca-rec').submit();
+});
+
+function cancelarRec(id, nome) {
+    if (!confirm(`Cancelar a recorrência de ${nome}? O acesso é mantido até o fim do ciclo já pago.`)) return;
+    fetch(`/api/v1/pagamentos/assinaturas/${id}`, { method: 'DELETE' })
+        .then(r => r.json().then(dados => ({ ok: r.ok, dados })))
+        .then(({ ok, dados }) => {
+            if (!ok) { alert('Erro: ' + (dados.erro || 'falha desconhecida')); return; }
+            window.location.reload();
+        })
+        .catch(() => alert('Erro de comunicação ao cancelar.'));
+}
+
+function estornarPagamento(pagamentoId, nomeAluno, valor) {
+    if (!confirm(`Estornar o pagamento de R$ ${parseFloat(valor).toFixed(2)} de ${nomeAluno}? O valor será devolvido ao cartão do aluno, e o lançamento ficará como "Pendente" no Financeiro para exclusão manual.`)) return;
+    fetch(`/api/v1/pagamentos/pagamentos-estorno/${pagamentoId}/estornar`, { method: 'POST' })
+        .then(r => r.json().then(dados => ({ ok: r.ok, dados })))
+        .then(({ ok, dados }) => {
+            if (!ok) { alert('Erro: ' + (dados.erro || 'falha desconhecida')); return; }
+            alert('Pagamento estornado. O lançamento ficou como "Pendente" no Financeiro — acesse a tela de Financeiro para confirmar e excluir esse registro.');
+            window.location.reload();
+        })
+        .catch(() => alert('Erro de comunicação ao estornar.'));
+}
+</script>
+{% endblock %}

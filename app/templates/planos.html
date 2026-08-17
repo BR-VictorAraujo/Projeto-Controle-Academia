@@ -15,6 +15,8 @@
 }
 .badge-ativo   { background-color: #e8f5e9; color: #2e7d32; padding: 3px 10px; border-radius: 20px; font-size: 12px; }
 .badge-inativo { background-color: #fdecea; color: #c62828; padding: 3px 10px; border-radius: 20px; font-size: 12px; }
+.badge-recorrencia-sim { background-color: #e3f2fd; color: #1565c0; padding: 3px 10px; border-radius: 20px; font-size: 12px; }
+.badge-recorrencia-nao { background-color: #f0f2f5; color: #6c757d; padding: 3px 10px; border-radius: 20px; font-size: 12px; }
 .btn-acao { background: none; border: none; padding: 4px 8px; border-radius: 6px; cursor: pointer; font-size: 15px; }
 .btn-acao:hover { background-color: #f0f2f5; }
 .valor-destaque { font-size: 20px; font-weight: 700; color: var(--cor-principal); }
@@ -54,6 +56,7 @@
                 <th>Dias de validade</th>
                 <th>Valor</th>
                 <th>Status</th>
+                <th>Recorrência</th>
                 <th>Ações</th>
             </tr>
         </thead>
@@ -73,8 +76,15 @@
                         {% endif %}
                     </td>
                     <td>
+                        {% if plano.permite_recorrencia %}
+                            <span class="badge-recorrencia-sim"><i class="bi bi-arrow-repeat me-1"></i>Habilitada</span>
+                        {% else %}
+                            <span class="badge-recorrencia-nao">Desabilitada</span>
+                        {% endif %}
+                    </td>
+                    <td>
                         <button class="btn-acao" title="Editar"
-                            onclick="abrirEdicao({{ plano.id }}, '{{ plano.nome }}', '{{ plano.descricao or '' }}', {{ plano.dias_validade }}, {{ plano.valor }}, {{ 'true' if plano.ativo else 'false' }})">
+                            onclick="abrirEdicao({{ plano.id }}, '{{ plano.nome }}', '{{ plano.descricao or '' }}', {{ plano.dias_validade }}, {{ plano.valor }}, {{ 'true' if plano.ativo else 'false' }}, {{ 'true' if plano.permite_recorrencia else 'false' }})">
                             <i class="bi bi-pencil" style="color: var(--cor-principal);"></i>
                         </button>
                     </td>
@@ -82,7 +92,7 @@
                 {% endfor %}
             {% else %}
                 <tr>
-                    <td colspan="6" style="text-align:center; color:#6c757d; padding:40px 0;">
+                    <td colspan="7" style="text-align:center; color:#6c757d; padding:40px 0;">
                         Nenhum plano cadastrado
                     </td>
                 </tr>
@@ -123,6 +133,19 @@
                             <span style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:#6c757d; font-weight:500;">R$</span>
                             <input type="number" name="valor" class="form-control"
                                 style="padding-left:36px;" step="0.01" min="0" required value="0.00">
+                        </div>
+                    </div>
+                    <div class="mb-3 d-flex align-items-center justify-content-between"
+                         style="background:#f8f9fa; border-radius:8px; padding:10px 14px;">
+                        <div>
+                            <div style="font-size:13px; font-weight:600; color:#1a1a2e;">
+                                <i class="bi bi-arrow-repeat me-1" style="color:var(--cor-principal);"></i> Habilitar cobrança recorrente
+                            </div>
+                            <div style="font-size:11px; color:#6c757d;">Permite gerar link de adesão via cartão para este plano</div>
+                        </div>
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input" type="checkbox" name="permite_recorrencia" value="1"
+                                   style="width:2.5em; height:1.3em; cursor:pointer;">
                         </div>
                     </div>
                 </div>
@@ -181,6 +204,21 @@
                             <option value="0">Inativo</option>
                         </select>
                     </div>
+                    <div class="mb-3 d-flex align-items-center justify-content-between"
+                         style="background:#f8f9fa; border-radius:8px; padding:10px 14px;">
+                        <div>
+                            <div style="font-size:13px; font-weight:600; color:#1a1a2e;">
+                                <i class="bi bi-arrow-repeat me-1" style="color:var(--cor-principal);"></i> Habilitar cobrança recorrente
+                            </div>
+                            <div style="font-size:11px; color:#6c757d;">Permite gerar link de adesão via cartão para este plano</div>
+                        </div>
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input" type="checkbox" id="edit-plano-recorrencia-chk"
+                                   onchange="document.getElementById('edit-plano-recorrencia').value = this.checked ? '1' : '0'"
+                                   style="width:2.5em; height:1.3em; cursor:pointer;">
+                        </div>
+                    </div>
+                    <input type="hidden" name="permite_recorrencia" id="edit-plano-recorrencia" value="0">
                 </div>
                 <div class="modal-footer" style="border-top:1px solid #f0f2f5; padding:16px 24px;">
                     <button type="button" class="btn" data-bs-dismiss="modal"
@@ -199,13 +237,15 @@
 
 {% block scripts %}
 <script>
-function abrirEdicao(id, nome, descricao, dias, valor, ativo) {
-    document.getElementById('edit-plano-nome').value     = nome;
-    document.getElementById('edit-plano-descricao').value= descricao;
-    document.getElementById('edit-plano-dias').value     = dias;
-    document.getElementById('edit-plano-valor').value    = valor;
-    document.getElementById('edit-plano-ativo').value    = ativo ? '1' : '0';
-    document.getElementById('form-editar-plano').action  = `/planos/${id}/editar`;
+function abrirEdicao(id, nome, descricao, dias, valor, ativo, permiteRecorrencia) {
+    document.getElementById('edit-plano-nome').value          = nome;
+    document.getElementById('edit-plano-descricao').value     = descricao;
+    document.getElementById('edit-plano-dias').value          = dias;
+    document.getElementById('edit-plano-valor').value         = valor;
+    document.getElementById('edit-plano-ativo').value         = ativo ? '1' : '0';
+    document.getElementById('edit-plano-recorrencia-chk').checked = permiteRecorrencia;
+    document.getElementById('edit-plano-recorrencia').value   = permiteRecorrencia ? '1' : '0';
+    document.getElementById('form-editar-plano').action       = `/planos/${id}/editar`;
     new bootstrap.Modal(document.getElementById('modalEditarPlano')).show();
 }
 </script>

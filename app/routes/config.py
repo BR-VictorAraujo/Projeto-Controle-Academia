@@ -229,8 +229,9 @@ def editar_plano(id):
     plano.dias_validade = int(request.form.get('dias_validade', 30))
     plano.valor         = float(request.form.get('valor', 0))
     plano.ativo         = request.form.get('ativo') == '1'
+    plano.permite_recorrencia = request.form.get('permite_recorrencia') == '1'
     db.session.commit()
-    registrar_log('editou plano', f'Plano: {plano.nome} | Valor: R$ {plano.valor}')
+    registrar_log('editou plano', f'Plano: {plano.nome} | Valor: R$ {plano.valor} | Recorrência: {plano.permite_recorrencia}')
     flash(f'Plano {plano.nome} atualizado com sucesso!', 'success')
     return redirect(url_for('config.planos'))
 
@@ -242,6 +243,7 @@ def novo_plano():
     descricao     = request.form.get('descricao', '').strip()
     dias_validade = int(request.form.get('dias_validade', 1))
     valor         = float(request.form.get('valor', 0))
+    permite_recorrencia = request.form.get('permite_recorrencia') == '1'
 
     if not nome:
         flash('O nome do plano é obrigatório.', 'danger')
@@ -250,7 +252,8 @@ def novo_plano():
         flash(f'Já existe um plano com o nome "{nome}".', 'danger')
         return redirect(url_for('config.planos'))
 
-    db.session.add(Plano(nome=nome, descricao=descricao, dias_validade=dias_validade, valor=valor, ativo=True))
+    db.session.add(Plano(nome=nome, descricao=descricao, dias_validade=dias_validade,
+                          valor=valor, ativo=True, permite_recorrencia=permite_recorrencia))
     db.session.commit()
     registrar_log('criou plano', f'Plano: {nome} | Dias: {dias_validade} | Valor: R$ {valor}')
     flash(f'Plano "{nome}" criado com sucesso!', 'success')
@@ -272,13 +275,23 @@ def tecnologias():
 
     if request.method == 'POST':
         set_config('tecnologia_biometria', request.form.get('tecnologia_biometria', '1'))
+
+        gateway_escolhido = request.form.get('gateway_pagamento_recorrente', 'cielo')
+        if gateway_escolhido not in ('cielo', 'asaas'):
+            gateway_escolhido = 'cielo'
+        set_config('gateway_pagamento_recorrente', gateway_escolhido)
+
         db.session.commit()
-        registrar_log('alterou tecnologias de acesso', 'Configurações de tecnologia atualizadas')
-        flash('Tecnologias de acesso salvas com sucesso!', 'success')
+        registrar_log('alterou tecnologias/integrações', f'Tecnologia biometria + gateway: {gateway_escolhido}')
+        flash('Configurações salvas com sucesso!', 'success')
         return redirect(url_for('config.tecnologias'))
 
+    import os
     class Params:
         tecnologia_biometria = get_param('tecnologia_biometria', '1')
+        gateway_pagamento_recorrente = get_param('gateway_pagamento_recorrente', 'cielo')
+        cielo_configurado = bool(os.getenv('CIELO_CLIENT_ID')) and bool(os.getenv('CIELO_CLIENT_SECRET'))
+        asaas_configurado = bool(os.getenv('ASAAS_API_KEY'))
 
     return render_template('tecnologias.html', params=Params())
 

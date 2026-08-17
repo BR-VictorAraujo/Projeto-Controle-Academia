@@ -1,0 +1,197 @@
+{% extends 'base.html' %}
+{% from '_paginacao.html' import paginacao %}
+
+{% block titulo %}Log de Integração{% endblock %}
+{% block titulo_pagina %}Log de Integração — Pagamentos{% endblock %}
+{% block subtitulo %}Auditoria bruta da comunicação com a Cielo{% endblock %}
+
+{% set pagina_ativa = 'recorrencias' %}
+
+{% block topbar_direita %}
+<a href="/api/v1/pagamentos/recorrencias" class="btn-principal"
+    style="background:white; color:#1a1a2e; border:1.5px solid #dee2e6;">
+    <i class="bi bi-arrow-left" style="color:var(--cor-principal);"></i> Voltar para Recorrências
+</a>
+<span style="font-size:13px; color:#6c757d;">Olá, <strong>{{ session.get('usuario', 'Administrador') }}</strong></span>
+{% endblock %}
+
+{% block estilos %}
+.log-card { background: white; border-radius: 12px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+.stat-card { background: white; border-radius: 12px; padding: 20px 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); display: flex; align-items: center; gap: 16px; }
+.stat-icon { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0; }
+.icon-red    { background-color: #fdecea; color: #c62828; }
+.icon-orange { background-color: #fff8e1; color: #f9a825; }
+.icon-blue   { background-color: #e3f2fd; color: #1565c0; }
+.icon-grey   { background-color: #f0f2f5; color: #6c757d; }
+.stat-label  { font-size: 13px; color: #6c757d; }
+.stat-value  { font-size: 24px; font-weight: 700; color: #1a1a2e; line-height: 1.2; }
+.badge-nivel-info    { background-color: #e3f2fd; color: #1565c0; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+.badge-nivel-warning { background-color: #fff8e1; color: #f9a825; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+.badge-nivel-error   { background-color: #fdecea; color: #c62828; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+.tab-btn { padding: 7px 16px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; border: 1px solid #dee2e6; background: white; color: #6c757d; text-decoration: none; white-space: nowrap; }
+.tab-btn.ativo { background: var(--cor-principal); color: white; border-color: var(--cor-principal); }
+.search-box { border: 1px solid #dee2e6; border-radius: 8px; padding: 8px 14px; font-size: 14px; width: 260px; outline: none; }
+.search-box:focus { border-color: var(--cor-principal); }
+.evento-tag { font-size: 11px; color: #6c757d; background: #f8f9fa; padding: 2px 8px; border-radius: 6px; }
+.btn-ver-payload { background: none; border: 1px solid #dee2e6; border-radius: 6px; padding: 3px 10px; font-size: 12px; color: #6c757d; cursor: pointer; }
+.btn-ver-payload:hover { border-color: var(--cor-principal); color: var(--cor-principal); }
+.payload-pre { background: #1a1a2e; color: #e8f5e9; padding: 16px; border-radius: 10px; font-size: 12px; max-height: 400px; overflow: auto; white-space: pre-wrap; word-break: break-all; }
+{% endblock %}
+
+{% block conteudo %}
+
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon icon-grey"><i class="bi bi-journal-text"></i></div>
+            <div><div class="stat-label">Total de eventos</div><div class="stat-value">{{ contagens.todos }}</div></div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon icon-red"><i class="bi bi-x-octagon-fill"></i></div>
+            <div><div class="stat-label">Erros</div><div class="stat-value">{{ contagens.ERROR }}</div></div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon icon-orange"><i class="bi bi-exclamation-triangle-fill"></i></div>
+            <div><div class="stat-label">Avisos</div><div class="stat-value">{{ contagens.WARNING }}</div></div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon icon-blue"><i class="bi bi-info-circle-fill"></i></div>
+            <div><div class="stat-label">Informativos</div><div class="stat-value">{{ contagens.INFO }}</div></div>
+        </div>
+    </div>
+</div>
+
+<div class="log-card mb-3">
+    <div class="row g-3 align-items-end">
+        <div class="col-md-4">
+            <label class="form-label" style="font-size:13px; font-weight:500;">Buscar por ID (RecurrentPaymentId / PaymentId)</label>
+            <form method="GET" action="/api/v1/pagamentos/recorrencias/logs" id="form-busca-log">
+                <input type="hidden" name="nivel" value="{{ nivel_filtro }}">
+                <div style="display:flex; gap:6px;">
+                    <input type="text" name="f_busca" id="busca" class="search-box"
+                           placeholder="🔍 Ex: RP123456..."
+                           value="{{ request.args.get('f_busca', '') }}"
+                           autocomplete="off">
+                    <button type="submit" class="btn-principal" style="padding:8px 14px; border-radius:8px;">
+                        <i class="bi bi-search"></i>
+                    </button>
+                </div>
+            </form>
+        </div>
+        <div class="col-md-8 d-flex gap-2 align-items-end flex-wrap">
+            <a href="?nivel=todos"   class="tab-btn {% if nivel_filtro == 'todos' %}ativo{% endif %}">Todos</a>
+            <a href="?nivel=ERROR"   class="tab-btn {% if nivel_filtro == 'ERROR' %}ativo{% endif %}" style="{% if nivel_filtro != 'ERROR' %}color:#c62828; border-color:#fdecea;{% endif %}">Erros</a>
+            <a href="?nivel=WARNING" class="tab-btn {% if nivel_filtro == 'WARNING' %}ativo{% endif %}" style="{% if nivel_filtro != 'WARNING' %}color:#f9a825; border-color:#fff8e1;{% endif %}">Avisos</a>
+            <a href="?nivel=INFO"    class="tab-btn {% if nivel_filtro == 'INFO' %}ativo{% endif %}">Informativos</a>
+        </div>
+    </div>
+</div>
+
+<div class="log-card">
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <span style="font-size:13px; color:#6c757d;">
+            Exibindo <strong>{{ pag.items|length }}</strong> de <strong>{{ pag.total }}</strong>
+        </span>
+        <div class="d-flex align-items-center gap-2">
+            <label style="font-size:12px; color:#6c757d;">Por página:</label>
+            <select class="form-select form-select-sm" style="width:auto;" onchange="mudarPorPagina(this.value)">
+                {% for opcao in opcoes_por_pagina %}
+                <option value="{{ opcao }}" {% if pag.per_page == opcao %}selected{% endif %}>{{ opcao }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+    <table class="table table-borderless mb-0">
+        <thead>
+            <tr>
+                <th>Data/Hora</th><th>Evento</th><th>Nível</th>
+                <th>RecurrentPaymentId</th><th>PaymentId</th><th>Resultado</th><th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% if pag.items %}
+                {% for log in pag.items %}
+                <tr>
+                    <td style="white-space:nowrap; font-size:13px;">{{ log.criado_em | local_time }}</td>
+                    <td><span class="evento-tag">{{ log.tipo_evento }}</span></td>
+                    <td>
+                        {% if log.nivel == 'ERROR' %}<span class="badge-nivel-error">ERROR</span>
+                        {% elif log.nivel == 'WARNING' %}<span class="badge-nivel-warning">WARNING</span>
+                        {% else %}<span class="badge-nivel-info">INFO</span>{% endif %}
+                    </td>
+                    <td style="font-size:12px; font-family:monospace;">{{ log.recurrent_payment_id or '—' }}</td>
+                    <td style="font-size:12px; font-family:monospace;">{{ log.payment_id_gateway or '—' }}</td>
+                    <td style="font-size:13px; max-width:280px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                        {{ log.resultado or '—' }}
+                    </td>
+                    <td>
+                        {% if log.payload_bruto %}
+                        <button class="btn-ver-payload" onclick="verPayload({{ log.id }})">
+                            <i class="bi bi-code-slash"></i> Payload
+                        </button>
+                        <div id="payload-data-{{ log.id }}" style="display:none;">{{ log.payload_bruto | tojson }}</div>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            {% else %}
+                <tr><td colspan="7" style="text-align:center; color:#6c757d; padding:40px 0;">
+                    <i class="bi bi-journal-x" style="font-size:32px; display:block; margin-bottom:8px;"></i>
+                    Nenhum evento registrado
+                </td></tr>
+            {% endif %}
+        </tbody>
+    </table>
+    {{ paginacao(pag, request.args) }}
+</div>
+
+<!-- MODAL PAYLOAD -->
+<div class="modal fade" id="modalPayload" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content" style="border-radius:12px; border:none;">
+            <div class="modal-header" style="border-bottom:1px solid #f0f2f5; padding:16px 24px;">
+                <h5 class="modal-title" style="font-size:15px; font-weight:600;">
+                    <i class="bi bi-code-slash me-2" style="color:var(--cor-principal);"></i> Payload bruto
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" style="padding:20px;">
+                <pre class="payload-pre" id="payload-conteudo"></pre>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function mudarPorPagina(valor) {
+    const url = new URL(window.location.href);
+    url.searchParams.set('por_pagina', valor);
+    url.searchParams.set('pagina', '1');
+    window.location.href = url.toString();
+}
+
+document.getElementById('busca').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') document.getElementById('form-busca-log').submit();
+});
+
+function verPayload(logId) {
+    const raw = document.getElementById('payload-data-' + logId).textContent;
+    try {
+        const obj = JSON.parse(raw);
+        document.getElementById('payload-conteudo').textContent = JSON.stringify(obj, null, 2);
+    } catch (e) {
+        document.getElementById('payload-conteudo').textContent = raw;
+    }
+    new bootstrap.Modal(document.getElementById('modalPayload')).show();
+}
+</script>
+{% endblock %}

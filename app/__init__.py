@@ -3,6 +3,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
 from datetime import timedelta
 
+
 db = SQLAlchemy()
 login_manager = LoginManager()
 login_manager.login_view = 'auth.login'
@@ -26,12 +27,14 @@ def create_app():
     from app.routes.financeiro import bp as financeiro_bp
     from app.routes.relatorios import bp as relatorios_bp
     from app.routes.config     import bp as config_bp
+    from app.routes.pagamentos import bp as pagamentos_bp
     app.register_blueprint(auth_bp)
     app.register_blueprint(alunos_bp)
     app.register_blueprint(acessos_bp)
     app.register_blueprint(financeiro_bp)
     app.register_blueprint(relatorios_bp)
     app.register_blueprint(config_bp)
+    app.register_blueprint(pagamentos_bp)
 
     @app.template_filter('local_time')
     def local_time_filter(dt):

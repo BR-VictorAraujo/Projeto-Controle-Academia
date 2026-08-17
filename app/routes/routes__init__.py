@@ -1,0 +1,1 @@
+# Pacote de rotas — cada módulo define seu próprio blueprint

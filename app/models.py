@@ -34,6 +34,7 @@ class Aluno(db.Model):
     acessos         = db.relationship('RegistroAcesso', backref='aluno', lazy=True, cascade='all, delete-orphan')
     documentos      = db.relationship('DocumentoAluno', backref='aluno', lazy=True, cascade='all, delete-orphan')
     pagamentos      = db.relationship('Pagamento', backref='aluno', lazy=True, cascade='all, delete-orphan')
+    assinaturas_recorrentes = db.relationship('AssinaturaRecorrente', backref='aluno', lazy=True, cascade='all, delete-orphan')
 
 class Biometria(db.Model):
     __tablename__ = 'biometrias'
@@ -76,6 +77,8 @@ class Plano(db.Model):
     dias_validade = db.Column(db.Integer, nullable=False, default=30)
     ativo       = db.Column(db.Boolean, default=True)
     criado_em   = db.Column(db.DateTime, default=datetime.utcnow)
+    # Adicionado — Módulo API para Pagamentos (cobrança recorrente Cielo)
+    permite_recorrencia = db.Column(db.Boolean, nullable=False, default=False)
 
 class DocumentoAluno(db.Model):
     __tablename__ = 'documentos_aluno'
@@ -100,3 +103,70 @@ class Pagamento(db.Model):
     banco_pix       = db.Column(db.String(100))
     criado_em       = db.Column(db.DateTime, default=datetime.utcnow)
     criado_por      = db.Column(db.String(100))
+    # Adicionado — Módulo API para Pagamentos (cobrança recorrente Cielo)
+    origem                   = db.Column(db.String(20), nullable=False, default='manual')  # 'manual' | 'recorrente_gateway'
+    assinatura_recorrente_id = db.Column(db.Integer, db.ForeignKey('assinatura_recorrente.id'))
+    payment_id_gateway       = db.Column(db.String(50))  # PaymentId da Cielo — usado para deduplicação de webhook
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Módulo API para Pagamentos — Cobrança Recorrente via Cartão (Cielo)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class AssinaturaRecorrente(db.Model):
+    __tablename__ = 'assinatura_recorrente'
+    id           = db.Column(db.Integer, primary_key=True)
+    aluno_id     = db.Column(db.Integer, db.ForeignKey('alunos.id'), nullable=False)
+    plano_id     = db.Column(db.Integer, db.ForeignKey('planos.id'), nullable=False)
+
+    # Gateway responsável por esta assinatura ('cielo' ou 'asaas') — salvo
+    # por linha, não é o gateway "ativo" no momento (ver decisão [ARQUITETO]
+    # sobre convivência entre gateways).
+    gateway = db.Column(db.String(20), nullable=False, default='cielo')
+
+    # Identificadores Cielo (Link de Pagamento)
+    link_pagamento_id    = db.Column(db.String(50))   # ID do link, gerado na adesão
+    url_link_pagamento    = db.Column(db.String(300))  # URL do link — pra recepção copiar/reenviar
+    recurrent_payment_id = db.Column(db.String(50), unique=True)  # ID da série recorrente, após confirmação
+
+    # Status: 'link_enviado', 'ativa', 'bloqueada_inadimplencia',
+    #         'aguardando_decisao_ciclo', 'cancelada', 'expirada_cartao'
+    status = db.Column(db.String(30), nullable=False, default='link_enviado')
+
+    valor_mensal   = db.Column(db.Numeric(10, 2), nullable=False)
+    data_inicio    = db.Column(db.Date, nullable=False)
+    data_fim_ciclo = db.Column(db.Date)  # NULL = Mensal (sem prazo de permanência)
+
+    proxima_cobranca = db.Column(db.Date)
+
+    # Controle de retentativa — contagem própria (não depende só da Cielo)
+    tentativas_negadas   = db.Column(db.SmallInteger, nullable=False, default=0)
+    data_ultima_negativa = db.Column(db.DateTime)
+
+    criado_em     = db.Column(db.DateTime, default=datetime.utcnow)
+    atualizado_em = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    cancelado_em  = db.Column(db.DateTime)
+    cancelado_por = db.Column(db.String(100))  # segue padrão de Pagamento.criado_por (texto, não FK)
+
+    plano       = db.relationship('Plano')
+    pagamentos  = db.relationship('Pagamento', backref='assinatura_recorrente', lazy=True)
+
+
+class LogIntegracaoPagamento(db.Model):
+    __tablename__ = 'log_integracao_pagamento'
+    id        = db.Column(db.BigInteger, primary_key=True)
+    criado_em = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # 'webhook_recebido', 'consulta_disparada', 'consulta_respondida',
+    # 'pagamento_lancado', 'cancelamento_solicitado', 'erro_parsing', 'alerta_disparado'
+    tipo_evento = db.Column(db.String(30), nullable=False)
+    nivel       = db.Column(db.String(10), nullable=False, default='INFO')  # INFO | WARNING | ERROR
+
+    assinatura_recorrente_id = db.Column(db.Integer, db.ForeignKey('assinatura_recorrente.id'))
+    recurrent_payment_id     = db.Column(db.String(50))
+    payment_id_gateway       = db.Column(db.String(50))
+
+    payload_bruto = db.Column(db.JSON)  # JSONB no Postgres — nunca None em erro de parsing
+    resultado     = db.Column(db.Text)
+
+    ip_origem = db.Column(db.String(45))
