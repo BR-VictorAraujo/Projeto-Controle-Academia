@@ -401,9 +401,12 @@ ON CONFLICT (chave) DO NOTHING;
 
 -- -----------------------------------------------------------------------------
 -- Seed: termo aviso_privacidade + versão 1.0 em rascunho.
--- Texto = docs/lgpd/modelo_aviso_privacidade.txt já canonicalizado (\n, sem
--- espaços no fim das linhas, sem linhas vazias no fim, NFC). Não publicar sem
--- antes substituir os trechos [PREENCHER ...] (a aplicação bloqueia a publicação).
+-- Texto = docs/lgpd/modelo_aviso_privacidade.txt. O texto é canonicalizado aqui
+-- mesmo (igual ao canonicalizar() do Python, spec §3): \r\n e \r -> \n, sem
+-- espaços/tabs no fim das linhas, sem linhas vazias no fim, Unicode NFC. Assim o
+-- hash não muda se este arquivo for salvo com CRLF (git autocrlf no Windows).
+-- Não publicar sem antes substituir os trechos [PREENCHER ...] (a aplicação
+-- bloqueia a publicação).
 -- -----------------------------------------------------------------------------
 INSERT INTO lgpd_termo (codigo, titulo, tipo, finalidade, bloqueia_sistema, ativo)
 VALUES ('aviso_privacidade', 'Aviso de Privacidade', 'ciencia',
@@ -412,9 +415,19 @@ VALUES ('aviso_privacidade', 'Aviso de Privacidade', 'ciencia',
 ON CONFLICT (codigo) DO NOTHING;
 
 INSERT INTO lgpd_termo_versao (termo_id, versao, conteudo, conteudo_hash, alteracao_material, status)
-SELECT t.id, '1.0', s.conteudo, encode(sha256(convert_to(s.conteudo, 'UTF8')), 'hex'), true, 'rascunho'
+SELECT t.id, '1.0', c.conteudo, encode(sha256(convert_to(c.conteudo, 'UTF8')), 'hex'), true, 'rascunho'
   FROM lgpd_termo t
- CROSS JOIN (SELECT $termo$AVISO DE PRIVACIDADE AOS USUÁRIOS DO SISTEMA GYMFLOW
+ CROSS JOIN (
+    SELECT normalize(
+               rtrim(
+                   regexp_replace(
+                       regexp_replace(
+                           replace(replace(s.bruto, E'\r\n', E'\n'), E'\r', E'\n'),
+                           E'[ \t]+\n', E'\n', 'g'),
+                       E'[ \t]+$', ''),
+                   E'\n'),
+               NFC) AS conteudo
+      FROM (SELECT $termo$AVISO DE PRIVACIDADE AOS USUÁRIOS DO SISTEMA GYMFLOW
 
 ATENÇÃO (remova este parágrafo antes de publicar): este é um MODELO. Todos os trechos marcados com [PREENCHER ...] devem ser completados pela academia, e o texto final deve ser revisado pela academia e, preferencialmente, por um profissional jurídico ou especialista em proteção de dados. Este modelo não garante conformidade com a LGPD.
 
@@ -462,7 +475,8 @@ Conforme o art. 18 da LGPD, você pode solicitar à academia:
 Para dúvidas ou solicitações sobre seus dados pessoais, procure: [PREENCHER: nome do responsável ou encarregado], pelo canal [PREENCHER: e-mail, telefone ou local de atendimento].
 
 9. Sobre este aviso
-Ao clicar em "Li e estou ciente", você registra que leu este aviso. Isso não é um consentimento e não autoriza nenhum tratamento além dos descritos acima. Quando a academia alterar este aviso de forma relevante, uma nova versão será apresentada.$termo$::text AS conteudo) s
+Ao clicar em "Li e estou ciente", você registra que leu este aviso. Isso não é um consentimento e não autoriza nenhum tratamento além dos descritos acima. Quando a academia alterar este aviso de forma relevante, uma nova versão será apresentada.$termo$::text AS bruto) s
+ ) c
  WHERE t.codigo = 'aviso_privacidade'
 ON CONFLICT (termo_id, versao) DO NOTHING;
 

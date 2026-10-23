@@ -1,0 +1,4 @@
+# Scripts de migracao e modelo do termo LGPD: sempre LF, mesmo com
+# core.autocrlf=true no Windows. O texto do termo entra no hash SHA-256.
+migrations/*.sql        text eol=lf
+docs/lgpd/*.txt         text eol=lf
