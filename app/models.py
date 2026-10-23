@@ -30,7 +30,7 @@ class Aluno(db.Model):
     biometria_status  = db.Column(db.String(20), default='pendente')
     biometria_2_status= db.Column(db.String(20), default='pendente')
     criado_em       = db.Column(db.DateTime, default=datetime.utcnow)
-    biometria       = db.relationship('Biometria', backref='aluno', uselist=False)
+    biometria       = db.relationship('Biometria', backref='aluno', uselist=False, cascade='all, delete-orphan')
     acessos         = db.relationship('RegistroAcesso', backref='aluno', lazy=True, cascade='all, delete-orphan')
     documentos      = db.relationship('DocumentoAluno', backref='aluno', lazy=True, cascade='all, delete-orphan')
     pagamentos      = db.relationship('Pagamento', backref='aluno', lazy=True, cascade='all, delete-orphan')
@@ -127,6 +127,7 @@ class AssinaturaRecorrente(db.Model):
     # Identificadores Cielo (Link de Pagamento)
     link_pagamento_id    = db.Column(db.String(50))   # ID do link, gerado na adesão
     url_link_pagamento    = db.Column(db.String(300))  # URL do link — pra recepção copiar/reenviar
+    order_number          = db.Column(db.String(30))   # OrderNumber que NÓS geramos — usado para casar a 1ª confirmação do webhook Cielo
     recurrent_payment_id = db.Column(db.String(50), unique=True)  # ID da série recorrente, após confirmação
 
     # Status: 'link_enviado', 'ativa', 'bloqueada_inadimplencia',

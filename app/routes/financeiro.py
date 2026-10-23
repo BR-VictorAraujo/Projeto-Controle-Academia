@@ -3,6 +3,7 @@ from app import db
 from app.models import Aluno, RegistroAcesso
 from datetime import datetime, date, timedelta
 from app.routes.auth import login_required, registrar_log, get_param, paginar, OPCOES_POR_PAGINA
+from app.routes.alunos import parse_data
 
 bp = Blueprint('financeiro', __name__)
 
@@ -221,8 +222,19 @@ def financeiro_registrar():
     aluno_id        = request.form.get('aluno_id')
     data_venc_str   = request.form.get('data_vencimento')
     data_pag_str    = request.form.get('data_pagamento')
-    data_vencimento = datetime.strptime(data_venc_str, '%Y-%m-%d').date() if data_venc_str else date.today()
-    data_pagamento  = datetime.strptime(data_pag_str,  '%Y-%m-%d').date() if data_pag_str  else None
+
+    data_vencimento, erro_venc = parse_data(data_venc_str, 'vencimento')
+    if erro_venc:
+        flash(erro_venc, 'danger')
+        return _redirect_financeiro()
+    if data_vencimento is None:
+        data_vencimento = date.today()
+
+    data_pagamento, erro_pag = parse_data(data_pag_str, 'pagamento')
+    if erro_pag:
+        flash(erro_pag, 'danger')
+        return _redirect_financeiro()
+
     observacao      = request.form.get('observacao')
     dividido        = request.form.get('dividido') == '1'
 
@@ -292,11 +304,17 @@ def financeiro_registrar():
 def financeiro_pagar(id):
     from app.models import Pagamento
     pag = Pagamento.query.get_or_404(id)
-    data_pag_str        = request.form.get('data_pagamento')
+    data_pag_str = request.form.get('data_pagamento')
+
+    data_pagamento, erro_pag = parse_data(data_pag_str, 'pagamento')
+    if erro_pag:
+        flash(erro_pag, 'danger')
+        return _redirect_financeiro()
+
     pag.status          = 'pago'
     pag.forma_pagamento = request.form.get('forma_pagamento')
     pag.banco_pix       = request.form.get('banco_pix', '').strip() if pag.forma_pagamento == 'pix' else None
-    pag.data_pagamento  = datetime.strptime(data_pag_str, '%Y-%m-%d').date() if data_pag_str else date.today()
+    pag.data_pagamento  = data_pagamento if data_pagamento else date.today()
     obs = request.form.get('observacao')
     if obs:
         pag.observacao = obs
@@ -336,7 +354,10 @@ def _row(p, cols, tipo_pag=None):
         elif c == 'cpf':            row.append(p.aluno.documento if p.aluno.tipo_documento == 'cpf' else '—')
         elif c == 'telefone':       row.append(p.aluno.telefone or '—')
         elif c == 'banco':          row.append(p.banco_pix or '—')
-        elif c == 'tipo':           row.append('Crédito' if p.forma_pagamento == 'credito' else 'Débito')
+        elif c == 'tipo':
+            if p.forma_pagamento == 'cartao_recorrente': row.append('Cartão Recorrente')
+            elif p.forma_pagamento == 'credito':          row.append('Crédito')
+            else:                                          row.append('Débito')
         elif c == 'observacao':     row.append(p.observacao or '—')
         else:                       row.append('—')
     return row
@@ -379,10 +400,11 @@ def financeiro_relatorio_diario():
     hora_fim_str   = request.args.get('hora_fim', '')
     formato        = request.args.get('formato', 'pdf')
     nome_ac        = get_param('nome_academia', 'Academia')
-    secoes_diario  = request.args.get('secoes', 'd-dinheiro,d-pix,d-cartao').split(',')
+    secoes_diario  = request.args.get('secoes', 'd-dinheiro,d-pix,d-cartao,d-recorrente').split(',')
     cols_dinheiro  = [c for c in request.args.get('cols_dinheiro', 'nome,data_pagamento,plano,valor').split(',') if c]
     cols_pix       = [c for c in request.args.get('cols_pix',      'nome,data_pagamento,plano,banco,valor').split(',') if c]
     cols_cartao    = [c for c in request.args.get('cols_cartao',   'nome,data_pagamento,plano,tipo,valor').split(',') if c]
+    cols_recorrente= [c for c in request.args.get('cols_recorrente','nome,data_pagamento,plano,valor').split(',') if c]
 
     try:
         data_rel = datetime.strptime(data_str, '%Y-%m-%d').date() if data_str else date.today()
@@ -417,11 +439,13 @@ def financeiro_relatorio_diario():
     p_credito  = [p for p in pagamentos if p.forma_pagamento == 'credito']
     p_debito   = [p for p in pagamentos if p.forma_pagamento == 'debito']
     p_cartao   = p_credito + p_debito
+    p_recorrente = [p for p in pagamentos if p.forma_pagamento == 'cartao_recorrente']
 
-    total_dinheiro = sum(float(p.valor) for p in p_dinheiro)
-    total_pix      = sum(float(p.valor) for p in p_pix)
-    total_cartao   = sum(float(p.valor) for p in p_cartao)
-    total_geral    = total_dinheiro + total_pix + total_cartao
+    total_dinheiro   = sum(float(p.valor) for p in p_dinheiro)
+    total_pix        = sum(float(p.valor) for p in p_pix)
+    total_cartao     = sum(float(p.valor) for p in p_cartao)
+    total_recorrente = sum(float(p.valor) for p in p_recorrente)
+    total_geral      = total_dinheiro + total_pix + total_cartao + total_recorrente
 
     data_fmt   = data_rel.strftime('%d/%m/%Y')
     dia_semana = ['Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira',
@@ -439,9 +463,10 @@ def financeiro_relatorio_diario():
         w.writerow([])
         w.writerow(['=== RESUMO DO DIA ==='])
         w.writerow(['Forma', 'Qtd Alunos', 'Total'])
-        w.writerow(['Dinheiro', len(p_dinheiro), f'R$ {total_dinheiro:.2f}'])
-        w.writerow(['PIX',      len(p_pix),      f'R$ {total_pix:.2f}'])
-        w.writerow(['Cartão',   len(p_cartao),   f'R$ {total_cartao:.2f}'])
+        w.writerow(['Dinheiro',          len(p_dinheiro),   f'R$ {total_dinheiro:.2f}'])
+        w.writerow(['PIX',               len(p_pix),        f'R$ {total_pix:.2f}'])
+        w.writerow(['Cartão',            len(p_cartao),     f'R$ {total_cartao:.2f}'])
+        w.writerow(['Cartão Recorrente', len(p_recorrente), f'R$ {total_recorrente:.2f}'])
         w.writerow(['TOTAL GERAL', len(pagamentos), f'R$ {total_geral:.2f}'])
         w.writerow([])
         if 'd-dinheiro' in secoes_diario and p_dinheiro:
@@ -466,6 +491,14 @@ def financeiro_relatorio_diario():
             for i, p in enumerate(p_cartao, 1): w.writerow([i] + _row(p, cols_cartao))
             tot = [''] * len(cols_cartao)
             if 'valor' in cols_cartao: tot[cols_cartao.index('valor')] = f'R$ {total_cartao:.2f}'
+            w.writerow(['TOTAL'] + tot)
+            w.writerow([])
+        if 'd-recorrente' in secoes_diario and p_recorrente:
+            w.writerow(['=== CARTÃO RECORRENTE ==='])
+            w.writerow(['#'] + _header(cols_recorrente))
+            for i, p in enumerate(p_recorrente, 1): w.writerow([i] + _row(p, cols_recorrente))
+            tot = [''] * len(cols_recorrente)
+            if 'valor' in cols_recorrente: tot[cols_recorrente.index('valor')] = f'R$ {total_recorrente:.2f}'
             w.writerow(['TOTAL'] + tot)
         output.seek(0)
         return Response('\ufeff' + output.getvalue(), mimetype='text/csv',
@@ -565,20 +598,21 @@ def financeiro_relatorio_diario():
 
     def card_resumo(titulo, qtd, total, cor):
         return Table([
-            [Paragraph(titulo, E('ct', fontSize=9, textColor=CINZA))],
-            [Paragraph(f'{qtd} aluno{"s" if qtd != 1 else ""}', E('cq', fontSize=11, fontName='Helvetica-Bold', textColor=cor))],
-            [Paragraph(f'R$ {total:.2f}', E('cv', fontSize=14, fontName='Helvetica-Bold', textColor=cor))],
-        ], colWidths=[(pw-3*cm)/4-0.3*cm],
+            [Paragraph(titulo, E('ct', fontSize=8, textColor=CINZA))],
+            [Paragraph(f'{qtd} aluno{"s" if qtd != 1 else ""}', E('cq', fontSize=10, fontName='Helvetica-Bold', textColor=cor))],
+            [Paragraph(f'R$ {total:.2f}', E('cv', fontSize=13, fontName='Helvetica-Bold', textColor=cor))],
+        ], colWidths=[(pw-3*cm)/5-0.3*cm],
            style=[('BOX',(0,0),(-1,-1),0.5,colors.HexColor('#dee2e6')),
-                  ('PADDING',(0,0),(-1,-1),10),('BACKGROUND',(0,0),(-1,-1),colors.white)])
+                  ('PADDING',(0,0),(-1,-1),8),('BACKGROUND',(0,0),(-1,-1),colors.white)])
 
     cards = [
-        card_resumo('💵 Dinheiro', len(p_dinheiro), total_dinheiro, VERDE),
-        card_resumo('📱 PIX',      len(p_pix),      total_pix,      colors.HexColor('#1565c0')),
-        card_resumo('💳 Cartão',   len(p_cartao),   total_cartao,   colors.HexColor('#6a1b9a')),
-        card_resumo('📊 Total',    len(pagamentos), total_geral,    SIDEBAR),
+        card_resumo('💵 Dinheiro',    len(p_dinheiro),   total_dinheiro,   VERDE),
+        card_resumo('📱 PIX',         len(p_pix),        total_pix,        colors.HexColor('#1565c0')),
+        card_resumo('💳 Cartão',      len(p_cartao),     total_cartao,     colors.HexColor('#6a1b9a')),
+        card_resumo('🔄 Recorrente',  len(p_recorrente), total_recorrente, colors.HexColor('#1565c0')),
+        card_resumo('📊 Total',       len(pagamentos),   total_geral,      SIDEBAR),
     ]
-    els.append(Table([cards], colWidths=[(pw-3*cm)/4]*4,
+    els.append(Table([cards], colWidths=[(pw-3*cm)/5]*5,
                style=[('LEFTPADDING',(0,0),(-1,-1),3),('RIGHTPADDING',(0,0),(-1,-1),3)]))
     els.append(Spacer(1, 0.5*cm))
 
@@ -603,9 +637,10 @@ def financeiro_relatorio_diario():
         els.append(tabela(data, col_widths=_larguras_diario(cols), totais=[len(data)-1]))
         els.append(Spacer(1, 0.4*cm))
 
-    if 'd-dinheiro' in secoes_diario and p_dinheiro: _tbl_secao('💵 Relação de Dinheiro', p_dinheiro, cols_dinheiro, total_dinheiro)
-    if 'd-pix'      in secoes_diario and p_pix:      _tbl_secao('📱 Relação de PIX',      p_pix,      cols_pix,      total_pix)
-    if 'd-cartao'   in secoes_diario and p_cartao:   _tbl_secao('💳 Relação de Cartão',   p_cartao,   cols_cartao,   total_cartao)
+    if 'd-dinheiro'   in secoes_diario and p_dinheiro:   _tbl_secao('💵 Relação de Dinheiro',          p_dinheiro,   cols_dinheiro,   total_dinheiro)
+    if 'd-pix'        in secoes_diario and p_pix:        _tbl_secao('📱 Relação de PIX',               p_pix,        cols_pix,        total_pix)
+    if 'd-cartao'     in secoes_diario and p_cartao:     _tbl_secao('💳 Relação de Cartão',            p_cartao,     cols_cartao,     total_cartao)
+    if 'd-recorrente' in secoes_diario and p_recorrente: _tbl_secao('🔄 Relação de Cartão Recorrente', p_recorrente, cols_recorrente, total_recorrente)
 
     if not pagamentos:
         els.append(Paragraph('Nenhum pagamento registrado nesta data.', st_body))
@@ -626,12 +661,13 @@ def financeiro_relatorio_mensal():
     inicio_str    = request.args.get('inicio', '')
     fim_str       = request.args.get('fim', '')
     formato       = request.args.get('formato', 'pdf')
-    secoes        = request.args.get('secoes', 'resumo,dinheiro,pix,cartao,inadimplentes').split(',')
+    secoes        = request.args.get('secoes', 'resumo,dinheiro,pix,cartao,recorrente,inadimplentes').split(',')
     nome_ac       = get_param('nome_academia', 'Academia')
     hoje          = date.today()
     cols_dinheiro = [c for c in request.args.get('cols_dinheiro', 'nome,data_pagamento,plano,valor').split(',') if c]
     cols_pix      = [c for c in request.args.get('cols_pix',      'nome,data_pagamento,plano,banco,valor').split(',') if c]
     cols_cartao   = [c for c in request.args.get('cols_cartao',   'nome,data_pagamento,plano,tipo,valor').split(',') if c]
+    cols_recorrente = [c for c in request.args.get('cols_recorrente','nome,data_pagamento,plano,valor').split(',') if c]
     cols_inad     = [c for c in request.args.get('cols_inad',     'nome,plano,vencimento,valor').split(',') if c]
 
     try:
@@ -659,11 +695,13 @@ def financeiro_relatorio_mensal():
     p_credito  = [p for p in todos_mes if p.forma_pagamento == 'credito']
     p_debito   = [p for p in todos_mes if p.forma_pagamento == 'debito']
     p_cartao   = p_credito + p_debito
+    p_recorrente = [p for p in todos_mes if p.forma_pagamento == 'cartao_recorrente']
 
-    total_dinheiro = sum(float(p.valor) for p in p_dinheiro)
-    total_pix      = sum(float(p.valor) for p in p_pix)
-    total_cartao   = sum(float(p.valor) for p in p_cartao)
-    total_geral    = total_dinheiro + total_pix + total_cartao
+    total_dinheiro   = sum(float(p.valor) for p in p_dinheiro)
+    total_pix        = sum(float(p.valor) for p in p_pix)
+    total_cartao     = sum(float(p.valor) for p in p_cartao)
+    total_recorrente = sum(float(p.valor) for p in p_recorrente)
+    total_geral      = total_dinheiro + total_pix + total_cartao + total_recorrente
 
     planos_diaria = [p.nome for p in Plano.query.filter_by(dias_validade=1, ativo=True).all()]
     alunos_pagos  = {p.aluno_id for p in todos_mes}
@@ -689,9 +727,10 @@ def financeiro_relatorio_mensal():
         if 'resumo' in secoes:
             w.writerow(['=== RESUMO FINANCEIRO ==='])
             w.writerow(['Forma', 'Qtd Alunos', 'Total'])
-            w.writerow(['Dinheiro', len(p_dinheiro), f'R$ {total_dinheiro:.2f}'])
-            w.writerow(['PIX',      len(p_pix),      f'R$ {total_pix:.2f}'])
-            w.writerow(['Cartão',   len(p_cartao),   f'R$ {total_cartao:.2f}'])
+            w.writerow(['Dinheiro',          len(p_dinheiro),   f'R$ {total_dinheiro:.2f}'])
+            w.writerow(['PIX',               len(p_pix),        f'R$ {total_pix:.2f}'])
+            w.writerow(['Cartão',            len(p_cartao),     f'R$ {total_cartao:.2f}'])
+            w.writerow(['Cartão Recorrente', len(p_recorrente), f'R$ {total_recorrente:.2f}'])
             w.writerow(['TOTAL',    len(todos_mes),  f'R$ {total_geral:.2f}'])
             w.writerow(['Inadimplentes', len(inadimplentes), ''])
             w.writerow([])
@@ -717,6 +756,14 @@ def financeiro_relatorio_mensal():
             for i, p in enumerate(p_cartao, 1): w.writerow([i] + _row(p, cols_cartao))
             tot = [''] * len(cols_cartao)
             if 'valor' in cols_cartao: tot[cols_cartao.index('valor')] = f'R$ {total_cartao:.2f}'
+            w.writerow(['TOTAL'] + tot)
+            w.writerow([])
+        if 'recorrente' in secoes and p_recorrente:
+            w.writerow(['=== RELAÇÃO CARTÃO RECORRENTE ==='])
+            w.writerow(['#'] + _header(cols_recorrente))
+            for i, p in enumerate(p_recorrente, 1): w.writerow([i] + _row(p, cols_recorrente))
+            tot = [''] * len(cols_recorrente)
+            if 'valor' in cols_recorrente: tot[cols_recorrente.index('valor')] = f'R$ {total_recorrente:.2f}'
             w.writerow(['TOTAL'] + tot)
             w.writerow([])
         if 'inadimplentes' in secoes and inadimplentes:
@@ -822,27 +869,29 @@ def financeiro_relatorio_mensal():
         def card(titulo, qtd, total, cor):
             return Table([
                 [Paragraph(titulo, E('ct', fontSize=8, textColor=CINZA))],
-                [Paragraph(f'{qtd} aluno{"s" if qtd != 1 else ""}', E('cq', fontSize=10, fontName='Helvetica-Bold', textColor=cor))],
-                [Paragraph(f'R$ {total:.2f}', E('cv', fontSize=14, fontName='Helvetica-Bold', textColor=cor))],
-            ], colWidths=[(pw-2*cm)/4-0.3*cm],
+                [Paragraph(f'{qtd} aluno{"s" if qtd != 1 else ""}', E('cq', fontSize=9, fontName='Helvetica-Bold', textColor=cor))],
+                [Paragraph(f'R$ {total:.2f}', E('cv', fontSize=12, fontName='Helvetica-Bold', textColor=cor))],
+            ], colWidths=[(pw-2*cm)/5-0.3*cm],
                style=[('BOX',(0,0),(-1,-1),0.5,colors.HexColor('#dee2e6')),
-                      ('PADDING',(0,0),(-1,-1),10),('BACKGROUND',(0,0),(-1,-1),colors.white)])
+                      ('PADDING',(0,0),(-1,-1),8),('BACKGROUND',(0,0),(-1,-1),colors.white)])
         cards = [
-            card('💵 Dinheiro',    len(p_dinheiro), total_dinheiro, VERDE),
-            card('📱 PIX',         len(p_pix),      total_pix,      colors.HexColor('#1565c0')),
-            card('💳 Cartão',      len(p_cartao),   total_cartao,   colors.HexColor('#6a1b9a')),
-            card('📊 Total Geral', len(todos_mes),  total_geral,    SIDEBAR),
+            card('💵 Dinheiro',    len(p_dinheiro),   total_dinheiro,   VERDE),
+            card('📱 PIX',         len(p_pix),        total_pix,        colors.HexColor('#1565c0')),
+            card('💳 Cartão',      len(p_cartao),     total_cartao,     colors.HexColor('#6a1b9a')),
+            card('🔄 Recorrente',  len(p_recorrente), total_recorrente, colors.HexColor('#1565c0')),
+            card('📊 Total Geral', len(todos_mes),    total_geral,      SIDEBAR),
         ]
-        els.append(Table([cards], colWidths=[(pw-2*cm)/4]*4,
+        els.append(Table([cards], colWidths=[(pw-2*cm)/5]*5,
                    style=[('LEFTPADDING',(0,0),(-1,-1),3),('RIGHTPADDING',(0,0),(-1,-1),3)]))
         els.append(Spacer(1, 0.3*cm))
         resumo_data = [['Forma de Pagamento', 'Qtd. Alunos', 'Total'],
-                       ['Dinheiro', str(len(p_dinheiro)), f'R$ {total_dinheiro:.2f}'],
-                       ['PIX',      str(len(p_pix)),      f'R$ {total_pix:.2f}'],
-                       ['Cartão',   str(len(p_cartao)),   f'R$ {total_cartao:.2f}'],
+                       ['Dinheiro',          str(len(p_dinheiro)),   f'R$ {total_dinheiro:.2f}'],
+                       ['PIX',               str(len(p_pix)),        f'R$ {total_pix:.2f}'],
+                       ['Cartão',            str(len(p_cartao)),     f'R$ {total_cartao:.2f}'],
+                       ['Cartão Recorrente', str(len(p_recorrente)), f'R$ {total_recorrente:.2f}'],
                        ['TOTAL GERAL', str(len(todos_mes)), f'R$ {total_geral:.2f}'],
                        ['Inadimplentes (mensalistas)', str(len(inadimplentes)), '—']]
-        els.append(tabela(resumo_data, col_widths=[8*cm, 4*cm, 4*cm], totais=[4]))
+        els.append(tabela(resumo_data, col_widths=[8*cm, 4*cm, 4*cm], totais=[5]))
         els.append(Spacer(1, 0.5*cm))
 
     def _larguras(cols, larg_total):
@@ -865,9 +914,10 @@ def financeiro_relatorio_mensal():
         els.append(tabela(data, col_widths=_larguras(cols, pw - 2*cm), totais=[len(data)-1]))
         els.append(Spacer(1, 0.4*cm))
 
-    if 'dinheiro' in secoes and p_dinheiro: _tbl_mensal('💵 Relação de Dinheiro', p_dinheiro, cols_dinheiro, total_dinheiro)
-    if 'pix'      in secoes and p_pix:      _tbl_mensal('📱 Relação de PIX',      p_pix,      cols_pix,      total_pix)
-    if 'cartao'   in secoes and p_cartao:   _tbl_mensal('💳 Relação de Cartão',   p_cartao,   cols_cartao,   total_cartao)
+    if 'dinheiro'   in secoes and p_dinheiro:   _tbl_mensal('💵 Relação de Dinheiro',          p_dinheiro,   cols_dinheiro,   total_dinheiro)
+    if 'pix'        in secoes and p_pix:        _tbl_mensal('📱 Relação de PIX',               p_pix,        cols_pix,        total_pix)
+    if 'cartao'     in secoes and p_cartao:     _tbl_mensal('💳 Relação de Cartão',            p_cartao,     cols_cartao,     total_cartao)
+    if 'recorrente' in secoes and p_recorrente: _tbl_mensal('🔄 Relação de Cartão Recorrente', p_recorrente, cols_recorrente, total_recorrente)
 
     if 'inadimplentes' in secoes:
         els.append(Paragraph('⚠️ Inadimplentes', st_h2))

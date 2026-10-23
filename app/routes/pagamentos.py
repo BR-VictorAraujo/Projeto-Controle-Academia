@@ -187,6 +187,7 @@ def criar_assinatura():
         gateway=gateway,
         link_pagamento_id=resultado_gateway.get('link_pagamento_id'),
         url_link_pagamento=resultado_gateway.get('url_link'),
+        order_number=resultado_gateway.get('order_number'),
         status='link_enviado',
         valor_mensal=plano.valor,
         data_inicio=data_inicio,
@@ -292,7 +293,22 @@ def cancelar_assinatura(assinatura_id):
                     cliente.excluir_link_pagamento(assinatura.link_pagamento_id)
                 else:
                     # Aluno já aderiu — desativa a recorrência (irreversível na Cielo).
-                    cliente.desativar_recorrencia(assinatura.recurrent_payment_id)
+                    try:
+                        cliente.desativar_recorrencia(assinatura.recurrent_payment_id)
+                    except CieloClientError as e:
+                        if 'not activated' in str(e).lower():
+                            # A Cielo já considera essa recorrência inativa
+                            # (provavelmente já desativada antes, e nosso
+                            # banco ficou dessincronizado por causa de um
+                            # pagamento tardio que reativou por engano —
+                            # ver correção em _processar_pagamento_confirmado).
+                            # Tratamos como sucesso: só sincronizamos o status.
+                            _log('cancelamento_solicitado', nivel='WARNING',
+                                 assinatura_recorrente_id=assinatura.id,
+                                 recurrent_payment_id=assinatura.recurrent_payment_id,
+                                 resultado='Cielo já considerava esta recorrência inativa — banco sincronizado sem erro.')
+                        else:
+                            raise
         except (CieloClientError, AsaasClientError) as e:
             return jsonify({'erro': f'Falha ao cancelar na {assinatura.gateway.capitalize()}: {e}'}), 502
 
@@ -517,57 +533,81 @@ def webhook_cielo():
 
     # SEM autenticação — a Cielo não oferece mecanismo de auth pra essa
     # notificação (confirmado na doc: "não há implementação de
-    # autenticação para o envio de notificações"). A mitigação real é
-    # nunca confiar no payload como fonte de verdade: sempre consultamos
-    # a Cielo ativamente antes de processar qualquer atualização abaixo.
-    # Aceita tanto form-urlencoded quanto JSON, conforme a doc da Cielo
+    # autenticação para o envio de notificações").
+    #
+    # IMPORTANTE — corrigido em 02/09/2026: o payload REAL da linha
+    # Checkout Cielo/Link de Pagamento não usa os campos RecurrentPaymentId/
+    # PaymentId/ChangeType (isso era suposição baseada em doc genérica,
+    # nunca confirmada). O payload real, confirmado direto de um webhook
+    # recebido em produção, é:
+    #   {
+    #     "amount": "6000",
+    #     "authorization_code": "997643",
+    #     "brand": "Visa",
+    #     "checkout_cielo_order_number": "644091a088fe4901a4ff",
+    #     "nsu": "024002",
+    #     "order_number": "assin4611788298706",
+    #     "pagador_recurrent_payment_id": "67342290-0bb5-4257-872a-63306ce2f620",
+    #     "payment_status": "2",
+    #     "test_transaction": "False"
+    #   }
+    # Isso explicou uma falha real em produção: pagamentos confirmados de
+    # verdade nunca eram processados porque o parsing antigo não reconhecia
+    # nenhum campo desse payload.
+    #
+    # NOTA DE SEGURANÇA: idealmente faríamos uma consulta ativa antes de
+    # confiar nisso (como fazemos, em teoria, no desenho original), mas não
+    # temos ainda um endpoint de consulta confirmado para essa linha de
+    # produto. Por ora confiamos no payload diretamente — reavaliar quando
+    # tivermos a consulta confirmada.
     if request.is_json:
         dados = request.get_json(silent=True) or {}
     else:
         dados = request.form.to_dict()
 
-    recurrent_payment_id = dados.get('RecurrentPaymentId') or dados.get('recurrentPaymentId')
-    payment_id = dados.get('PaymentId') or dados.get('paymentId')
-    change_type = dados.get('ChangeType') or dados.get('changeType')
+    order_number = dados.get('order_number')
+    pagador_recurrent_payment_id = dados.get('pagador_recurrent_payment_id')
+    payment_status = dados.get('payment_status')
+    checkout_order_number = dados.get('checkout_cielo_order_number')  # identificador único desta cobrança específica
 
     _log('webhook_recebido', payload=dados,
-         recurrent_payment_id=recurrent_payment_id, payment_id_gateway=payment_id)
+         recurrent_payment_id=pagador_recurrent_payment_id, payment_id_gateway=checkout_order_number)
 
-    if not recurrent_payment_id:
-        # Payload não reconhecido — grava bruto (é exatamente o cenário que
-        # você pediu para nunca perder) e responde 200 para a Cielo não
-        # ficar reenviando indefinidamente algo que nunca vamos conseguir tratar
+    if not order_number and not pagador_recurrent_payment_id:
         _log('erro_parsing', nivel='ERROR', payload=dados,
-             resultado='Webhook sem RecurrentPaymentId identificável')
+             resultado='Webhook Cielo sem order_number nem pagador_recurrent_payment_id identificável')
         return jsonify({'status': 'recebido'}), 200
 
-    assinatura = AssinaturaRecorrente.query.filter_by(
-        recurrent_payment_id=recurrent_payment_id
-    ).first()
-
-    # Nunca confiamos no payload como fonte de verdade — sempre consultamos
-    # a Cielo antes de processar qualquer atualização
-    try:
-        detalhe = cielo_client.consultar_recorrencia(recurrent_payment_id)
-    except CieloClientError as e:
-        _log('erro_parsing', nivel='ERROR', recurrent_payment_id=recurrent_payment_id,
-             resultado=f'Falha ao consultar detalhe: {e}')
-        return jsonify({'status': 'recebido'}), 200
-
-    status_real = detalhe.get('status')  # TODO CONFIRMAR nome/valores exatos do campo na resposta real
+    # Prioridade de busca: 1) recurrent_payment_id já vinculado (cobranças
+    # subsequentes), 2) order_number (1ª confirmação, vincula pra sempre)
+    assinatura = None
+    if pagador_recurrent_payment_id:
+        assinatura = AssinaturaRecorrente.query.filter_by(
+            recurrent_payment_id=pagador_recurrent_payment_id, gateway='cielo'
+        ).first()
+    if not assinatura and order_number:
+        assinatura = AssinaturaRecorrente.query.filter_by(
+            order_number=order_number, gateway='cielo'
+        ).first()
+        if assinatura and pagador_recurrent_payment_id and not assinatura.recurrent_payment_id:
+            assinatura.recurrent_payment_id = pagador_recurrent_payment_id
 
     if not assinatura:
-        _log('erro_parsing', nivel='WARNING', recurrent_payment_id=recurrent_payment_id,
-             resultado='RecurrentPaymentId não corresponde a nenhuma assinatura conhecida', payload=detalhe)
+        _log('erro_parsing', nivel='WARNING', payload=dados,
+             recurrent_payment_id=pagador_recurrent_payment_id,
+             resultado=f'Nenhuma assinatura encontrada para order_number={order_number}')
         return jsonify({'status': 'recebido'}), 200
 
-    if status_real in ('Paid', 'Authorized', 'Confirmed'):  # TODO CONFIRMAR valores reais
-        _processar_pagamento_confirmado(assinatura, payment_id, detalhe)
-    elif status_real in ('Denied', 'NotAuthorized', 'Voided'):  # TODO CONFIRMAR valores reais
-        _processar_pagamento_negado(assinatura, payment_id, detalhe)
+    # payment_status confirmados (enum padrão de status Cielo):
+    # 1=Authorized, 2=PaymentConfirmed(capturado) -> tratamos como confirmado
+    # 3=Denied, 10=Voided, 13=Aborted -> tratamos como negado
+    if payment_status in ('2',):
+        _processar_pagamento_confirmado(assinatura, checkout_order_number, dados)
+    elif payment_status in ('3', '10', '13'):
+        _processar_pagamento_negado(assinatura, checkout_order_number, dados)
     else:
-        _log('webhook_recebido', nivel='WARNING', recurrent_payment_id=recurrent_payment_id,
-             resultado=f'Status não mapeado: {status_real}', payload=detalhe)
+        _log('webhook_recebido', nivel='WARNING', recurrent_payment_id=pagador_recurrent_payment_id,
+             resultado=f'payment_status não mapeado: {payment_status}', payload=dados)
 
     return jsonify({'status': 'recebido'}), 200
 
@@ -582,6 +622,13 @@ def _processar_pagamento_confirmado(assinatura, payment_id, detalhe):
     aluno = assinatura.aluno
     hoje = date.today()
 
+    # Proteção crítica: a Cielo confirma que desativar uma recorrência NÃO
+    # cancela uma cobrança que já estava em trânsito naquele momento — ela
+    # pode confirmar alguns instantes/dias depois, mesmo já cancelada.
+    # Sem essa checagem, esse pagamento "atrasado" reativava a assinatura
+    # e avançava o vencimento de novo, mesmo já tendo sido cancelada.
+    ja_cancelada = assinatura.status in ('cancelada', 'expirada_cartao')
+
     pagamento = Pagamento(
         aluno_id=aluno.id,
         valor=assinatura.valor_mensal,
@@ -594,8 +641,20 @@ def _processar_pagamento_confirmado(assinatura, payment_id, detalhe):
         origem='recorrente_gateway',
         assinatura_recorrente_id=assinatura.id,
         payment_id_gateway=payment_id,
+        observacao='Cobrança já autorizada antes do cancelamento — processada tardiamente.' if ja_cancelada else None,
     )
     db.session.add(pagamento)
+
+    if ja_cancelada:
+        # Dinheiro é real e precisa aparecer no Financeiro, mas NÃO
+        # reativamos a assinatura nem mexemos no vencimento automaticamente
+        # — quem decide o que fazer com esse pagamento tardio é a recepção.
+        db.session.commit()
+        _log('pagamento_lancado', nivel='WARNING', assinatura_recorrente_id=assinatura.id,
+             payment_id_gateway=payment_id,
+             resultado='Pagamento confirmado numa assinatura JÁ CANCELADA — lançado no Financeiro, '
+                        'mas status/vencimento NÃO foram alterados automaticamente. Revisar manualmente.')
+        return
 
     # Avança o vencimento do aluno automaticamente — mesma fonte de verdade
     # que o fluxo manual já usa para controle de acesso

@@ -6,6 +6,29 @@ from app.routes.auth import login_required, registrar_log, get_param, validar_do
 
 bp = Blueprint('alunos', __name__)
 
+
+def parse_data(data_str, nome_campo):
+    """Converte string 'YYYY-MM-DD' em date, com validacao de ano
+    plausivel -- evita que um ano digitado errado (ex: '0026' em vez de
+    '2026') passe direto e cause comportamento estranho em calculos de
+    vencimento/prazos mais adiante no sistema.
+
+    Retorna (data, erro). 'data' vem None se erro nao for None.
+    """
+    if not data_str:
+        return None, None
+    try:
+        data = datetime.strptime(data_str, '%Y-%m-%d').date()
+    except ValueError:
+        return None, f'Data de {nome_campo} invalida. Verifique o formato e tente novamente.'
+
+    if data.year < 1900 or data.year > 2100:
+        return None, (f'Ano de {nome_campo} invalido ({data.year}). '
+                       f'Confira se digitou a data corretamente (ex: 02/10/2026).')
+
+    return data, None
+
+
 @bp.route('/alunos')
 @login_required
 def alunos():
@@ -64,15 +87,22 @@ def novo_aluno():
         data_nasc_str  = request.form.get('data_nascimento')
         vencimento_str = request.form.get('vencimento')
 
-        data_nascimento = datetime.strptime(data_nasc_str, '%Y-%m-%d').date() if data_nasc_str else None
-        vencimento      = datetime.strptime(vencimento_str, '%Y-%m-%d').date() if vencimento_str else None
+        data_nascimento, erro_nasc = parse_data(data_nasc_str, 'nascimento')
+        if erro_nasc:
+            flash(erro_nasc, 'danger')
+            return render_template('alunos/novo.html', planos=planos)
+
+        vencimento, erro_venc = parse_data(vencimento_str, 'vencimento')
+        if erro_venc:
+            flash(erro_venc, 'danger')
+            return render_template('alunos/novo.html', planos=planos)
 
         nome = (nome or '').strip()
         if not nome:
-            flash('O nome do aluno é obrigatório.', 'danger')
+            flash('O nome do aluno e obrigatorio.', 'danger')
             return render_template('alunos/novo.html', planos=planos)
         if len(nome) > 100:
-            flash(f'Nome muito longo ({len(nome)} caracteres). O limite é 100 caracteres.', 'danger')
+            flash(f'Nome muito longo ({len(nome)} caracteres). O limite e 100 caracteres.', 'danger')
             return render_template('alunos/novo.html', planos=planos)
 
         valido, erro = validar_documento(tipo_documento, documento)
@@ -82,7 +112,7 @@ def novo_aluno():
 
         permitir_dup = get_param('permitir_doc_duplicado', '0') == '1'
         if not permitir_dup and Aluno.query.filter_by(documento=documento, tipo_documento=tipo_documento).first():
-            flash(f'{tipo_documento.upper()} já cadastrado no sistema.', 'danger')
+            flash(f'{tipo_documento.upper()} ja cadastrado no sistema.', 'danger')
             return render_template('alunos/novo.html', planos=planos)
 
         foto_path   = None
@@ -118,7 +148,7 @@ def novo_aluno():
                     tamanho_mb = arquivo.tell() / (1024 * 1024)
                     arquivo.seek(0)
                     if tamanho_mb > MAX_UPLOAD_MB:
-                        flash(f'Arquivo {arquivo.filename} muito grande (máx {MAX_UPLOAD_MB}MB).', 'warning')
+                        flash(f'Arquivo {arquivo.filename} muito grande (max {MAX_UPLOAD_MB}MB).', 'warning')
                         continue
                     pasta    = os.path.join('app', 'static', 'documentos', str(aluno.id))
                     os.makedirs(pasta, exist_ok=True)
@@ -157,10 +187,10 @@ def editar_aluno(id):
         novo_nome      = (request.form.get('nome') or '').strip()
 
         if not novo_nome:
-            flash('O nome do aluno é obrigatório.', 'danger')
+            flash('O nome do aluno e obrigatorio.', 'danger')
             return render_template('alunos/editar.html', aluno=aluno, planos=planos, documentos=documentos)
         if len(novo_nome) > 100:
-            flash(f'Nome muito longo ({len(novo_nome)} caracteres). O limite é 100 caracteres.', 'danger')
+            flash(f'Nome muito longo ({len(novo_nome)} caracteres). O limite e 100 caracteres.', 'danger')
             return render_template('alunos/editar.html', aluno=aluno, planos=planos, documentos=documentos)
 
         valido, erro = validar_documento(tipo_doc, novo_documento)
@@ -171,11 +201,21 @@ def editar_aluno(id):
         permitir_dup  = get_param('permitir_doc_duplicado', '0') == '1'
         doc_existente = Aluno.query.filter_by(documento=novo_documento, tipo_documento=tipo_doc).first()
         if not permitir_dup and doc_existente and doc_existente.id != id:
-            flash('Documento já cadastrado para outro aluno.', 'danger')
+            flash('Documento ja cadastrado para outro aluno.', 'danger')
             return render_template('alunos/editar.html', aluno=aluno, planos=planos, documentos=documentos)
 
         data_nasc_str  = request.form.get('data_nascimento')
         vencimento_str = request.form.get('vencimento')
+
+        data_nascimento, erro_nasc = parse_data(data_nasc_str, 'nascimento')
+        if erro_nasc:
+            flash(erro_nasc, 'danger')
+            return render_template('alunos/editar.html', aluno=aluno, planos=planos, documentos=documentos)
+
+        vencimento, erro_venc = parse_data(vencimento_str, 'vencimento')
+        if erro_venc:
+            flash(erro_venc, 'danger')
+            return render_template('alunos/editar.html', aluno=aluno, planos=planos, documentos=documentos)
 
         aluno.nome            = novo_nome
         aluno.tipo_documento  = tipo_doc
@@ -185,8 +225,8 @@ def editar_aluno(id):
         aluno.plano           = request.form.get('plano')
         aluno.ativo           = request.form.get('ativo') == '1'
         aluno.endereco        = request.form.get('endereco', '')
-        aluno.data_nascimento = datetime.strptime(data_nasc_str, '%Y-%m-%d').date() if data_nasc_str else None
-        aluno.vencimento      = datetime.strptime(vencimento_str, '%Y-%m-%d').date() if vencimento_str else None
+        aluno.data_nascimento = data_nascimento
+        aluno.vencimento      = vencimento
 
         foto_base64 = request.form.get('foto_base64')
         if foto_base64 and foto_base64.startswith('data:image'):
@@ -209,7 +249,10 @@ def editar_aluno(id):
         db.session.commit()
         registrar_log('editou aluno', f'ID: {id} | Nome: {aluno.nome}')
         flash('Aluno atualizado com sucesso!', 'success')
-        return redirect(url_for('alunos.alunos'))
+        # Fica na propria tela de edicao em vez de voltar pra lista --
+        # evita que o usuario precise buscar o aluno de novo para fazer
+        # uma segunda edicao em seguida.
+        return redirect(url_for('alunos.editar_aluno', id=id))
 
     return render_template('alunos/editar.html', aluno=aluno, planos=planos, documentos=documentos)
 
@@ -241,7 +284,7 @@ def excluir_aluno(id):
     registrar_log('excluiu aluno', f'ID: {id} | Nome: {nome}')
     db.session.delete(aluno)
     db.session.commit()
-    flash(f'Aluno {nome} excluído com sucesso.', 'success')
+    flash(f'Aluno {nome} excluido com sucesso.', 'success')
     return redirect(url_for('alunos.alunos'))
 
 @bp.route('/alunos/<int:id>/documentos/upload', methods=['POST'])
@@ -259,14 +302,14 @@ def upload_documento(id):
 
     ext = arquivo.filename.rsplit('.', 1)[-1].lower()
     if ext not in ['pdf', 'jpg', 'jpeg', 'png']:
-        flash('Formato inválido. Use PDF, JPG ou PNG.', 'danger')
+        flash('Formato invalido. Use PDF, JPG ou PNG.', 'danger')
         return redirect(url_for('alunos.editar_aluno', id=id))
 
     arquivo.seek(0, 2)
     tamanho_mb = arquivo.tell() / (1024 * 1024)
     arquivo.seek(0)
     if tamanho_mb > 10:
-        flash('Arquivo muito grande. Tamanho máximo: 10MB.', 'danger')
+        flash('Arquivo muito grande. Tamanho maximo: 10MB.', 'danger')
         return redirect(url_for('alunos.editar_aluno', id=id))
 
     pasta    = os.path.join('app', 'static', 'documentos', str(id))
@@ -296,5 +339,5 @@ def excluir_documento(id, doc_id):
     db.session.delete(doc)
     db.session.commit()
     registrar_log('excluiu documento', f'Aluno ID: {id} | Arquivo: {doc.nome_arquivo}')
-    flash('Documento excluído com sucesso!', 'success')
+    flash('Documento excluido com sucesso!', 'success')
     return redirect(url_for('alunos.editar_aluno', id=id))

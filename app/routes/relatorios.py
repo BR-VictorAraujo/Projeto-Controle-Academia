@@ -76,6 +76,19 @@ def _agrupar_por_aluno(registros):
             aluno_map[aid]['ultimo'] = reg.entrada_em
     return sorted(aluno_map.values(), key=lambda x: x['aluno'].nome)
 
+def _forma_pagamento_label(forma):
+    """Rótulo amigável para exibição/exportação — inclui 'Cartão Recorrente'
+    (cobrança automática via gateway), que antes aparecia como texto cru."""
+    labels = {
+        'dinheiro':          'Dinheiro',
+        'pix':               'PIX',
+        'credito':           'Crédito',
+        'debito':            'Débito',
+        'boleto':            'Boleto',
+        'cartao_recorrente': 'Cartão Recorrente',
+    }
+    return labels.get(forma, forma or '—')
+
 # ── Rota principal ────────────────────────────────────────────────────────────
 
 @bp.route('/relatorios')
@@ -335,7 +348,7 @@ def exportar_csv():
              'telefone':p.aluno.telefone or '—','plano':p.aluno.plano or '—',
              'valor':f'R$ {float(p.valor):.2f}','vencimento':p.data_vencimento.strftime('%d/%m/%Y'),
              'pagamento':p.data_pagamento.strftime('%d/%m/%Y') if p.data_pagamento else '—',
-             'forma':p.forma_pagamento or '—','status':p.status.capitalize()}
+             'forma':_forma_pagamento_label(p.forma_pagamento),'status':p.status.capitalize()}
         return m.get(col, '—')
 
     col_labels = {
@@ -647,7 +660,7 @@ def exportar_pdf():
                  'telefone':p.aluno.telefone or '—','plano':p.aluno.plano or '—',
                  'valor':f'R$ {float(p.valor):.2f}','vencimento':p.data_vencimento.strftime('%d/%m/%Y'),
                  'pagamento':p.data_pagamento.strftime('%d/%m/%Y') if p.data_pagamento else '—',
-                 'forma':p.forma_pagamento or '—','status':p.status.capitalize()}
+                 'forma':_forma_pagamento_label(p.forma_pagamento),'status':p.status.capitalize()}
             return m.get(c,'—')
         data = [[col_labels.get(c,c) for c in cols]] + [[gcf(p,c) for c in cols] for p in qpag.order_by(Pagamento.data_vencimento).all()]
     else:

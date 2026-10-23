@@ -279,7 +279,7 @@
         {% if f_usuario %}<span class="filtro-tag"><i class="bi bi-person-gear"></i> Usuário: {{ f_usuario }} <a href="{{ request.url | replace('&f_usuario=' ~ f_usuario, '') | replace('f_usuario=' ~ f_usuario ~ '&', '') }}">×</a></span>{% endif %}
         {% if f_acao %}<span class="filtro-tag"><i class="bi bi-activity"></i> Ação: {{ f_acao }} <a href="{{ request.url | replace('&f_acao=' ~ f_acao, '') | replace('f_acao=' ~ f_acao ~ '&', '') }}">×</a></span>{% endif %}
         {% if f_pg_status %}<span class="filtro-tag"><i class="bi bi-cash"></i> Status pag.: {{ f_pg_status }} <a href="{{ request.url | replace('&f_pg_status=' ~ f_pg_status, '') | replace('f_pg_status=' ~ f_pg_status ~ '&', '') }}">×</a></span>{% endif %}
-        {% if f_forma_pag %}<span class="filtro-tag"><i class="bi bi-credit-card"></i> Forma: {{ f_forma_pag }} <a href="{{ request.url | replace('&f_forma_pag=' ~ f_forma_pag, '') | replace('f_forma_pag=' ~ f_forma_pag ~ '&', '') }}">×</a></span>{% endif %}
+        {% if f_forma_pag %}<span class="filtro-tag"><i class="bi bi-credit-card"></i> Forma: {% if f_forma_pag == 'dinheiro' %}Dinheiro{% elif f_forma_pag == 'pix' %}PIX{% elif f_forma_pag == 'credito' %}Crédito{% elif f_forma_pag == 'debito' %}Débito{% elif f_forma_pag == 'boleto' %}Boleto{% elif f_forma_pag == 'cartao_recorrente' %}Cartão Recorrente{% else %}{{ f_forma_pag }}{% endif %} <a href="{{ request.url | replace('&f_forma_pag=' ~ f_forma_pag, '') | replace('f_forma_pag=' ~ f_forma_pag ~ '&', '') }}">×</a></span>{% endif %}
     </div>
     {% endif %}
 
@@ -496,7 +496,15 @@
                         <td><strong>R$ {{ '%.2f'|format(p.valor) }}</strong></td>
                         <td style="font-size:13px; color:#6c757d;">{{ p.data_vencimento.strftime('%d/%m/%Y') }}</td>
                         <td style="font-size:13px; color:#6c757d;">{{ p.data_pagamento.strftime('%d/%m/%Y') if p.data_pagamento else '—' }}</td>
-                        <td style="font-size:13px;">{{ p.forma_pagamento or '—' }}</td>
+                        <td style="font-size:13px;">
+                            {% if p.forma_pagamento == 'dinheiro' %}Dinheiro
+                            {% elif p.forma_pagamento == 'pix' %}PIX
+                            {% elif p.forma_pagamento == 'credito' %}Crédito
+                            {% elif p.forma_pagamento == 'debito' %}Débito
+                            {% elif p.forma_pagamento == 'boleto' %}Boleto
+                            {% elif p.forma_pagamento == 'cartao_recorrente' %}<span style="color:#1565c0;"><i class="bi bi-arrow-repeat me-1"></i>Cartão Recorrente</span>
+                            {% else %}{{ p.forma_pagamento or '—' }}{% endif %}
+                        </td>
                         <td>{% if p.status == 'pago' %}<span class="badge-ativo">Pago</span>{% elif p.status == 'vencido' %}<span class="badge-inativo">Vencido</span>{% else %}<span class="badge-vencendo">Pendente</span>{% endif %}</td>
                     </tr>
                     {% endfor %}
@@ -815,8 +823,12 @@
                 <label>Forma de pagamento</label>
                 <select id="oc_f_forma_pag" class="form-select">
                     <option value="">Todas</option>
-                    <option value="dinheiro" {% if f_forma_pag == 'dinheiro' %}selected{% endif %}>Dinheiro</option>
-                    <option value="pix"      {% if f_forma_pag == 'pix'      %}selected{% endif %}>PIX</option>
+                    <option value="dinheiro"          {% if f_forma_pag == 'dinheiro'          %}selected{% endif %}>Dinheiro</option>
+                    <option value="pix"               {% if f_forma_pag == 'pix'               %}selected{% endif %}>PIX</option>
+                    <option value="credito"           {% if f_forma_pag == 'credito'           %}selected{% endif %}>Crédito</option>
+                    <option value="debito"            {% if f_forma_pag == 'debito'            %}selected{% endif %}>Débito</option>
+                    <option value="boleto"            {% if f_forma_pag == 'boleto'            %}selected{% endif %}>Boleto</option>
+                    <option value="cartao_recorrente" {% if f_forma_pag == 'cartao_recorrente' %}selected{% endif %}>Cartão Recorrente</option>
                 </select>
             </div>
         </div>

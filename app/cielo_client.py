@@ -166,6 +166,7 @@ def criar_link_recorrencia(aluno, valor_mensal, data_inicio, data_fim_ciclo=None
     return {
         'link_pagamento_id': dados.get('id') or dados.get('productId'),
         'url_link': dados.get('url') or dados.get('shortUrl') or dados.get('paymentUrl'),
+        'order_number': order_number,
     }
 
 

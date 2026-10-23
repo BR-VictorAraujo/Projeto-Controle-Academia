@@ -131,6 +131,7 @@
         <thead>
             <tr>
                 <th>Nome</th>
+                <th>ID</th>
                 <th>Documento</th>
                 <th>Telefone</th>
                 <th>Plano</th>
@@ -153,6 +154,11 @@
                             {% endif %}
                             <strong>{{ aluno.nome }}</strong>
                         </div>
+                    </td>
+                    <td>
+                        <span style="font-family:monospace; font-size:12px; color:#6c757d; background:#f8f9fa; padding:2px 8px; border-radius:4px;">
+                            #{{ aluno.id }}
+                        </span>
                     </td>
                     <td>
                         <span class="badge-doc">
@@ -201,7 +207,7 @@
                 {% endfor %}
             {% else %}
                 <tr>
-                    <td colspan="{{ 8 if tecnologias.biometria else 7 }}" style="text-align:center; color:#6c757d; padding:40px 0;">
+                    <td colspan="{{ 9 if tecnologias.biometria else 8 }}" style="text-align:center; color:#6c757d; padding:40px 0;">
                         <i class="bi bi-people" style="font-size:32px; display:block; margin-bottom:8px;"></i>
                         Nenhum aluno encontrado com os filtros aplicados
                     </td>

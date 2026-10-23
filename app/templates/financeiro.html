@@ -251,6 +251,7 @@
                         <td>
                             {% if pagto.forma_pagamento == 'dinheiro' %}<span style="font-size:13px;"><i class="bi bi-cash me-1"></i>Dinheiro</span>
                             {% elif pagto.forma_pagamento == 'pix' %}<span style="font-size:13px;"><i class="bi bi-qr-code me-1"></i>PIX{% if pagto.banco_pix %} <small style="color:#6c757d;">({{ pagto.banco_pix }})</small>{% endif %}</span>
+                            {% elif pagto.forma_pagamento == 'cartao_recorrente' %}<span style="font-size:13px; color:#1565c0;"><i class="bi bi-arrow-repeat me-1"></i>Cartão Recorrente</span>
                             {% elif pagto.forma_pagamento == 'credito' %}<span style="font-size:13px;"><i class="bi bi-credit-card me-1"></i>Crédito</span>
                             {% elif pagto.forma_pagamento == 'debito' %}<span style="font-size:13px;"><i class="bi bi-credit-card-2-back me-1"></i>Débito</span>
                             {% elif pagto.forma_pagamento == 'boleto' %}<span style="font-size:13px;"><i class="bi bi-receipt me-1"></i>Boleto</span>
@@ -380,7 +381,7 @@
                     <div style="display:flex; align-items:center; justify-content:space-between;">
                         <div>
                             <div class="rel-secao-titulo">💳 Relação de Cartão</div>
-                            <div class="rel-secao-desc">Pagamentos com cartão (crédito/débito)</div>
+                            <div class="rel-secao-desc">Pagamentos com cartão lançados manualmente (crédito/débito)</div>
                         </div>
                         <i class="bi bi-check-circle-fill" id="icon-cartao" style="color:var(--cor-principal); font-size:20px;"></i>
                     </div>
@@ -395,6 +396,29 @@
                             <span class="col-tag"         data-col="cpf"            data-secao="cartao" onclick="toggleCol(event,this)">CPF</span>
                             <span class="col-tag"         data-col="telefone"       data-secao="cartao" onclick="toggleCol(event,this)">Telefone</span>
                             <span class="col-tag"         data-col="observacao"     data-secao="cartao" onclick="toggleCol(event,this)">Observação</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Cartão Recorrente -->
+                <div class="rel-secao selecionada" id="secao-recorrente" onclick="toggleSecao('recorrente')">
+                    <div style="display:flex; align-items:center; justify-content:space-between;">
+                        <div>
+                            <div class="rel-secao-titulo">🔄 Relação de Cartão Recorrente</div>
+                            <div class="rel-secao-desc">Cobranças automáticas via gateway (Cielo/Asaas)</div>
+                        </div>
+                        <i class="bi bi-check-circle-fill" id="icon-recorrente" style="color:var(--cor-principal); font-size:20px;"></i>
+                    </div>
+                    <div class="secao-cols" id="cols-wrap-recorrente" onclick="event.stopPropagation()">
+                        <div class="secao-cols-label">Colunas</div>
+                        <div class="col-check">
+                            <span class="col-tag marcada" data-col="nome"           data-secao="recorrente" onclick="toggleCol(event,this)">Nome</span>
+                            <span class="col-tag marcada" data-col="data_pagamento" data-secao="recorrente" onclick="toggleCol(event,this)">Data Pagamento</span>
+                            <span class="col-tag marcada" data-col="plano"          data-secao="recorrente" onclick="toggleCol(event,this)">Plano</span>
+                            <span class="col-tag marcada" data-col="valor"          data-secao="recorrente" onclick="toggleCol(event,this)">Valor</span>
+                            <span class="col-tag"         data-col="cpf"            data-secao="recorrente" onclick="toggleCol(event,this)">CPF</span>
+                            <span class="col-tag"         data-col="telefone"       data-secao="recorrente" onclick="toggleCol(event,this)">Telefone</span>
+                            <span class="col-tag"         data-col="observacao"     data-secao="recorrente" onclick="toggleCol(event,this)">Observação</span>
                         </div>
                     </div>
                 </div>
@@ -547,7 +571,7 @@
                     <div style="display:flex; align-items:center; justify-content:space-between;">
                         <div>
                             <div class="rel-secao-titulo">💳 Relação de Cartão</div>
-                            <div class="rel-secao-desc">Pagamentos com cartão (crédito/débito)</div>
+                            <div class="rel-secao-desc">Pagamentos com cartão lançados manualmente (crédito/débito)</div>
                         </div>
                         <i class="bi bi-check-circle-fill" id="icon-d-cartao" style="color:var(--cor-principal); font-size:20px;"></i>
                     </div>
@@ -561,6 +585,28 @@
                             <span class="col-tag"         data-col="cpf"            data-secao="d-cartao" onclick="toggleCol(event,this)">CPF</span>
                             <span class="col-tag"         data-col="telefone"       data-secao="d-cartao" onclick="toggleCol(event,this)">Telefone</span>
                             <span class="col-tag"         data-col="observacao"     data-secao="d-cartao" onclick="toggleCol(event,this)">Observação</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Cartão Recorrente diário -->
+                <div class="rel-secao selecionada" id="secao-d-recorrente" onclick="toggleSecaoDiario('d-recorrente')">
+                    <div style="display:flex; align-items:center; justify-content:space-between;">
+                        <div>
+                            <div class="rel-secao-titulo">🔄 Relação de Cartão Recorrente</div>
+                            <div class="rel-secao-desc">Cobranças automáticas via gateway (Cielo/Asaas)</div>
+                        </div>
+                        <i class="bi bi-check-circle-fill" id="icon-d-recorrente" style="color:var(--cor-principal); font-size:20px;"></i>
+                    </div>
+                    <div class="secao-cols" id="cols-wrap-d-recorrente" onclick="event.stopPropagation()">
+                        <div class="col-check">
+                            <span class="col-tag marcada" data-col="nome"           data-secao="d-recorrente" onclick="toggleCol(event,this)">Nome</span>
+                            <span class="col-tag marcada" data-col="data_pagamento" data-secao="d-recorrente" onclick="toggleCol(event,this)">Data Pagamento</span>
+                            <span class="col-tag marcada" data-col="plano"          data-secao="d-recorrente" onclick="toggleCol(event,this)">Plano</span>
+                            <span class="col-tag marcada" data-col="valor"          data-secao="d-recorrente" onclick="toggleCol(event,this)">Valor</span>
+                            <span class="col-tag"         data-col="cpf"            data-secao="d-recorrente" onclick="toggleCol(event,this)">CPF</span>
+                            <span class="col-tag"         data-col="telefone"       data-secao="d-recorrente" onclick="toggleCol(event,this)">Telefone</span>
+                            <span class="col-tag"         data-col="observacao"     data-secao="d-recorrente" onclick="toggleCol(event,this)">Observação</span>
                         </div>
                     </div>
                 </div>
@@ -952,7 +998,7 @@ function getColsPorSecao(secao) {
 }
 
 // ── Relatório Mensal ──────────────────────────────────────────────────────────
-const secoesAtivas = { resumo: true, dinheiro: true, pix: true, cartao: true, inadimplentes: true };
+const secoesAtivas = { resumo: true, dinheiro: true, pix: true, cartao: true, recorrente: true, inadimplentes: true };
 let formatoAtivo = 'pdf';
 
 function toggleSecao(nome) {
@@ -986,18 +1032,19 @@ function gerarRelatorio() {
     if (!inicio || !fim) { alert('Informe a data início e a data fim.'); return; }
     const secoes = Object.entries(secoesAtivas).filter(([,v]) => v).map(([k]) => k).join(',');
     if (!secoes) { alert('Selecione ao menos uma seção.'); return; }
-    const colsDinheiro = getColsPorSecao('dinheiro').join(',');
-    const colsPix      = getColsPorSecao('pix').join(',');
-    const colsCartao   = getColsPorSecao('cartao').join(',');
-    const colsInad     = getColsPorSecao('inadimplentes').join(',');
+    const colsDinheiro  = getColsPorSecao('dinheiro').join(',');
+    const colsPix       = getColsPorSecao('pix').join(',');
+    const colsCartao    = getColsPorSecao('cartao').join(',');
+    const colsRecorrente= getColsPorSecao('recorrente').join(',');
+    const colsInad      = getColsPorSecao('inadimplentes').join(',');
     const url = `/financeiro/relatorio-mensal?inicio=${inicio}&fim=${fim}&formato=${formatoAtivo}&secoes=${secoes}`
-              + `&cols_dinheiro=${colsDinheiro}&cols_pix=${colsPix}&cols_cartao=${colsCartao}&cols_inad=${colsInad}`;
+              + `&cols_dinheiro=${colsDinheiro}&cols_pix=${colsPix}&cols_cartao=${colsCartao}&cols_recorrente=${colsRecorrente}&cols_inad=${colsInad}`;
     bootstrap.Modal.getInstance(document.getElementById('modalRelatorioMensal')).hide();
     window.location.href = url;
 }
 
 // ── Relatório Diário ──────────────────────────────────────────────────────────
-const secoesDiarioAtivas = { 'd-dinheiro': true, 'd-pix': true, 'd-cartao': true };
+const secoesDiarioAtivas = { 'd-dinheiro': true, 'd-pix': true, 'd-cartao': true, 'd-recorrente': true };
 let formatoDiario = 'pdf';
 
 function toggleSecaoDiario(nome) {
@@ -1030,11 +1077,12 @@ function gerarRelatorioDiario() {
     const horaFim = document.getElementById('diario-hora-fim').value;
     const secoes  = Object.entries(secoesDiarioAtivas).filter(([,v]) => v).map(([k]) => k).join(',');
     if (!secoes) { alert('Selecione ao menos uma seção.'); return; }
-    const colsDinheiro = getColsPorSecao('d-dinheiro').join(',');
-    const colsPix      = getColsPorSecao('d-pix').join(',');
-    const colsCartao   = getColsPorSecao('d-cartao').join(',');
+    const colsDinheiro  = getColsPorSecao('d-dinheiro').join(',');
+    const colsPix       = getColsPorSecao('d-pix').join(',');
+    const colsCartao    = getColsPorSecao('d-cartao').join(',');
+    const colsRecorrente= getColsPorSecao('d-recorrente').join(',');
     let url = `/financeiro/relatorio-diario?data=${data}&formato=${formatoDiario}&secoes=${secoes}`
-            + `&cols_dinheiro=${colsDinheiro}&cols_pix=${colsPix}&cols_cartao=${colsCartao}`;
+            + `&cols_dinheiro=${colsDinheiro}&cols_pix=${colsPix}&cols_cartao=${colsCartao}&cols_recorrente=${colsRecorrente}`;
     if (horaIni) url += `&hora_ini=${horaIni}`;
     if (horaFim) url += `&hora_fim=${horaFim}`;
     bootstrap.Modal.getInstance(document.getElementById('modalRelatorioDiario')).hide();
