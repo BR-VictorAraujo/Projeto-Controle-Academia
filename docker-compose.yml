@@ -1,0 +1,47 @@
+# GymFlow — ambiente de desenvolvimento com Docker
+# Uso: docker compose up -d --build   |   http://localhost:5000 (admin / admin123)
+services:
+  db:
+    image: postgres:16
+    container_name: gymflow-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: gymflow
+      POSTGRES_USER: gymflow
+      POSTGRES_PASSWORD: gymflow
+      TZ: America/Fortaleza
+    ports:
+      - "5433:5432"   # 5433 no Windows para nao conflitar com o PostgreSQL local
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gymflow -d gymflow"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  web:
+    build: .
+    container_name: gymflow-web
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - path: .env          # chaves Cielo/Asaas (opcional)
+        required: false
+    environment:
+      # Sobrescreve o DATABASE_URL do .env para apontar ao container do banco
+      DATABASE_URL: postgresql+psycopg://gymflow:gymflow@db:5432/gymflow
+      SECRET_KEY: ${SECRET_KEY:-dev-gymflow-docker}
+      CIELO_AMBIENTE: sandbox
+      ASAAS_AMBIENTE: sandbox
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./:/app             # codigo montado: alteracoes recarregam sozinhas
+      - backups:/backups
+
+volumes:
+  pgdata:
+  backups:

@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(//c/Sistema_controle_acesso/**)",
+      "Edit(//c/Sistema_controle_acesso/**)",
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Bash(pg_restore:*)",
+      "Bash(dropdb:*)",
+      "Bash(psql:*DROP*)",
+      "Bash(psql:*TRUNCATE*)"
+    ]
+  }
+}
