@@ -1,0 +1,62 @@
+{% extends 'base.html' %}
+
+{% block titulo %}Termos LGPD{% endblock %}
+{% block titulo_pagina %}{{ 'Editar rascunho' if v else 'Nova versão' }} — {{ termo.titulo }}{% endblock %}
+{% block subtitulo %}{{ lgpd_rotulo_tipo.get(termo.tipo, termo.tipo) }} · <code>{{ termo.codigo }}</code>{% endblock %}
+
+{% block estilos %}{% include 'lgpd/_admin_estilos.html' %}
+textarea.conteudo { font-family: inherit; font-size: 14px; line-height: 1.5; min-height: 420px; }
+{% endblock %}
+
+{% block conteudo %}
+{% include 'lgpd/_admin_abas.html' %}
+
+<form method="POST" class="param-card">
+    <input type="hidden" name="csrf_token" value="{{ lgpd_csrf_token() }}">
+    {% if copiada_de %}<input type="hidden" name="copiar" value="{{ copiada_de.id }}">{% endif %}
+    <div class="param-section-title">
+        <i class="bi bi-pencil-square" style="color: var(--cor-principal);"></i>
+        {{ 'Rascunho ' ~ v.versao if v else 'Novo rascunho' }}
+        {% if copiada_de %}<span class="meta">(texto copiado da versão {{ copiada_de.versao }})</span>{% endif %}
+    </div>
+
+    <div class="row g-3">
+        <div class="col-md-3">
+            <label class="form-label">Versão</label>
+            <input type="text" name="versao" class="form-control" maxlength="20" required value="{{ dados.versao }}" placeholder="Ex.: 1.0">
+        </div>
+        <div class="col-md-9 d-flex align-items-end">
+            <div class="form-check form-switch mb-2">
+                <input class="form-check-input" type="checkbox" name="alteracao_material" value="1" id="campo-material" {% if dados.alteracao_material %}checked{% endif %}>
+                <label class="form-check-label" for="campo-material" style="font-size:14px;">
+                    Alteração material (exige nova manifestação de todos os usuários)
+                </label>
+            </div>
+        </div>
+        <div class="col-12">
+            <label class="form-label">Texto do termo</label>
+            <textarea name="conteudo" class="form-control conteudo" required>
+{{ dados.conteudo }}</textarea>
+            <div class="form-text">
+                Texto puro, exibido exatamente como digitado (quebras de linha preservadas). Espaços no fim das linhas
+                e linhas vazias no final são removidos ao salvar. A publicação é bloqueada enquanto houver trechos "[PREENCHER".
+            </div>
+        </div>
+        <div class="col-12">
+            <label class="form-label">Resumo das alterações (opcional)</label>
+            <textarea name="resumo_alteracoes" class="form-control" rows="2">
+{{ dados.resumo_alteracoes or '' }}</textarea>
+            <div class="form-text">Exibido ao usuário quando ele precisar responder a esta versão.</div>
+        </div>
+    </div>
+
+    {% if v %}
+    <div class="hash mt-3">Hash atual (SHA-256): {{ v.conteudo_hash }}</div>
+    {% endif %}
+
+    <div class="d-flex gap-2 mt-4">
+        <button type="submit" class="btn-principal"><i class="bi bi-check-lg"></i> Salvar rascunho</button>
+        <a href="{{ url_for('lgpd.admin_versoes', termo_id=termo.id) }}" class="btn-contorno">Cancelar</a>
+    </div>
+</form>
+{% endblock %}

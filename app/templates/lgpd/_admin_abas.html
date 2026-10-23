@@ -1,0 +1,21 @@
+{# Abas da administração LGPD — variável `aba` vem da rota #}
+{% set _abas = [
+    ('termos',        url_for('lgpd.admin_termos'),        'bi-file-earmark-text', 'Termos'),
+    ('manifestacoes', url_for('lgpd.admin_manifestacoes'), 'bi-list-check',        'Manifestações'),
+    ('situacao',      url_for('lgpd.admin_situacao'),      'bi-people',            'Situação por usuário'),
+    ('auditoria',     url_for('lgpd.admin_auditoria'),     'bi-journal-text',      'Auditoria'),
+    ('config',        url_for('lgpd.admin_config'),        'bi-sliders',           'Configuração'),
+] %}
+<div style="display:flex; gap:8px; margin-bottom:24px; flex-wrap:wrap;">
+    {% for chave, href, icone, rotulo in _abas %}
+        {% if aba == chave %}
+        <a href="{{ href }}" style="background: var(--cor-principal); border:none; color:white; padding:8px 20px; border-radius:8px; font-size:13px; text-decoration:none;">
+            <i class="bi {{ icone }} me-1"></i> {{ rotulo }}
+        </a>
+        {% else %}
+        <a href="{{ href }}" style="background:white; border:1px solid #dee2e6; color:#6c757d; padding:8px 20px; border-radius:8px; font-size:13px; text-decoration:none;">
+            <i class="bi {{ icone }} me-1"></i> {{ rotulo }}
+        </a>
+        {% endif %}
+    {% endfor %}
+</div>

@@ -28,6 +28,7 @@ def create_app():
     from app.routes.relatorios import bp as relatorios_bp
     from app.routes.config     import bp as config_bp
     from app.routes.pagamentos import bp as pagamentos_bp
+    from app.routes.lgpd       import bp as lgpd_bp
     app.register_blueprint(auth_bp)
     app.register_blueprint(alunos_bp)
     app.register_blueprint(acessos_bp)
@@ -35,6 +36,14 @@ def create_app():
     app.register_blueprint(relatorios_bp)
     app.register_blueprint(config_bp)
     app.register_blueprint(pagamentos_bp)
+    app.register_blueprint(lgpd_bp)
+
+    # Gate LGPD (v1.7.0): apos o login, exige ciencia/consentimento dos
+    # termos publicados. Sem efeito enquanto a migracao 1.7.0 nao estiver
+    # aplicada ou com configuracoes.lgpd_gate_ativo <> '1'.
+    # Endpoints isentos: app/lgpd.py (ENDPOINTS_ISENTOS / ENDPOINTS_TITULAR).
+    from app.lgpd import verificar_gate
+    app.before_request(verificar_gate)
 
     @app.template_filter('local_time')
     def local_time_filter(dt):

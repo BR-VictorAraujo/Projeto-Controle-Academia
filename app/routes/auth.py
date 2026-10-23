@@ -30,6 +30,39 @@ def registrar_log(acao, detalhes=None):
     db.session.add(log)
     db.session.commit()
 
+def registrar_log_sem_commit(acao, detalhes=None):
+    """Igual a registrar_log, mas sem commit: o log entra na transacao
+    corrente e so e gravado junto com a operacao principal (commit do
+    chamador). Usado pelo modulo LGPD (v1.7.0)."""
+    log = LogAuditoria(
+        usuario=session.get('usuario', 'sistema'),
+        acao=acao,
+        detalhes=detalhes,
+        # LGPD v1.7.0: nao grava IP — este log acompanha o registro de
+        # aceite/manifestacao e a spec veda coletar IP sem avaliacao de
+        # proporcionalidade.
+        ip=None
+    )
+    db.session.add(log)
+    return log
+
+def perfil_required(*perfis):
+    """Restringe a rota aos perfis informados (ex.: perfil_required('admin')).
+    Inclui a verificacao de login; o perfil vem da sessao (definido no login)."""
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            if not session.get('logado'):
+                flash('Faça login para acessar o sistema.', 'warning')
+                return redirect(url_for('auth.login'))
+            if session.get('perfil') not in perfis:
+                flash('Acesso restrito ao perfil administrador.' if perfis == ('admin',)
+                      else 'Seu perfil não tem acesso a esta área.', 'danger')
+                return redirect(url_for('auth.dashboard'))
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
+
 def get_param(chave, padrao=''):
     from app.models import Configuracao
     c = Configuracao.query.filter_by(chave=chave).first()

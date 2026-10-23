@@ -1,0 +1,98 @@
+{% extends 'base.html' %}
+
+{% block titulo %}Termos LGPD{% endblock %}
+{% block titulo_pagina %}Versões — {{ termo.titulo }}{% endblock %}
+{% block subtitulo %}{{ lgpd_rotulo_tipo.get(termo.tipo, termo.tipo) }} · <code>{{ termo.codigo }}</code>{% if not termo.ativo %} · termo inativo{% endif %}{% endblock %}
+
+{% block topbar_direita %}
+{% if vigente %}
+<a class="btn-contorno" href="{{ url_for('lgpd.admin_versao_nova', termo_id=termo.id, copiar=vigente.id) }}">
+    <i class="bi bi-files"></i> Nova versão a partir da vigente
+</a>
+{% endif %}
+<a class="btn-principal" href="{{ url_for('lgpd.admin_versao_nova', termo_id=termo.id) }}">
+    <i class="bi bi-plus-lg"></i> Nova versão
+</a>
+{% endblock %}
+
+{% block estilos %}{% include 'lgpd/_admin_estilos.html' %}{% endblock %}
+
+{% block conteudo %}
+{% include 'lgpd/_admin_abas.html' %}
+
+<div class="mb-3"><a href="{{ url_for('lgpd.admin_termos') }}" style="font-size:13px;"><i class="bi bi-arrow-left"></i> Termos</a></div>
+
+<div class="param-card">
+    <div class="table-responsive">
+    <table class="table table-borderless mb-0">
+        <thead>
+            <tr>
+                <th>Versão</th>
+                <th>Status</th>
+                <th>Vigência</th>
+                <th>Material</th>
+                <th>Hash</th>
+                <th>Ações</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for v in versoes %}
+            <tr>
+                <td style="font-weight:500;">{{ v.versao }}</td>
+                <td>
+                    {% if v.status == 'rascunho' %}
+                        <span class="badge-sit sit-rascunho">Rascunho</span>
+                    {% elif vigente and v.id == vigente.id %}
+                        <span class="badge-sit sit-vigente">Vigente</span>
+                    {% else %}
+                        <span class="badge-sit sit-publicada">Publicada</span>
+                    {% endif %}
+                    {% if referencia and v.id == referencia.id and vigente and referencia.id != vigente.id %}
+                        <div class="meta">Referência para manifestações</div>
+                    {% endif %}
+                </td>
+                <td style="font-size:13px;">
+                    {% if v.vigencia_inicio %}{{ v.vigencia_inicio|utc_naive|local_time }}{% else %}—{% endif %}
+                </td>
+                <td style="font-size:13px;">{{ 'Sim' if v.alteracao_material else 'Não' }}</td>
+                <td class="hash">{{ v.conteudo_hash[:12] }}…</td>
+                <td style="white-space:nowrap;">
+                    <a class="btn-acao" title="Visualizar" href="{{ url_for('lgpd.admin_versao_ver', versao_id=v.id) }}">
+                        <i class="bi bi-eye" style="color:#6c757d;"></i>
+                    </a>
+                    {% if v.status == 'rascunho' %}
+                        <a class="btn-acao" title="Editar rascunho" href="{{ url_for('lgpd.admin_versao_editar', versao_id=v.id) }}">
+                            <i class="bi bi-pencil" style="color: var(--cor-principal);"></i>
+                        </a>
+                        <a class="btn-acao" title="Publicar" href="{{ url_for('lgpd.admin_versao_publicar', versao_id=v.id) }}">
+                            <i class="bi bi-send-check" style="color:#2e7d32;"></i>
+                        </a>
+                        <form method="POST" action="{{ url_for('lgpd.admin_versao_excluir', versao_id=v.id) }}" style="display:inline;"
+                              onsubmit='return confirm({{ ("Excluir o rascunho " ~ v.versao ~ "? Esta ação não pode ser desfeita.")|tojson }});'>
+                            <input type="hidden" name="csrf_token" value="{{ lgpd_csrf_token() }}">
+                            <button type="submit" class="btn-acao" title="Excluir rascunho">
+                                <i class="bi bi-trash" style="color:#c62828;"></i>
+                            </button>
+                        </form>
+                    {% else %}
+                        <a class="btn-acao" title="Copiar para nova versão" href="{{ url_for('lgpd.admin_versao_nova', termo_id=termo.id, copiar=v.id) }}">
+                            <i class="bi bi-files" style="color:#6c757d;"></i>
+                        </a>
+                    {% endif %}
+                </td>
+            </tr>
+        {% else %}
+            <tr>
+                <td colspan="6" style="text-align:center; color:#6c757d; padding:40px 0;">Nenhuma versão cadastrada</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    </div>
+</div>
+
+<p class="meta">
+    <strong>Alteração material</strong>: exige nova manifestação de todos os usuários quando a versão entrar em vigência.
+    Versões sem alteração material (ex.: correção de digitação) mantêm válidas as manifestações anteriores.
+</p>
+{% endblock %}

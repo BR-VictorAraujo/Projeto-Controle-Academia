@@ -1,0 +1,20 @@
+OK    operador: GET /usuarios redireciona ao dashboard
+OK    operador: mensagem "Acesso restrito"
+OK    operador: nao cria usuario
+OK    operador: nao se promove a admin
+OK    operador: nao desativa outro usuario
+OK    sem login: /usuarios redireciona ao login
+OK    admin: GET /usuarios 200
+OK    admin: cria usuario
+OK    admin: edita outro usuario
+OK    admin: desativa outro usuario
+OK    admin: reativa outro usuario
+OK    admin: edita o proprio nome normalmente
+OK    admin: nao se desativa pelo toggle
+OK    admin: nao se desativa pelo formulario
+OK    admin unico: nao remove o proprio perfil admin
+OK    admin: promove outro usuario a admin
+OK    com outro admin ativo: pode deixar de ser admin
+OK    apos novo login o rebaixado perde o acesso
+
+TOTAL: 18 verificacoes, 18 OK, 0 falhas

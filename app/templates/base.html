@@ -277,6 +277,16 @@
         <a href="/configuracoes" class="oculto-mobile {% if pagina_ativa == 'configuracoes' %}active{% endif %}">
             <i class="bi bi-gear"></i> Configurações
         </a>
+        {% if lgpd_menu %}
+        <a href="/privacidade/minhas" class="{% if pagina_ativa == 'lgpd_minhas' %}active{% endif %}">
+            <i class="bi bi-shield-lock"></i> Privacidade
+        </a>
+        {% if session.get('perfil') == 'admin' %}
+        <a href="/privacidade/admin/termos" class="oculto-mobile {% if pagina_ativa == 'lgpd_admin' %}active{% endif %}">
+            <i class="bi bi-file-earmark-lock"></i> Termos LGPD
+        </a>
+        {% endif %}
+        {% endif %}
     </div>
     <div class="sidebar-footer">
         <div style="font-size:11px; color:rgba(255,255,255,0.3); margin-bottom:8px;">

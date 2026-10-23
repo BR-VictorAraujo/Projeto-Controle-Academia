@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+
+{% block titulo %}Termos LGPD{% endblock %}
+{% block titulo_pagina %}Configuração de privacidade{% endblock %}
+{% block subtitulo %}Exigência de ciência/consentimento após o login{% endblock %}
+
+{% block estilos %}{% include 'lgpd/_admin_estilos.html' %}{% endblock %}
+
+{% block conteudo %}
+{% include 'lgpd/_admin_abas.html' %}
+
+<form method="POST" class="param-card">
+    <input type="hidden" name="csrf_token" value="{{ lgpd_csrf_token() }}">
+    <div class="param-section-title">
+        <i class="bi bi-shield-lock" style="color: var(--cor-principal);"></i> Exigência após o login
+    </div>
+
+    <div class="form-check form-switch mb-2">
+        <input class="form-check-input" type="checkbox" name="lgpd_gate_ativo" value="1" id="campo-gate" {% if gate %}checked{% endif %}>
+        <label class="form-check-label" for="campo-gate" style="font-size:14px;">
+            Exigir que os usuários respondam aos termos vigentes antes de usar o sistema
+        </label>
+    </div>
+    <div class="form-text mb-4">
+        Só pode ser ligada se existir ao menos um termo ativo com versão publicada.
+        Com a exigência ligada, quem tiver termo pendente é levado à tela de resposta logo após o login.
+        Webhooks de pagamento e o leitor biométrico (FingerPoint) não são afetados.
+    </div>
+
+    <div class="param-section-title">
+        <i class="bi bi-envelope" style="color: var(--cor-principal);"></i> Contato de privacidade
+    </div>
+    <label class="form-label">Canal de contato exibido ao usuário</label>
+    <input type="text" name="lgpd_contato_privacidade" class="form-control" maxlength="200" value="{{ contato }}">
+    <div class="form-text">
+        Exibido na tela de consentimento não concedido. Se ficar vazio, o sistema orienta o usuário a procurar a administração da academia.
+    </div>
+
+    <div class="d-flex gap-2 mt-4">
+        <button type="submit" class="btn-principal"><i class="bi bi-check-lg"></i> Salvar</button>
+    </div>
+</form>
+{% endblock %}

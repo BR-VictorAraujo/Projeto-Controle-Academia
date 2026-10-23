@@ -1,0 +1,48 @@
+{# CSS comum das telas de administração LGPD (incluído dentro do block estilos) #}
+.param-card {
+    background: white; border-radius: 12px; padding: 24px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 24px;
+}
+.param-section-title {
+    font-size: 14px; font-weight: 600; color: #1a1a2e;
+    margin-bottom: 16px; padding-bottom: 12px;
+    border-bottom: 1px solid #f0f2f5;
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+.form-label { font-size: 13px; font-weight: 500; color: #1a1a2e; }
+.form-text  { font-size: 12px; color: #6c757d; }
+.form-check-input:checked { background-color: var(--cor-principal); border-color: var(--cor-principal); }
+.btn-acao { background: none; border: none; padding: 4px 8px; border-radius: 6px; cursor: pointer; font-size: 15px; text-decoration: none; }
+.btn-acao:hover { background-color: #f0f2f5; }
+.btn-contorno {
+    background: white; border: 1.5px solid #dee2e6; color: #1a1a2e;
+    padding: 8px 18px; border-radius: 8px; font-size: 14px; text-decoration: none;
+    display: inline-flex; align-items: center; gap: 6px;
+}
+.btn-contorno:hover { border-color: var(--cor-principal); color: var(--cor-principal); }
+.badge-sit { padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.sit-pendente     { background: #fff3e8; color: #e65100; }
+.sit-ciente       { background: #e3f2fd; color: #1565c0; }
+.sit-concordo     { background: #e8f5e9; color: #2e7d32; }
+.sit-nao_concordo { background: #fdecea; color: #c62828; }
+.sit-rascunho     { background: #f0f2f5; color: #6c757d; }
+.sit-publicada    { background: #e8f5e9; color: #2e7d32; }
+.sit-vigente      { background: color-mix(in srgb, var(--cor-principal) 15%, white); color: var(--cor-principal); }
+.texto-termo {
+    white-space: pre-wrap; word-wrap: break-word;
+    max-height: 60vh; overflow-y: auto;
+    background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 10px;
+    padding: 16px 18px; font-size: 14px; line-height: 1.55;
+}
+.hash { font-family: monospace; font-size: 12px; color: #6c757d; word-break: break-all; }
+.meta { font-size: 12px; color: #6c757d; }
+.page-link-custom {
+    display: flex; align-items: center; justify-content: center;
+    min-width: 34px; height: 34px; padding: 0 8px;
+    border: 1.5px solid #dee2e6; border-radius: 8px;
+    color: #6c757d; text-decoration: none; font-size: 13px; font-weight: 500;
+    transition: all 0.15s;
+}
+.page-link-custom:hover { border-color: var(--cor-principal); color: var(--cor-principal); }
+.page-link-custom.ativo { background: var(--cor-principal); border-color: var(--cor-principal); color: white; }
+.page-link-custom.disabled { opacity: 0.4; pointer-events: none; }

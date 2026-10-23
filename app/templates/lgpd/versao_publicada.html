@@ -1,0 +1,15 @@
+{% extends 'lgpd/_titular_base.html' %}
+
+{% block titulo %}{{ termo.titulo }}{% endblock %}
+
+{% block conteudo %}
+<div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+    <h1 class="mb-0">{{ termo.titulo }}</h1>
+    <a href="{{ url_for('lgpd.minhas') }}" class="link-sair ms-auto"><i class="bi bi-arrow-left me-1"></i>Voltar</a>
+</div>
+<div class="meta mb-3">
+    {{ lgpd_rotulo_tipo.get(termo.tipo, termo.tipo) }} · Versão {{ v.versao }} · Vigência a partir de {{ v.vigencia_inicio|utc_naive|local_time }}
+</div>
+<div class="texto-termo mb-3" tabindex="0">{{ v.conteudo }}</div>
+<div class="hash">Identificador do conteúdo (SHA-256): {{ v.conteudo_hash }}</div>
+{% endblock %}

@@ -1,4 +1,6 @@
 from datetime import datetime
+from sqlalchemy import CheckConstraint, UniqueConstraint, Index, func, text
+from sqlalchemy.dialects.postgresql import JSONB
 from app import db
 
 class Usuario(db.Model):
@@ -171,3 +173,87 @@ class LogIntegracaoPagamento(db.Model):
     resultado     = db.Column(db.Text)
 
     ip_origem = db.Column(db.String(45))
+
+# ─────────────────────────────────────────────────────────────────────────────
+# LGPD v1.7.0 — ciência e consentimento (titular: funcionários/usuarios)
+# Espelha exatamente migrations/001_v1.7.0_lgpd_up.sql (colunas, CHECKs com
+# os mesmos nomes, FKs RESTRICT). Triggers (append-only, proteção de versão
+# publicada, registrado_em forçado) existem só no banco, via migração.
+# Sem relationship com cascade a partir de Usuario (FK RESTRICT).
+# ─────────────────────────────────────────────────────────────────────────────
+
+class LgpdTermo(db.Model):
+    __tablename__ = 'lgpd_termo'
+    __table_args__ = (
+        CheckConstraint("tipo IN ('ciencia', 'consentimento')", name='ck_lgpd_termo_tipo'),
+        CheckConstraint("codigo ~ '^[a-z0-9_]+$'", name='ck_lgpd_termo_codigo'),
+    )
+    id               = db.Column(db.Integer, primary_key=True)
+    codigo           = db.Column(db.String(40), unique=True, nullable=False)
+    titulo           = db.Column(db.String(150), nullable=False)
+    tipo             = db.Column(db.String(20), nullable=False)
+    finalidade       = db.Column(db.Text, nullable=False)
+    bloqueia_sistema = db.Column(db.Boolean, nullable=False, default=True, server_default=text('true'))
+    ativo            = db.Column(db.Boolean, nullable=False, default=True, server_default=text('true'))
+    criado_em        = db.Column(db.DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class LgpdTermoVersao(db.Model):
+    __tablename__ = 'lgpd_termo_versao'
+    __table_args__ = (
+        UniqueConstraint('termo_id', 'versao', name='uq_lgpd_versao_termo_versao'),
+        CheckConstraint("status IN ('rascunho', 'publicada')", name='ck_lgpd_versao_status'),
+        CheckConstraint("status <> 'publicada' OR vigencia_inicio IS NOT NULL", name='ck_lgpd_versao_vigencia'),
+        Index('ix_lgpd_termo_versao_termo_status_vig', 'termo_id', 'status', 'vigencia_inicio'),
+    )
+    id                 = db.Column(db.Integer, primary_key=True)
+    termo_id           = db.Column(db.Integer, db.ForeignKey('lgpd_termo.id', ondelete='RESTRICT'), nullable=False)
+    versao             = db.Column(db.String(20), nullable=False)
+    conteudo           = db.Column(db.Text, nullable=False)
+    conteudo_hash      = db.Column(db.CHAR(64), nullable=False)
+    alteracao_material = db.Column(db.Boolean, nullable=False, default=True, server_default=text('true'))
+    resumo_alteracoes  = db.Column(db.Text)
+    status             = db.Column(db.String(20), nullable=False, default='rascunho', server_default=text("'rascunho'"))
+    vigencia_inicio    = db.Column(db.DateTime(timezone=True))
+    criado_por         = db.Column(db.Integer, db.ForeignKey('usuarios.id', ondelete='RESTRICT'))
+    criado_em          = db.Column(db.DateTime(timezone=True), nullable=False, server_default=func.now())
+    publicado_por      = db.Column(db.Integer, db.ForeignKey('usuarios.id', ondelete='RESTRICT'))
+    publicado_em       = db.Column(db.DateTime(timezone=True))
+
+    termo = db.relationship('LgpdTermo')
+
+
+class LgpdManifestacao(db.Model):
+    __tablename__ = 'lgpd_manifestacao'
+    __table_args__ = (
+        CheckConstraint("manifestacao IN ('ciente', 'concordo', 'nao_concordo')", name='ck_lgpd_manifestacao_valor'),
+        Index('ix_lgpd_manifestacao_usuario_versao', 'usuario_id', 'termo_versao_id', text('id DESC')),
+    )
+    id              = db.Column(db.BigInteger, primary_key=True)
+    usuario_id      = db.Column(db.Integer, db.ForeignKey('usuarios.id', ondelete='RESTRICT'), nullable=False)
+    termo_versao_id = db.Column(db.Integer, db.ForeignKey('lgpd_termo_versao.id', ondelete='RESTRICT'), nullable=False)
+    manifestacao    = db.Column(db.String(20), nullable=False)
+    conteudo_hash   = db.Column(db.CHAR(64), nullable=False)
+    app_versao      = db.Column(db.String(20), nullable=False)
+    canal           = db.Column(db.String(20), nullable=False, default='web', server_default=text("'web'"))
+    registrado_em   = db.Column(db.DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    termo_versao = db.relationship('LgpdTermoVersao')
+
+
+class LgpdTermoAuditoria(db.Model):
+    __tablename__ = 'lgpd_termo_auditoria'
+    id              = db.Column(db.BigInteger, primary_key=True)
+    termo_id        = db.Column(db.Integer, db.ForeignKey('lgpd_termo.id', ondelete='RESTRICT'))
+    termo_versao_id = db.Column(db.Integer, db.ForeignKey('lgpd_termo_versao.id', ondelete='RESTRICT'))
+    acao            = db.Column(db.String(40), nullable=False)
+    usuario_id      = db.Column(db.Integer, db.ForeignKey('usuarios.id', ondelete='RESTRICT'))
+    detalhes        = db.Column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
+    registrado_em   = db.Column(db.DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class SchemaMigracao(db.Model):
+    __tablename__ = 'schema_migracao'
+    versao      = db.Column(db.String(40), primary_key=True)
+    descricao   = db.Column(db.Text)
+    aplicada_em = db.Column(db.DateTime(timezone=True), server_default=func.now())

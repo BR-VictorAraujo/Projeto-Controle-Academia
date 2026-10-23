@@ -1,0 +1,89 @@
+{% extends 'base.html' %}
+
+{% block titulo %}Termos LGPD{% endblock %}
+{% block titulo_pagina %}{{ 'Editar termo' if termo else 'Novo termo' }}{% endblock %}
+{% block subtitulo %}Termos LGPD{% endblock %}
+
+{% block estilos %}{% include 'lgpd/_admin_estilos.html' %}{% endblock %}
+
+{% block conteudo %}
+{% include 'lgpd/_admin_abas.html' %}
+
+<form method="POST" class="param-card">
+    <input type="hidden" name="csrf_token" value="{{ lgpd_csrf_token() }}">
+    <div class="param-section-title">
+        <i class="bi bi-file-earmark-text" style="color: var(--cor-principal);"></i>
+        {{ termo.titulo if termo else 'Dados do termo' }}
+    </div>
+
+    {% if travado %}
+    <div class="alert alert-secondary py-2" style="font-size:13px;">
+        Este termo já tem versão publicada: código e tipo não podem mais ser alterados.
+    </div>
+    {% endif %}
+
+    <div class="row g-3">
+        <div class="col-md-4">
+            <label class="form-label">Código</label>
+            <input type="text" name="codigo" class="form-control" maxlength="40" required
+                   pattern="[a-z0-9_]+" value="{{ dados.codigo }}" {% if travado %}readonly{% endif %}>
+            <div class="form-text">Identificador interno: letras minúsculas, números e "_". Ex.: aviso_privacidade</div>
+        </div>
+        <div class="col-md-8">
+            <label class="form-label">Título</label>
+            <input type="text" name="titulo" class="form-control" maxlength="150" required value="{{ dados.titulo }}">
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">Tipo</label>
+            {% if travado %}
+                <input type="hidden" name="tipo" value="{{ dados.tipo }}">
+                <input type="text" class="form-control" value="{{ lgpd_rotulo_tipo.get(dados.tipo, dados.tipo) }}" readonly>
+            {% else %}
+            <select name="tipo" id="campo-tipo" class="form-select">
+                <option value="ciencia" {% if dados.tipo == 'ciencia' %}selected{% endif %}>Ciência (Li e estou ciente)</option>
+                <option value="consentimento" {% if dados.tipo == 'consentimento' %}selected{% endif %}>Consentimento (Concordo / Não concordo)</option>
+            </select>
+            {% endif %}
+            <div class="form-text">Aviso de privacidade é ciência, não consentimento.</div>
+        </div>
+        <div class="col-md-8" id="bloco-bloqueia" {% if dados.tipo != 'consentimento' %}style="display:none;"{% endif %}>
+            <label class="form-label">Se o usuário não concordar</label>
+            <select name="bloqueia_sistema" class="form-select">
+                <option value="1" {% if dados.bloqueia_sistema %}selected{% endif %}>Bloquear o uso do sistema</option>
+                <option value="0" {% if not dados.bloqueia_sistema %}selected{% endif %}>Bloquear apenas as funções que dependem deste consentimento</option>
+            </select>
+            <div class="form-text">Funções específicas só são bloqueadas se estiverem programadas para depender deste termo.</div>
+        </div>
+        <div class="col-12">
+            <label class="form-label">Finalidade</label>
+            <textarea name="finalidade" class="form-control" rows="3" required>
+{{ dados.finalidade }}</textarea>
+            <div class="form-text">Exibida ao usuário junto com o texto do termo.</div>
+        </div>
+        <div class="col-12">
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" name="ativo" value="1" id="campo-ativo" {% if dados.ativo %}checked{% endif %}>
+                <label class="form-check-label" for="campo-ativo" style="font-size:14px;">Termo ativo (exigido quando houver versão vigente)</label>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex gap-2 mt-4">
+        <button type="submit" class="btn-principal"><i class="bi bi-check-lg"></i> Salvar</button>
+        <a href="{{ url_for('lgpd.admin_termos') }}" class="btn-contorno">Cancelar</a>
+    </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    const tipo = document.getElementById('campo-tipo');
+    const bloco = document.getElementById('bloco-bloqueia');
+    if (!tipo || !bloco) return;
+    tipo.addEventListener('change', () => {
+        bloco.style.display = tipo.value === 'consentimento' ? '' : 'none';
+    });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,60 @@
+Preparacao: 405 usuarios, 400 alunos
+OK    [Termo] publicacao do modelo com [PREENCHER] e recusada
+OK    [Termo] aviso v1.0 publicado apos preencher os campos
+OK    [Termo] gate ligado pelo admin
+OK    [1] usuario sem manifestacao e redirecionado para a tela obrigatoria
+OK    [1] tela mostra o aviso (ciencia antes do consentimento) e a versao
+OK    [1] tela de ciencia nao oferece "Concordo"
+OK    [1] login sozinho nao gerou manifestacao
+OK    [2] ciencia registrada
+OK    [2] em seguida apresenta o consentimento com Concordo/Nao concordo
+OK    [2] concordo registrado
+OK    [2] acesso liberado apos responder
+OK    [2] registro tem usuario, versao do termo, hash, versao do software e data/hora
+OK    [2] registro nao guarda IP, senha nem dados adicionais
+OK    [2] clique duplo gera um unico registro
+OK    [3] recusa registrada como nao_concordo (sem consentimento positivo)
+OK    [3] conta nao excluida nem desativada
+OK    [3] funcionalidades bloqueadas apos recusa
+OK    [3] tela de recusa mostra o contato da academia
+OK    [3] XHR bloqueado com 403 JSON lgpd_recusado
+OK    [3] usuario pode rever e concordar depois (novo registro, historico preservado)
+OK    [4] sem resposta nada e gravado e o termo continua pendente no proximo login
+[2026-10-23 18:33:27,620] ERROR in lgpd: LGPD: falha ao registrar manifestacao (usuario_id=5, erro=OperationalError)
+OK    [5] falha no commit: nada gravado
+OK    [5] falha no commit: interface informa erro e nao sucesso
+[2026-10-23 18:33:27,636] ERROR in lgpd: LGPD: falha ao verificar situacao (usuario_id=5, erro=OperationalError)
+OK    [5] falha ao verificar situacao: acesso negado (503, falha fechada)
+OK    [5] apos a falha o sistema volta a funcionar
+OK    [6] novo login nao pede de novo e nao gera registro
+OK    [7] versao nao material (1.1) nao exige nova manifestacao
+OK    [7] versao material (2.0) exige nova manifestacao
+OK    [7] tela apresenta a versao 2.0
+OK    [7] historico preservado e novo registro na 2.0
+OK    [7] publicacao gerou auditoria administrativa
+OK    [7] manifestacao em versao antiga ou com hash divergente e recusada no backend
+OK    [8] todas as rotas internas redirecionam para a manifestacao
+OK    [8] polling do monitoramento recebe 403 JSON lgpd_pendente
+OK    [8] POST sem token CSRF nao grava
+OK    [8] manifestacao incompativel (concordo em termo de ciencia) e recusada
+OK    [8] sem login nao acessa nada da area de privacidade
+OK    [8] FingerPoint (POST /acessos/biometria) continua isento do gate
+OK    [9] operador nao consulta historico, situacao, auditoria nem configuracao
+OK    [9] operador nao consegue desligar o gate
+OK    [9] operador nao cria versao de termo
+OK    [9] operador ve apenas o proprio historico
+OK    [9] UPDATE direto em lgpd_manifestacao bloqueado pelo banco
+OK    [9] DELETE direto em lgpd_manifestacao bloqueado pelo banco
+OK    [9] TRUNCATE em lgpd_manifestacao bloqueado pelo banco
+OK    [9] UPDATE em versao publicada bloqueado pelo banco
+OK    [9] DELETE em auditoria bloqueado pelo banco
+OK    [9] excluir usuario com manifestacao bloqueado (FK RESTRICT)
+OK    [9] registros intactos apos as tentativas
+OK    [11] 399 usuarios x 2 termos registrados em 3.6s
+   /dashboard: gate desligado 9.5 ms, gate ligado 13.7 ms (media de 100)
+OK    [11] overhead do gate por requisicao < 50 ms (medido 4.2 ms)
+OK    [11] painel de situacao com 404+ usuarios responde em 1.78s (< 3s)
+OK    [11] historico paginado responde em 0.07s (< 2s)
+OK    [11] listagem de alunos (400) com gate ligado responde em 0.01s
+
+TOTAL: 54 verificacoes, 54 OK, 0 falhas

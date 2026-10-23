@@ -1,0 +1,93 @@
+{% extends 'base.html' %}
+
+{% block titulo %}Termos LGPD{% endblock %}
+{% block titulo_pagina %}Termos LGPD{% endblock %}
+{% block subtitulo %}Ciência e consentimento dos usuários do sistema{% endblock %}
+
+{% block topbar_direita %}
+<a class="btn-principal" href="{{ url_for('lgpd.admin_termo_novo') }}">
+    <i class="bi bi-plus-lg"></i> Novo termo
+</a>
+<span style="font-size:13px; color:#6c757d;">Olá, <strong>{{ session.get('usuario', 'Administrador') }}</strong></span>
+{% endblock %}
+
+{% block estilos %}{% include 'lgpd/_admin_estilos.html' %}{% endblock %}
+
+{% block conteudo %}
+{% include 'lgpd/_admin_abas.html' %}
+
+<div class="alert {{ 'alert-success' if gate else 'alert-secondary' }} py-2 d-flex flex-wrap align-items-center gap-2" style="font-size:14px;">
+    <i class="bi {{ 'bi-shield-check' if gate else 'bi-shield' }}"></i>
+    {% if gate %}
+        Exigência após o login <strong>ligada</strong>: os usuários precisam responder aos termos vigentes para usar o sistema.
+    {% else %}
+        Exigência após o login <strong>desligada</strong>: nenhum usuário é bloqueado.
+    {% endif %}
+    <a href="{{ url_for('lgpd.admin_config') }}" class="ms-auto">Configurar</a>
+</div>
+
+<div class="param-card">
+    <div class="table-responsive">
+    <table class="table table-borderless mb-0">
+        <thead>
+            <tr>
+                <th>Termo</th>
+                <th>Tipo</th>
+                <th>Versão vigente</th>
+                <th>Versões</th>
+                <th>Status</th>
+                <th>Ações</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for l in linhas %}
+            {% set t = l.termo %}
+            <tr>
+                <td>
+                    <div style="font-weight:500; color:#1a1a2e;">{{ t.titulo }}</div>
+                    <div class="meta"><code>{{ t.codigo }}</code>
+                        {% if t.tipo == 'consentimento' %}
+                            · {{ 'Recusa bloqueia o sistema' if t.bloqueia_sistema else 'Recusa bloqueia só funções específicas' }}
+                        {% endif %}
+                    </div>
+                </td>
+                <td>{{ lgpd_rotulo_tipo.get(t.tipo, t.tipo) }}</td>
+                <td>
+                    {% if l.vigente %}
+                        <span class="badge-sit sit-vigente">{{ l.vigente.versao }}</span>
+                        <div class="meta">desde {{ l.vigente.vigencia_inicio|utc_naive|local_date }}</div>
+                    {% else %}
+                        <span class="meta">Nenhuma</span>
+                    {% endif %}
+                </td>
+                <td style="font-size:13px;">
+                    {{ l.publicadas }} publicada{{ 's' if l.publicadas != 1 }}{% if l.rascunhos %} · {{ l.rascunhos }} rascunho{{ 's' if l.rascunhos != 1 }}{% endif %}
+                </td>
+                <td>
+                    {% if t.ativo %}<span class="badge-ativo">Ativo</span>{% else %}<span class="badge-inativo">Inativo</span>{% endif %}
+                </td>
+                <td style="white-space:nowrap;">
+                    <a class="btn-acao" title="Versões" href="{{ url_for('lgpd.admin_versoes', termo_id=t.id) }}">
+                        <i class="bi bi-layers" style="color: var(--cor-principal);"></i>
+                    </a>
+                    <a class="btn-acao" title="Editar termo" href="{{ url_for('lgpd.admin_termo_editar', termo_id=t.id) }}">
+                        <i class="bi bi-pencil" style="color: var(--cor-principal);"></i>
+                    </a>
+                </td>
+            </tr>
+        {% else %}
+            <tr>
+                <td colspan="6" style="text-align:center; color:#6c757d; padding:40px 0;">Nenhum termo cadastrado</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    </div>
+</div>
+
+<p class="meta">
+    <strong>Ciência</strong>: o usuário registra "Li e estou ciente" (não é consentimento).
+    <strong>Consentimento</strong>: o usuário registra "Concordo" ou "Não concordo".
+    Versões publicadas não podem ser alteradas nem excluídas; para mudar o texto, crie uma nova versão.
+</p>
+{% endblock %}

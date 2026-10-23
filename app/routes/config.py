@@ -1,7 +1,7 @@
-from flask import Blueprint, render_template, redirect, url_for, request, flash, jsonify
+from flask import Blueprint, render_template, redirect, url_for, request, flash, jsonify, session
 from app import db
 from datetime import datetime
-from app.routes.auth import login_required, registrar_log, get_param, validar_senha
+from app.routes.auth import login_required, perfil_required, registrar_log, get_param, validar_senha
 
 bp = Blueprint('config', __name__)
 
@@ -52,14 +52,31 @@ def configuracoes():
 
     return render_template('configuracoes.html', config=Cfg(), pagina_ativa='configuracoes')
 
+def _bloqueio_autoadmin(usuario, novo_perfil, novo_ativo):
+    """Protecao contra autobloqueio (v1.7.0): o admin logado nao pode se
+    desativar nem remover o proprio perfil admin se for o ultimo admin
+    ativo. Retorna a mensagem de erro ou None."""
+    from app.models import Usuario
+    if usuario.id != session.get('usuario_id'):
+        return None
+    if usuario.ativo and not novo_ativo:
+        return 'Você não pode desativar o seu próprio usuário.'
+    if usuario.perfil == 'admin' and novo_perfil != 'admin':
+        with db.session.no_autoflush:
+            admins_ativos = Usuario.query.filter_by(perfil='admin', ativo=True).count()
+        if admins_ativos <= 1:
+            return ('Você é o último administrador ativo: não é possível remover o seu '
+                    'perfil admin. Promova outro usuário a admin antes.')
+    return None
+
 @bp.route('/usuarios')
-@login_required
+@perfil_required('admin')
 def usuarios():
     from app.models import Usuario
     return render_template('usuarios.html', usuarios=Usuario.query.order_by(Usuario.nome).all())
 
 @bp.route('/usuarios/novo', methods=['POST'])
-@login_required
+@perfil_required('admin')
 def novo_usuario():
     from app.models import Usuario
     from werkzeug.security import generate_password_hash
@@ -90,7 +107,7 @@ def novo_usuario():
     return redirect(url_for('config.usuarios'))
 
 @bp.route('/usuarios/<int:id>/editar', methods=['POST'])
-@login_required
+@perfil_required('admin')
 def editar_usuario(id):
     from app.models import Usuario
     from werkzeug.security import generate_password_hash
@@ -99,6 +116,11 @@ def editar_usuario(id):
     existente   = Usuario.query.filter_by(usuario=usuario_str).first()
     if existente and existente.id != id:
         flash('Esse nome de usuário já existe.', 'danger')
+        return redirect(url_for('config.usuarios'))
+    erro_auto = _bloqueio_autoadmin(usuario, request.form.get('perfil'),
+                                    request.form.get('ativo') == '1')
+    if erro_auto:
+        flash(erro_auto, 'danger')
         return redirect(url_for('config.usuarios'))
     usuario.nome    = request.form.get('nome')
     usuario.usuario = usuario_str
@@ -118,12 +140,16 @@ def editar_usuario(id):
     return redirect(url_for('config.usuarios'))
 
 @bp.route('/usuarios/<int:id>/toggle')
-@login_required
+@perfil_required('admin')
 def toggle_usuario(id):
     from app.models import Usuario
     usuario = Usuario.query.get_or_404(id)
     if usuario.usuario == 'admin':
         flash('O usuário admin não pode ser desativado.', 'danger')
+        return redirect(url_for('config.usuarios'))
+    erro_auto = _bloqueio_autoadmin(usuario, usuario.perfil, not usuario.ativo)
+    if erro_auto:
+        flash(erro_auto, 'danger')
         return redirect(url_for('config.usuarios'))
     usuario.ativo = not usuario.ativo
     db.session.commit()
