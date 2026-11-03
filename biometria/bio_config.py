@@ -15,7 +15,10 @@ class BioConfig:
         return {
             'host': 'localhost', 'port': '5432',
             'dbname': 'academia_db', 'user': 'postgres',
-            'password': '', 'simulado': True, 'flask_port': 5000
+            'password': '', 'simulado': True, 'flask_port': 5000,
+            # Segredo enviado no header X-GymFlow-Token para o POST
+            # /acessos/biometria - igual ao BIOMETRIA_API_TOKEN do servidor web
+            'api_token': ''
         }
 
     @staticmethod

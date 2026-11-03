@@ -61,6 +61,7 @@ Criar o arquivo `.env` na raiz do projeto:
 ```env
 DATABASE_URL=postgresql+psycopg://postgres:SENHA@localhost:5432/academia_db
 SECRET_KEY=chave-secreta-sistema-2024
+BIOMETRIA_API_TOKEN=gerar-um-valor-aleatorio
 ```
 
 ### 4. Criar o banco de dados
@@ -85,6 +86,20 @@ Login padrão: `admin` / `admin123`
 2. Instalar SDK: `biometria/finger Printer Driver & SDK.rar` (como Administrador)
 3. Conectar o leitor U.are.U 4500 via USB
 4. Verificar em **Gerenciador de Dispositivos → Authentication Devices**
+
+### Configuração (`bio_config.json`)
+O `biometria/bio_config.json` contém a senha do banco e o token da API, por isso
+**não é versionado**. Na primeira instalação, copie o modelo e edite os valores:
+```bash
+copy biometriaio_config.example.json biometriaio_config.json
+```
+- `api_token` deve ser **igual** ao `BIOMETRIA_API_TOKEN` do `.env` do servidor web.
+  O FingerPoint envia esse valor no header `X-GymFlow-Token` do `POST /acessos/biometria`;
+  sem ele o servidor responde 401 (token errado) ou 503 (token não configurado no servidor).
+- Para gerar um token:
+  ```bash
+  python -c "import secrets; print(secrets.token_urlsafe(32))"
+  ```
 
 ### Executar
 ```bash

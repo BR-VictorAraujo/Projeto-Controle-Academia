@@ -21,3 +21,7 @@ __pycache__/
 # Arquivos de alunos
 app/static/documentos/
 app/static/fotos/
+
+# FingerPoint - configuracao local (senha do banco e api_token) e logs
+biometria/bio_config.json
+biometria/logs/

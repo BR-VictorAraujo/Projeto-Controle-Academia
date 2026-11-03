@@ -1,0 +1,10 @@
+{
+  "host": "localhost",
+  "port": "5432",
+  "dbname": "academia_db",
+  "user": "postgres",
+  "password": "TROQUE_AQUI",
+  "simulado": false,
+  "flask_port": 5000,
+  "api_token": "TROQUE_AQUI_MESMO_VALOR_DE_BIOMETRIA_API_TOKEN"
+}

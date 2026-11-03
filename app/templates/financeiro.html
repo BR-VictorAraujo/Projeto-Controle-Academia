@@ -209,7 +209,7 @@
                     <tr>
                         <td>
                             <div style="display:flex; align-items:center; gap:10px;">
-                                {% if aluno.foto %}<img src="{{ aluno.foto }}" style="width:32px; height:32px; border-radius:50%; object-fit:cover; border:2px solid #c62828;">
+                                {% if aluno.foto %}<img src="{{ aluno.foto|arquivo_url }}" style="width:32px; height:32px; border-radius:50%; object-fit:cover; border:2px solid #c62828;">
                                 {% else %}<div style="width:32px; height:32px; border-radius:50%; background:#fdecea; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:700; color:#c62828;">{{ aluno.nome[0].upper() }}</div>{% endif %}
                                 <a href="/alunos/{{ aluno.id }}" style="text-decoration:none; color:#1a1a2e; font-weight:500;">{{ aluno.nome }}</a>
                             </div>
@@ -239,7 +239,7 @@
                     <tr>
                         <td>
                             <div style="display:flex; align-items:center; gap:10px;">
-                                {% if pagto.aluno.foto %}<img src="{{ pagto.aluno.foto }}" style="width:32px; height:32px; border-radius:50%; object-fit:cover; border:2px solid var(--cor-principal);">
+                                {% if pagto.aluno.foto %}<img src="{{ pagto.aluno.foto|arquivo_url }}" style="width:32px; height:32px; border-radius:50%; object-fit:cover; border:2px solid var(--cor-principal);">
                                 {% else %}<div style="width:32px; height:32px; border-radius:50%; background:color-mix(in srgb, var(--cor-principal) 15%, white); display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:700; color:var(--cor-principal);">{{ pagto.aluno.nome[0].upper() }}</div>{% endif %}
                                 <a href="/alunos/{{ pagto.aluno_id }}" style="text-decoration:none; color:#1a1a2e; font-weight:500;">{{ pagto.aluno.nome }}</a>
                             </div>

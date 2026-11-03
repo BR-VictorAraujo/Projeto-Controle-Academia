@@ -38,6 +38,38 @@ def create_app():
     app.register_blueprint(pagamentos_bp)
     app.register_blueprint(lgpd_bp)
 
+    # Fotos e documentos de alunos ficam em app/static/, mas so podem ser
+    # acessados logado, via /arquivos/... (ver app/routes/alunos.py). O
+    # static e servido pelo proprio Flask (inclusive em producao), entao o
+    # bloqueio do acesso direto e feito aqui, antes de qualquer rota.
+    # Nao basta comparar request.path: o static do Flask normaliza o
+    # caminho (ex.: /static/img/../fotos/x.jpg ou /static/./fotos/x.jpg
+    # chegam no arquivo) e no Windows o disco nao diferencia maiusculas
+    # (/static/FOTOS/x.jpg, /static/fotos./x.jpg, nome curto 8.3). Por
+    # isso, alem do prefixo, o arquivo pedido e resolvido no disco
+    # (realpath + normcase + lower — o bind mount do Docker Desktop
+    # tambem nao diferencia maiusculas) e comparado com as pastas
+    # protegidas.
+    from flask import request, abort
+    import os
+    pastas_privadas = [
+        os.path.normcase(os.path.realpath(os.path.join(app.static_folder, p))).lower()
+        for p in ('fotos', 'documentos')
+    ]
+    @app.before_request
+    def bloquear_static_privado():
+        if request.path.lower().startswith(('/static/fotos/', '/static/documentos/')):
+            abort(404)
+        if request.endpoint == 'static':
+            filename = (request.view_args or {}).get('filename', '')
+            alvo = os.path.normcase(os.path.realpath(os.path.join(app.static_folder, filename))).lower()
+            for pasta in pastas_privadas:
+                if alvo == pasta or alvo.startswith(pasta + os.sep):
+                    abort(404)
+
+    from app.routes.alunos import url_arquivo
+    app.add_template_filter(url_arquivo, 'arquivo_url')
+
     # Gate LGPD (v1.7.0): apos o login, exige o aceite da versao vigente do
     # termo (modal no dashboard). Sem efeito enquanto a migracao 1.7.0 nao
     # estiver aplicada ou sem versao publicada.
@@ -143,4 +175,4 @@ def create_app():
             # sistema de subir — registra e segue.
             app.logger.warning(f"Nao foi possivel iniciar o agendador de backup: {e}")
 
-    return app
+    return app
