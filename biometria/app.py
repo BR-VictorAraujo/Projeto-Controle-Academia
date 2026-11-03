@@ -14,8 +14,8 @@ import sys
 
 # ── Versionamento ────────────────────────────────────────────────────────────
 APP_NOME       = "FingerPoint"
-APP_VERSAO     = "1.2.2"
-APP_BUILD      = "2026-07-02"
+APP_VERSAO     = "1.2.3"
+APP_BUILD      = "2026-10-23"
 LEITOR_MODELO  = "Digital Persona U.are.U 4500"
 
 ctk.set_appearance_mode("dark")
@@ -103,7 +103,10 @@ class TelaLogin(ctk.CTkFrame):
         self._status.pack(pady=5)
 
     def _conectar(self):
-        cfg = {k: e.get() for k, e in self._entries.items()}
+        # Mescla com o cfg ja salvo: a tela so tem os campos do banco, entao
+        # montar o dict do zero apagaria flask_port e api_token do JSON.
+        cfg = BioConfig.load()
+        cfg.update({k: e.get() for k, e in self._entries.items()})
         cfg['simulado'] = self._simulado.get()
         BioConfig.save(cfg)
         self._status.configure(text="Conectando...", text_color=COR_SUBTEXT)
@@ -436,11 +439,16 @@ class AbaPortaria(ctk.CTkFrame):
 
         inativo       = False
         plano_vencido = False
+        # Mensagem de erro quando o servidor responde mas nao registra o
+        # acesso (401/503/status inesperado). Nesse caso NAO grava direto
+        # no banco — o fallback e so para falha de conexao (except abaixo).
+        erro_api      = None
 
         try:
             resp = requests.post(
                 f"http://localhost:{self.cfg.get('flask_port', 5000)}/acessos/biometria",
                 json={"aluno_id": aluno['id']},
+                headers={'X-GymFlow-Token': self.cfg.get('api_token', '')},
                 timeout=3)
 
             dados = {}
@@ -459,6 +467,15 @@ class AbaPortaria(ctk.CTkFrame):
                 inativo       = dados.get('inativo', False)
                 plano_vencido = dados.get('vencido', False) or (
                     not inativo and dados.get('bloqueado', False))
+            elif resp.status_code in (401, 503):
+                erro_api = "ERRO DE AUTENTICACAO - verifique api_token"
+                log_erro(f"Acesso de {nome} rejeitado pelo servidor "
+                         f"(HTTP {resp.status_code}): {dados.get('erro', '')} "
+                         f"- verifique api_token no bio_config.json")
+            else:
+                erro_api = f"ERRO NO SERVIDOR (HTTP {resp.status_code})"
+                log_erro(f"Resposta inesperada ao registrar acesso de {nome} "
+                         f"(HTTP {resp.status_code}): {dados.get('erro', '')}")
 
         except Exception as e:
             log_erro(f"Falha ao notificar Flask para {nome}: {e} - gravando direto no banco")
@@ -469,8 +486,13 @@ class AbaPortaria(ctk.CTkFrame):
                 nome          = resultado.get('nome', nome)
                 plano         = resultado.get('plano', plano)
 
-        # Prioridade: inativo > vencido > liberado
-        if inativo:
+        # Prioridade: erro da API > inativo > vencido > liberado
+        if erro_api:
+            self._icone.configure(text="⚠️")
+            self._lbl_nome.configure(text=nome, text_color=COR_ERROR)
+            self._lbl_status.configure(text=erro_api, text_color=COR_ERROR)
+            self._barra.configure(progress_color=COR_ERROR)
+        elif inativo:
             self._icone.configure(text="⛔")
             self._lbl_nome.configure(text=nome, text_color=COR_INATIVO)
             self._lbl_status.configure(text="ALUNO INATIVO", text_color=COR_INATIVO)

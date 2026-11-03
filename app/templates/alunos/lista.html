@@ -148,7 +148,7 @@
                     <td>
                         <div style="display:flex; align-items:center; gap:10px;">
                             {% if aluno.foto %}
-                                <img src="{{ aluno.foto }}" alt="{{ aluno.nome }}" class="avatar-lista">
+                                <img src="{{ aluno.foto|arquivo_url }}" alt="{{ aluno.nome }}" class="avatar-lista">
                             {% else %}
                                 <div class="avatar-inicial">{{ aluno.nome[0].upper() }}</div>
                             {% endif %}

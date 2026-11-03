@@ -140,7 +140,7 @@
                         <span style="font-size:12px;">Sem foto</span>
                     </div>
                     <img id="foto-capturada"
-                        src="{{ aluno.foto or '' }}"
+                        src="{{ aluno.foto|arquivo_url }}"
                         alt="Foto do aluno"
                         style="width:200px; height:200px; border-radius:12px; object-fit:cover;
                                border:3px solid #2e7d32;
@@ -324,7 +324,7 @@
                 <div class="doc-data">Enviado em {{ doc.criado_em | local_time }}</div>
             </div>
             <div style="display:flex; gap:8px;">
-                <a href="{{ doc.caminho }}" target="_blank"
+                <a href="{{ doc.caminho|arquivo_url }}" target="_blank"
                     style="background:#e3f2fd; color:#1565c0; padding:6px 12px; border-radius:8px; font-size:13px; text-decoration:none;">
                     <i class="bi bi-eye me-1"></i> Ver
                 </a>

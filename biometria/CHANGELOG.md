@@ -3,6 +3,28 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 Versionamento segue [SemVer](https://semver.org/lang/pt-BR/): `MAJOR.MINOR.PATCH`.
 
+## [1.2.3] — 2026-10-23
+
+### Segurança
+- **Autenticação no `POST /acessos/biometria`:** o app passa a enviar o
+  header `X-GymFlow-Token` com o valor de `api_token` do `bio_config.json`,
+  que deve ser igual ao `BIOMETRIA_API_TOKEN` do servidor web. Sem o token
+  correto o servidor responde 401 (ou 503 se o servidor não tiver token
+  configurado).
+- `bio_config.json` (senha do banco e token) e `logs/` deixam de ser
+  versionados. Novo modelo `bio_config.example.json`.
+
+### Corrigido
+- **Respostas de erro da API mostravam "Acesso liberado":** qualquer status
+  diferente de 200/403 caía no caso padrão e exibia acesso liberado em verde.
+  Agora 401/503 mostram "ERRO DE AUTENTICACAO - verifique api_token" e
+  qualquer outro status inesperado mostra erro com o código HTTP, ambos em
+  vermelho e registrados no log de erros. Nesses casos o acesso **não** é
+  gravado direto no banco (o fallback continua só para falha de conexão).
+- **Login apagava campos do `bio_config.json`:** ao conectar, o app salvava
+  só os campos da tela + `simulado`, perdendo `flask_port` (e agora
+  `api_token`). O cfg da tela passa a ser mesclado com o já salvo.
+
 ## [1.2.1] — 2026-06-19
 
 ### Corrigido

@@ -45,3 +45,12 @@ class Config:
     # pra autenticar a notificação, mesmo padrão de proteção que já fizemos
     # pra Cielo (só que a Asaas oferece esse mecanismo nativo).
     ASAAS_WEBHOOK_TOKEN = os.getenv('ASAAS_WEBHOOK_TOKEN')
+
+    # ─────────────────────────────────────────────────────────────────────
+    # FingerPoint (app biometrico) — POST /acessos/biometria
+    # ─────────────────────────────────────────────────────────────────────
+    # Segredo compartilhado enviado pelo FingerPoint no header
+    # 'X-GymFlow-Token' (campo api_token do biometria/bio_config.json).
+    # Sem valor configurado a rota responde 503 (fail closed). Gerar com:
+    # python -c "import secrets; print(secrets.token_urlsafe(32))"
+    BIOMETRIA_API_TOKEN = os.getenv('BIOMETRIA_API_TOKEN')

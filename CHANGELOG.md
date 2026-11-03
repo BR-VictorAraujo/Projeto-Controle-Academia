@@ -1,5 +1,23 @@
 # Changelog — GymFlow
 
+## [Não lançado] — Segurança: exposição de dados pessoais de alunos (LGPD)
+
+### Segurança
+- **Fotos e documentos de alunos só com login**: novas rotas `/arquivos/fotos/<arquivo>` e `/arquivos/documentos/<aluno_id>/<arquivo>` com `@login_required` (`send_from_directory`, `Cache-Control: private, no-store`; documentos com `nosniff`). O acesso direto por `/static/fotos/` e `/static/documentos/` agora retorna 404, inclusive para variações (`../`, `./`, `%2f`, maiúsculas). Os arquivos continuam em `app/static/` e o banco continua gravando `/static/...` (sem migração); o filtro Jinja `arquivo_url` e o helper `url_arquivo()` convertem para a URL protegida nas telas e no JSON de `/acessos/biometria` e `/monitoramento/ultimo`.
+- **`POST /acessos/biometria` exige segredo compartilhado**: header `X-GymFlow-Token` comparado com `BIOMETRIA_API_TOKEN` (`.env`) via `hmac.compare_digest`. Sem token configurado no servidor → 503; token ausente/inválido → 401, registrado em auditoria. Restringir a localhost não protegeria, porque o Cloudflare Tunnel conecta a partir de 127.0.0.1.
+- **Segredos e logs fora do Git**: `biometria/bio_config.json` (senha do PostgreSQL) e `biometria/logs/` (nomes de alunos) removidos do versionamento e incluídos no `.gitignore`. Novo `biometria/bio_config.example.json`. Os arquivos continuam no histórico do Git: a senha do banco deve ser trocada.
+
+### Alterado
+- **FingerPoint 1.2.3** (ver `biometria/CHANGELOG.md`): envia `X-GymFlow-Token` com o valor de `api_token` do `bio_config.json`; 401/503 e status inesperados mostram erro em vez de "Acesso liberado"; o login do app não apaga mais `flask_port`/`api_token` do JSON.
+
+### Deploy (obrigatório na mesma janela, web + FingerPoint)
+1. Gerar o token: `python -c "import secrets; print(secrets.token_urlsafe(32))"`.
+2. Servidor web: adicionar `BIOMETRIA_API_TOKEN=<token>` ao `.env` e reiniciar o serviço NSSM.
+3. FingerPoint: adicionar `"api_token": "<token>"` ao `bio_config.json` (modelo em `bio_config.example.json`) e reiniciar o app.
+4. Sem os dois passos, toda passagem por biometria é recusada (503/401).
+
+---
+
 ## [1.5.0] — 2026-06-30
 
 ### Adicionado

@@ -36,6 +36,8 @@ services:
       SECRET_KEY: ${SECRET_KEY:-dev-gymflow-docker}
       CIELO_AMBIENTE: sandbox
       ASAAS_AMBIENTE: sandbox
+      # Segredo do FingerPoint (header X-GymFlow-Token em /acessos/biometria)
+      BIOMETRIA_API_TOKEN: ${BIOMETRIA_API_TOKEN:-dev-biometria-token}
     ports:
       - "5000:5000"
     volumes:

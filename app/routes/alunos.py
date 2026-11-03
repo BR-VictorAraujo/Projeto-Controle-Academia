@@ -341,3 +341,60 @@ def excluir_documento(id, doc_id):
     registrar_log('excluiu documento', f'Aluno ID: {id} | Arquivo: {doc.nome_arquivo}')
     flash('Documento excluido com sucesso!', 'success')
     return redirect(url_for('alunos.editar_aluno', id=id))
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Fotos e documentos de alunos — servidos somente para usuario logado
+# ─────────────────────────────────────────────────────────────────────────────
+# Os arquivos continuam fisicamente em app/static/fotos/ e
+# app/static/documentos/<aluno_id>/, e o banco continua guardando
+# '/static/...' (sem migracao). O acesso direto via /static/fotos e
+# /static/documentos e bloqueado com 404 no before_request de create_app;
+# as telas passam a usar /arquivos/... (filtro Jinja 'arquivo_url').
+
+def url_arquivo(caminho):
+    """Converte o caminho gravado no banco na URL protegida por login.
+
+    '/static/fotos/x.jpg'          -> '/arquivos/fotos/x.jpg'
+    '/static/documentos/3/doc.pdf' -> '/arquivos/documentos/3/doc.pdf'
+
+    Retorna '' para vazio/None e devolve o valor sem alteracao se nao
+    casar com nenhum dos prefixos (ex.: URL externa).
+    """
+    if not caminho:
+        return ''
+    for prefixo_static, prefixo_arquivos in (
+        ('/static/fotos/',      '/arquivos/fotos/'),
+        ('/static/documentos/', '/arquivos/documentos/'),
+    ):
+        if caminho.startswith(prefixo_static):
+            return prefixo_arquivos + caminho[len(prefixo_static):]
+    return caminho
+
+
+def _enviar_arquivo_privado(pasta, filename, nosniff=False):
+    # send_from_directory usa safe_join: qualquer tentativa de path
+    # traversal (../) resulta em 404, sem sair da pasta informada.
+    from flask import send_from_directory
+    resp = send_from_directory(pasta, filename, max_age=0)
+    resp.headers['Cache-Control'] = 'private, no-store'
+    if nosniff:
+        resp.headers['X-Content-Type-Options'] = 'nosniff'
+    return resp
+
+
+@bp.route('/arquivos/fotos/<path:filename>')
+@login_required
+def arquivo_foto(filename):
+    import os
+    from flask import current_app
+    pasta = os.path.join(current_app.root_path, 'static', 'fotos')
+    return _enviar_arquivo_privado(pasta, filename)
+
+
+@bp.route('/arquivos/documentos/<int:aluno_id>/<path:filename>')
+@login_required
+def arquivo_documento(aluno_id, filename):
+    import os
+    from flask import current_app
+    pasta = os.path.join(current_app.root_path, 'static', 'documentos', str(aluno_id))
+    return _enviar_arquivo_privado(pasta, filename, nosniff=True)

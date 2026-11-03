@@ -5,6 +5,7 @@ from app.models import Aluno, RegistroAcesso
 from datetime import datetime, date, timedelta
 import json
 from app.routes.auth import login_required, registrar_log, get_param, tecnologia_ativa
+from app.routes.alunos import url_arquivo
 
 bp = Blueprint('acessos', __name__)
 
@@ -49,7 +50,30 @@ def acessos():
 
 @bp.route('/acessos/biometria', methods=['POST'])
 def acesso_biometria():
-    # Sem @login_required — chamado internamente pelo app biométrico via localhost
+    # Sem @login_required — chamado pelo app biometrico (FingerPoint), que
+    # nao tem sessao. Restringir a localhost NAO protege: o Cloudflare
+    # Tunnel (cloudflared) conecta no Flask a partir de 127.0.0.1. Por isso
+    # a rota exige segredo compartilhado no header X-GymFlow-Token, igual
+    # ao BIOMETRIA_API_TOKEN do servidor (api_token no bio_config.json).
+    # Fail closed: sem token configurado no servidor, ninguem passa.
+    import hmac
+    from flask import current_app
+    token_servidor = current_app.config.get('BIOMETRIA_API_TOKEN')
+    if not token_servidor:
+        registrar_log(
+            'acesso biometria rejeitado',
+            'BIOMETRIA_API_TOKEN nao configurado no servidor'
+        )
+        return jsonify({'erro': 'Token da biometria nao configurado no servidor'}), 503
+
+    token_recebido = request.headers.get('X-GymFlow-Token', '')
+    if not token_recebido or not hmac.compare_digest(
+            token_recebido.encode('utf-8'), token_servidor.encode('utf-8')):
+        registrar_log(
+            'acesso biometria rejeitado',
+            'Token X-GymFlow-Token ausente ou invalido'
+        )
+        return jsonify({'erro': 'Nao autorizado'}), 401
 
     if not tecnologia_ativa('biometria'):
         registrar_log(
@@ -80,7 +104,7 @@ def acesso_biometria():
                 'nome':      aluno.nome,
                 'plano':     aluno.plano or '',
                 'vencimento': aluno.vencimento.strftime('%d/%m/%Y') if aluno.vencimento else '—',
-                'foto':      aluno.foto or '',
+                'foto':      url_arquivo(aluno.foto),
             }), 403
 
         # Verifica e inativa diária vencida
@@ -93,7 +117,7 @@ def acesso_biometria():
                 'nome':      aluno.nome,
                 'plano':     aluno.plano or '',
                 'vencimento': aluno.vencimento.strftime('%d/%m/%Y') if aluno.vencimento else '—',
-                'foto':      aluno.foto or '',
+                'foto':      url_arquivo(aluno.foto),
             }), 403
 
         bloquear = get_param('bloquear_plano_vencido', '0') == '1'
@@ -106,7 +130,7 @@ def acesso_biometria():
                 'nome':      aluno.nome,
                 'plano':     aluno.plano or '',
                 'vencimento': aluno.vencimento.strftime('%d/%m/%Y') if aluno.vencimento else '—',
-                'foto':      aluno.foto or '',
+                'foto':      url_arquivo(aluno.foto),
             }), 403
 
         db.session.add(RegistroAcesso(aluno_id=aluno_id, tipo='biometria'))
@@ -118,7 +142,7 @@ def acesso_biometria():
             'plano':     aluno.plano or '',
             'vencido':   bool(aluno.vencimento and aluno.vencimento < hoje),
             'vencimento': aluno.vencimento.strftime('%d/%m/%Y') if aluno.vencimento else '—',
-            'foto':      aluno.foto or '',
+            'foto':      url_arquivo(aluno.foto),
             'inativo':   False,
         }), 200
 
@@ -196,7 +220,7 @@ def monitoramento_ultimo():
         'vencido':    vencido,
         'inativo':    inativo,
         'vencimento': vencimento_str,
-        'foto':       aluno.foto or '',
+        'foto':       url_arquivo(aluno.foto),
         'cpf':        aluno.documento or '—',
         'telefone':   aluno.telefone or '—',
         'cadastro':   cadastro,
