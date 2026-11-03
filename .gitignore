@@ -25,3 +25,7 @@ app/static/fotos/
 # FingerPoint - configuracao local (senha do banco e api_token) e logs
 biometria/bio_config.json
 biometria/logs/
+
+# Instalador: saida do ISCC e instalador do Python embutido
+installer/python/
+installer/saida/
