@@ -1,5 +1,20 @@
 # Changelog — GymFlow
 
+## [Não lançado] — Instalador e serviço Windows
+
+### Adicionado
+- **Instalador/atualizador Inno Setup** (`installer/gymflow.iss`, gerado por `installer/build.ps1` como `GymFlow-Setup-<versao>.exe`, versão lida de `app/version.py`; modelo do instalador do Nway Control). Detecta o modo pela pasta: com `.env` e `app/` **atualiza** (para o serviço, backup em zip + `pg_dump`, troca o código, `pip install`, migrações e registra/inicia o serviço de novo); pasta vazia faz **instalação nova** (página "Configuração do PostgreSQL" com "Testar conexão", gera o `.env` com `SECRET_KEY`/`BIOMETRIA_API_TOKEN`, cria banco, tabelas e admin). A senha do banco só passa por variável de ambiente, nunca por argumento, arquivo temporário ou log. Nunca sobrescreve `.env`, fotos, documentos, img, `biometria/`, logs e venv. Passo a passo em `installer/README.md`.
+- **Serviço Windows "GymFlow" sem NSSM**: `serve.py --instalar-servico | --iniciar-servico | --parar-servico | --remover-servico` (pywin32). Início automático, conta LocalSystem, reinício em falha (`sc failure` + `failureflag`), log em `logs/servico.log` com rotação. Um serviço NSSM antigo da mesma pasta é substituído. Health check em `http://localhost:5000` no fim da instalação. O desinstalador remove o serviço e só apaga configuração/logs ou fotos/documentos se o usuário confirmar (perguntas separadas, padrão "Não").
+- **`BIOMETRIA_API_TOKEN` garantido**: em toda instalação/atualização, `.env` e `api_token` de `biometria/bio_config.json` (se existir) ficam iguais; o que faltar é copiado do outro ou gerado, sem alterar os demais campos.
+- **`serve.py`**: entrypoint de produção com waitress (sem `debug`). No Windows, `SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED)` impede a suspensão/hibernação por inatividade enquanto o serviço roda, sem alterar o `powercfg`.
+- `installer/atualizar_banco.py`: `db.create_all()`, registros padrão e as migrações `migrations/NNN_*.sql` (`psql -v ON_ERROR_STOP=1`; pula as já registradas em `schema_migracao`).
+
+### Alterado
+- `run.py`: a inicialização do banco virou a função `inicializar_banco()`, reutilizada pelo `serve.py` e pelo instalador. O `python run.py` continua igual (só desenvolvimento).
+- `requirements.txt` / `requirements-docker.txt`: `waitress==3.0.2`.
+
+---
+
 ## [1.5.0] — 2026-06-30
 
 ### Adicionado

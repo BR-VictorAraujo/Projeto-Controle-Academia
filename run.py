@@ -4,7 +4,13 @@ from werkzeug.security import generate_password_hash
 
 app = create_app()
 
-if __name__ == '__main__':
+
+def inicializar_banco():
+    """Cria as tabelas que faltam e os registros padrao. Idempotente.
+
+    Chamado pelo servidor de desenvolvimento (abaixo), pelo serve.py
+    (producao) e pelo instalador (installer/atualizar_banco.py).
+    """
     with app.app_context():
         db.create_all()
 
@@ -50,4 +56,8 @@ if __name__ == '__main__':
         db.session.commit()
         print("Banco de dados inicializado!")
 
+
+if __name__ == '__main__':
+    # Somente desenvolvimento. Em producao o servico usa serve.py (waitress).
+    inicializar_banco()
     app.run(debug=True, host='0.0.0.0', port=5000)

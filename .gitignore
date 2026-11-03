@@ -21,3 +21,6 @@ __pycache__/
 # Arquivos de alunos
 app/static/documentos/
 app/static/fotos/
+# Instalador: saida do ISCC e instalador do Python embutido
+installer/python/
+installer/saida/
