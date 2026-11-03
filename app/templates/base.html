@@ -277,16 +277,6 @@
         <a href="/configuracoes" class="oculto-mobile {% if pagina_ativa == 'configuracoes' %}active{% endif %}">
             <i class="bi bi-gear"></i> Configurações
         </a>
-        {% if lgpd_menu %}
-        <a href="/privacidade/minhas" class="{% if pagina_ativa == 'lgpd_minhas' %}active{% endif %}">
-            <i class="bi bi-shield-lock"></i> Privacidade
-        </a>
-        {% if session.get('perfil') == 'admin' %}
-        <a href="/privacidade/admin/termos" class="oculto-mobile {% if pagina_ativa == 'lgpd_admin' %}active{% endif %}">
-            <i class="bi bi-file-earmark-lock"></i> Termos LGPD
-        </a>
-        {% endif %}
-        {% endif %}
     </div>
     <div class="sidebar-footer">
         <div style="font-size:11px; color:rgba(255,255,255,0.3); margin-bottom:8px;">
@@ -327,6 +317,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+{% if g.get('lgpd_termo_pendente') %}{% include 'lgpd/_modal_termo.html' %}{% endif %}
 <script>
 const sidebar = document.getElementById('sidebar');
 const overlay = document.getElementById('overlay-mobile');

@@ -1,38 +1,44 @@
-AVISO DE PRIVACIDADE AOS USUÁRIOS DO SISTEMA GYMFLOW
+TERMO DE USO E PRIVACIDADE DO SISTEMA GYMFLOW
 
 ATENÇÃO (remova este parágrafo antes de publicar): este é um MODELO. Todos os trechos marcados com [PREENCHER ...] devem ser completados pela academia, e o texto final deve ser revisado pela academia e, preferencialmente, por um profissional jurídico ou especialista em proteção de dados. Este modelo não garante conformidade com a LGPD.
 
 1. Quem é o responsável pelos seus dados
-A academia [PREENCHER: razão social], CNPJ [PREENCHER: CNPJ], com sede em [PREENCHER: endereço], é a responsável (controladora) pelo tratamento dos dados pessoais descritos neste aviso, nos termos da Lei nº 13.709/2018 (LGPD).
+A academia [PREENCHER: razão social], CNPJ [PREENCHER: CNPJ], com sede em [PREENCHER: endereço], é a responsável (controladora) pelo tratamento dos dados pessoais descritos neste termo, nos termos da Lei nº 13.709/2018 (LGPD).
 O sistema GymFlow é um software utilizado pela academia. Os dados ficam armazenados no ambiente operado pela academia.
 
 2. A quem se aplica
-Este aviso se aplica às pessoas que possuem usuário de acesso ao sistema GymFlow (funcionários, colaboradores e administradores autorizados pela academia).
+Este termo se aplica às pessoas que possuem usuário de acesso ao sistema GymFlow (funcionários, colaboradores e administradores autorizados pela academia).
 
-3. Quais dados seus o sistema utiliza
+3. Regras de uso do sistema
+- O usuário e a senha são pessoais e intransferíveis; não compartilhe sua senha.
+- Utilize o sistema apenas para as atividades da academia e dentro das funções permitidas ao seu perfil.
+- Os dados de alunos e de outras pessoas acessados pelo sistema devem ser usados somente para as finalidades da academia e não podem ser copiados ou repassados sem autorização.
+[PREENCHER: outras regras de uso definidas pela academia, se houver]
+
+4. Quais dados seus o sistema utiliza
 - Nome, nome de usuário e perfil de acesso.
 - Senha, armazenada somente em formato protegido (hash), sem possibilidade de leitura.
 - Data e hora de criação do usuário, do último acesso e da última troca de senha.
 - Registro das ações realizadas no sistema (auditoria), vinculado ao seu usuário.
-- Registro das suas manifestações sobre os termos de privacidade (termo, versão, data e hora e resposta).
+- Registro das suas respostas a este termo (versão, data e hora e resposta).
 [PREENCHER: outras categorias de dados, se houver]
 
-4. Para que esses dados são utilizados
+5. Para que esses dados são utilizados
 - Controlar o acesso ao sistema e garantir que cada pessoa use apenas as funções permitidas ao seu perfil.
 - Manter o registro das operações realizadas, para segurança e apuração de erros ou irregularidades.
-- Comprovar que você foi informado(a) sobre este aviso e registrar suas manifestações.
+- Registrar a sua resposta a este termo.
 [PREENCHER: outras finalidades definidas pela academia e as respectivas bases legais]
 
-5. Armazenamento, acesso e compartilhamento
+6. Armazenamento, acesso e compartilhamento
 - Os dados ficam armazenados no banco de dados instalado no ambiente da academia: [PREENCHER: local/servidor].
 - O acesso aos registros é restrito às pessoas autorizadas pela academia com perfil de administrador.
 - [PREENCHER: com quem os dados são compartilhados, se houver, e por quê; ou declarar que não há compartilhamento]
 
-6. Por quanto tempo os dados são mantidos
+7. Por quanto tempo os dados são mantidos
 [PREENCHER: prazo de retenção de cada categoria de dado e critério de descarte]
-Os registros de manifestação sobre os termos são mantidos para comprovação e não são alterados pelas operações comuns do sistema.
+Os registros de resposta a este termo são mantidos para comprovação e não são alterados pelas operações comuns do sistema.
 
-7. Seus direitos
+8. Seus direitos
 Conforme o art. 18 da LGPD, você pode solicitar à academia:
 - confirmação da existência de tratamento e acesso aos seus dados;
 - correção de dados incompletos, inexatos ou desatualizados;
@@ -42,8 +48,8 @@ Conforme o art. 18 da LGPD, você pode solicitar à academia:
 - informação sobre a possibilidade de não fornecer consentimento e suas consequências, quando o consentimento for a base legal;
 - revogação do consentimento, quando ele for a base legal do tratamento.
 
-8. Como entrar em contato
+9. Como entrar em contato
 Para dúvidas ou solicitações sobre seus dados pessoais, procure: [PREENCHER: nome do responsável ou encarregado], pelo canal [PREENCHER: e-mail, telefone ou local de atendimento].
 
-9. Sobre este aviso
-Ao clicar em "Li e estou ciente", você registra que leu este aviso. Isso não é um consentimento e não autoriza nenhum tratamento além dos descritos acima. Quando a academia alterar este aviso de forma relevante, uma nova versão será apresentada.
+10. Sobre este termo
+Ao clicar em "Aceito", você declara que leu este termo e concorda com as regras de uso do sistema aqui descritas. Se clicar em "Não aceito", a sessão será encerrada e não será possível utilizar o sistema; o termo será apresentado novamente no próximo acesso. Quando a academia alterar este termo, uma nova versão será apresentada para aceite.

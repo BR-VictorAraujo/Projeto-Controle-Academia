@@ -1,62 +1,49 @@
-# Configuração dos termos de privacidade (guia para a academia)
+# Termo de uso e privacidade: funcionamento e publicação
 
-Acesso: menu **Termos LGPD**, disponível só para usuários com perfil **admin**.
+## Como funciona para quem usa o sistema
 
-> O texto inicial é apenas um **modelo**. A academia deve preencher os dados reais e revisar o
-> conteúdo, de preferência com um profissional jurídico ou um especialista em proteção de dados.
-> O sistema registra quem foi informado e quem consentiu, mas **não garante** conformidade com a LGPD.
+- Na primeira vez que um usuário entra (operador ou admin) depois que existe um termo publicado,
+  aparece um **pop-up** sobre o dashboard. Ele mostra o texto (com rolagem), a versão e dois botões:
+  - **Aceito:** o pop-up some e o sistema fica liberado. Nos próximos logins ele não aparece mais.
+  - **Não aceito:** a recusa é registrada, a sessão é encerrada e o usuário volta ao login com uma
+    mensagem genérica. No próximo login o pop-up aparece de novo.
+- O pop-up não tem botão de fechar. Enquanto o usuário não aceita, as demais telas voltam para o dashboard.
+- Fechar o navegador sem responder não grava nada.
+- Quando uma **nova versão** é publicada, todos precisam aceitar de novo.
+- A recusa nunca exclui a conta nem os dados.
 
-## Ciência e consentimento: dois tipos de termo
+## O que a academia vê
 
-| Tipo | Botões | Quando usar |
-|---|---|---|
-| **Ciência** (ex.: Aviso de Privacidade) | "Li e estou ciente" | Para **informar** como os dados são tratados. Não é consentimento. Vale para tratamentos que a academia faz por outras bases legais, como contrato, obrigação legal ou legítimo interesse. |
-| **Consentimento** | "Concordo" / "Não concordo" | Só para operações que **realmente dependem de consentimento**. A recusa é registrada e respeitada. |
+**Configurações → LGPD** (somente perfil admin):
+- o termo vigente em somente leitura: versão, data de publicação, texto e hash SHA-256;
+- abaixo, a tabela de respostas: usuário, resposta (Aceito/Não aceito), data/hora e versão, das mais
+  recentes para as mais antigas.
 
-A academia define quais operações dependem de consentimento e qual é a base legal de cada
-tratamento. O sistema não presume nenhuma delas e vem apenas com o Aviso de Privacidade.
+A tela não permite editar o termo nem alterar, excluir ou exportar respostas.
 
-Ao cadastrar um termo de consentimento, defina o campo **"Bloqueia o sistema se recusado"**:
-- **Sim:** quem recusar não usa o sistema e vê a tela com as consequências e o contato da academia.
-- **Não:** a recusa bloqueia só as funções marcadas no código com `@requer_consentimento('<codigo>')`.
-  Nesta versão nenhuma função está marcada, então isso exige uma alteração no software.
+## Publicar uma versão do termo (somente o desenvolvedor)
 
-A recusa **nunca** exclui a conta nem os dados. Quem recusou pode rever a decisão em "Privacidade".
+O texto **não é editável pela interface**. Cada versão é publicada por um script SQL que vai junto
+com a atualização do sistema.
 
-## Passo a passo
+1. Copie `docs/lgpd/termo/MODELO.txt` para `docs/lgpd/termo/termo_v1.0.txt` e preencha todos os
+   `[PREENCHER ...]` com os dados fornecidos pela academia. Remova o parágrafo "ATENÇÃO".
+   - O texto deve ser validado pela academia e, de preferência, por um profissional jurídico ou
+     especialista em proteção de dados.
+2. Gere a migração:
+   ```bash
+   python tools/gerar_migracao_termo.py docs/lgpd/termo/termo_v1.0.txt 1.0
+   ```
+   - O script recusa textos que ainda tenham `[PREENCHER`, além de versões repetidas ou inválidas.
+   - Ele cria `migrations/NNN_termo_v1.0.sql` e mostra o hash SHA-256.
+3. Aplique e teste em QAS:
+   ```powershell
+   & "C:\Program Files\PostgreSQL\16\bin\psql.exe" -U <usuario> -d <banco> -v ON_ERROR_STOP=1 -f migrations\NNN_termo_v1.0.sql
+   ```
+4. Aplique em produção no deploy.
 
-1. **Contato de privacidade:** em Termos LGPD → Configuração, preencha o canal que aparece para quem
-   recusar um consentimento (nome do responsável, e-mail, telefone ou local de atendimento).
-2. **Editar o aviso:** em Termos → Aviso de Privacidade → Versões → 1.0 (rascunho) → Editar.
-   - Substitua todos os trechos `[PREENCHER ...]` pelos dados reais.
-   - Remova o parágrafo "ATENÇÃO" do início.
-   - O sistema **não publica** enquanto houver `[PREENCHER` no texto.
-3. **Publicar:** escolha a vigência imediata ou agendada e confirme.
-   - Depois de publicada, a versão **não pode ser alterada nem excluída**, nem pelo banco.
-   - Para corrigir, crie uma nova versão.
-4. **Ligar a exigência:** em Configuração, marque "Exigir resposta aos termos".
-   - Só é possível ligar se existir um termo ativo com versão publicada.
-   - A partir do próximo acesso, cada usuário verá a tela antes de usar o sistema.
-5. **Acompanhar:**
-   - **Situação** mostra quem está pendente, ciente, concordou ou recusou.
-   - **Manifestações** mostra o histórico completo.
-   - **Auditoria** mostra quem criou, editou ou publicou cada termo.
+A partir desse momento o pop-up passa a aparecer para todos. Para alterar o texto depois, crie
+`termo_v1.1.txt` (ou `2.0`) e repita o processo. Versões publicadas não podem ser alteradas nem
+excluídas, nem direto no banco.
 
-## Novas versões
-
-- Crie a nova versão (é possível copiar a vigente), edite e publique.
-- **Alteração material**:
-  - **Sim**: todos precisam responder de novo. Use quando a mudança afeta finalidades, dados,
-    compartilhamento, retenção ou direitos.
-  - **Não**: o texto é atualizado sem pedir nova resposta. Use para correção de digitação ou
-    formatação.
-- A primeira versão de um termo é sempre material.
-- O histórico das versões anteriores e das respostas dadas a elas é mantido.
-
-## O que fica registrado em cada resposta
-
-Usuário, termo e versão, resposta, data e hora (do servidor de banco), versão do software e o
-**hash SHA-256 do texto exibido**. O hash permite provar exatamente qual conteúdo foi apresentado:
-o texto da versão fica guardado e pode ser conferido em Versões → Ver.
-
-Não são coletados IP, localização, assinatura nem outros dados.
+Detalhes técnicos: `migrations/README.md`.

@@ -2,25 +2,24 @@
 -- #                                                                           #
 -- #   ATENÇÃO: SCRIPT DESTRUTIVO - ROLLBACK DA MIGRAÇÃO 001 (v1.7.0 LGPD)      #
 -- #                                                                           #
--- #   Remove DEFINITIVAMENTE: termos, versões, MANIFESTAÇÕES dos usuários,     #
--- #   auditoria de termos, triggers, funções e as chaves de configuração       #
--- #   lgpd_gate_ativo e lgpd_contato_privacidade.                             #
+-- #   Remove DEFINITIVAMENTE as versões publicadas do termo e as RESPOSTAS     #
+-- #   (aceito / não aceito) de todos os usuários, além de triggers e funções.  #
+-- #   Remove também os objetos da 001 ANTIGA (lgpd_termo,                     #
+-- #   lgpd_termo_auditoria, funções antigas e as chaves lgpd_gate_ativo e     #
+-- #   lgpd_contato_privacidade), caso existam.                                #
 -- #                                                                           #
--- #   As manifestações são a prova de ciência/consentimento dos titulares.     #
--- #   Usar SOMENTE em banco sem manifestações reais (dev/QAS) e SEMPRE após    #
--- #   um pg_dump completo do banco:                                           #
+-- #   As respostas são a prova do aceite do termo. Usar SOMENTE em banco sem  #
+-- #   respostas reais (dev/QAS) e SEMPRE após um pg_dump completo:            #
 -- #                                                                           #
 -- #     pg_dump -U <usuario> -d <banco> -F c -f backup_antes_down_001.dump     #
 -- #                                                                           #
 -- #   O script RECUSA a execução se lgpd_manifestacao tiver linhas. Para       #
--- #   forçar (somente se tiver certeza e com backup), na MESMA sessão psql:    #
+-- #   forçar (somente com backup e certeza), na MESMA sessão do psql:         #
 -- #                                                                           #
--- #     SET gymflow.forcar_down = 'on';                                       #
--- #     \i 001_v1.7.0_lgpd_down.sql                                           #
+-- #     psql ... -c "SET gymflow.forcar_down = 'on'" -f 001_v1.7.0_lgpd_down.sql
 -- #                                                                           #
--- #   Antes do down, volte o código da aplicação para a versão anterior        #
--- #   (v1.5.x) ou pare o serviço: o app v1.7.0 com db.create_all() recriaria   #
--- #   as tabelas vazias na próxima inicialização.                             #
+-- #   Antes do down, pare o serviço web ou volte o código para a versão       #
+-- #   anterior: o db.create_all() da v1.7.0 recriaria as tabelas vazias.      #
 -- #                                                                           #
 -- #############################################################################
 
@@ -40,43 +39,63 @@ BEGIN
             RAISE EXCEPTION 'Down 001 recusado: lgpd_manifestacao possui % linha(s). Faça pg_dump e, se tiver certeza, execute SET gymflow.forcar_down = ''on''; na mesma sessão.', v_qtd;
         END IF;
         IF v_qtd > 0 THEN
-            RAISE WARNING 'Down 001 FORÇADO: % manifestação(ões) serão removidas.', v_qtd;
+            RAISE WARNING 'Down 001 FORÇADO: % resposta(s) de usuários serão removidas.', v_qtd;
         END IF;
     END IF;
 END;
 $guarda$;
 -- [GUARDA-FIM]
 
--- Triggers
-DROP TRIGGER IF EXISTS lgpd_termo_versao_protege         ON lgpd_termo_versao;
-DROP TRIGGER IF EXISTS lgpd_manifestacao_valida          ON lgpd_manifestacao;
-DROP TRIGGER IF EXISTS lgpd_manifestacao_imutavel        ON lgpd_manifestacao;
-DROP TRIGGER IF EXISTS lgpd_manifestacao_sem_truncate    ON lgpd_manifestacao;
-DROP TRIGGER IF EXISTS lgpd_termo_auditoria_registra     ON lgpd_termo_auditoria;
-DROP TRIGGER IF EXISTS lgpd_termo_auditoria_imutavel     ON lgpd_termo_auditoria;
-DROP TRIGGER IF EXISTS lgpd_termo_auditoria_sem_truncate ON lgpd_termo_auditoria;
+-- Triggers (001 nova e antiga). Só tenta em tabelas que existem.
+DO $trg$
+DECLARE
+    r record;
+BEGIN
+    FOR r IN
+        SELECT * FROM (VALUES
+            ('lgpd_termo_versao',    'lgpd_termo_versao_valida'),
+            ('lgpd_termo_versao',    'lgpd_termo_versao_imutavel'),
+            ('lgpd_termo_versao',    'lgpd_termo_versao_sem_truncate'),
+            ('lgpd_termo_versao',    'lgpd_termo_versao_protege'),
+            ('lgpd_manifestacao',    'lgpd_manifestacao_valida'),
+            ('lgpd_manifestacao',    'lgpd_manifestacao_imutavel'),
+            ('lgpd_manifestacao',    'lgpd_manifestacao_sem_truncate'),
+            ('lgpd_termo_auditoria', 'lgpd_termo_auditoria_registra'),
+            ('lgpd_termo_auditoria', 'lgpd_termo_auditoria_imutavel'),
+            ('lgpd_termo_auditoria', 'lgpd_termo_auditoria_sem_truncate')
+        ) AS t(tabela, gatilho)
+    LOOP
+        IF to_regclass('public.' || r.tabela) IS NOT NULL THEN
+            EXECUTE format('DROP TRIGGER IF EXISTS %I ON public.%I', r.gatilho, r.tabela);
+        END IF;
+    END LOOP;
+END;
+$trg$;
 
 -- Tabelas (ordem respeita as FKs RESTRICT; sem CASCADE)
 DROP TABLE IF EXISTS lgpd_manifestacao;
-DROP TABLE IF EXISTS lgpd_termo_auditoria;
+DROP TABLE IF EXISTS lgpd_termo_auditoria;   -- 001 antiga
 DROP TABLE IF EXISTS lgpd_termo_versao;
-DROP TABLE IF EXISTS lgpd_termo;
+DROP TABLE IF EXISTS lgpd_termo;             -- 001 antiga
 
--- Funções
-DROP FUNCTION IF EXISTS fn_lgpd_termo_versao_protege();
+-- Funções (001 nova e antiga)
+DROP FUNCTION IF EXISTS fn_lgpd_termo_versao_valida();
 DROP FUNCTION IF EXISTS fn_lgpd_manifestacao_valida();
-DROP FUNCTION IF EXISTS fn_lgpd_auditoria_registra();
 DROP FUNCTION IF EXISTS fn_lgpd_somente_insercao();
+DROP FUNCTION IF EXISTS fn_lgpd_termo_versao_protege();   -- 001 antiga
+DROP FUNCTION IF EXISTS fn_lgpd_auditoria_registra();     -- 001 antiga
 
--- Configurações criadas pela migração
+-- Chaves de configuração da 001 antiga (a 001 nova não cria chaves)
 DELETE FROM configuracoes WHERE chave IN ('lgpd_gate_ativo', 'lgpd_contato_privacidade');
 
--- Registro da migração. A tabela schema_migracao só é removida se ficar vazia
--- (migrações futuras também a utilizam).
+-- Registros em schema_migracao: a 001 e as migrações de publicação de termo
+-- (NNN_termo_v<versao>), cujas versões acabaram de ser removidas. A tabela só é
+-- removida se ficar vazia (migrações futuras também a utilizam).
 DO $sm$
 BEGIN
     IF to_regclass('public.schema_migracao') IS NOT NULL THEN
-        DELETE FROM public.schema_migracao WHERE versao = '1.7.0_001_lgpd';
+        DELETE FROM public.schema_migracao
+         WHERE versao = '1.7.0_001_lgpd' OR versao ~ '^[0-9]{3}_termo_v';
         IF NOT EXISTS (SELECT 1 FROM public.schema_migracao) THEN
             EXECUTE 'DROP TABLE public.schema_migracao';
         END IF;

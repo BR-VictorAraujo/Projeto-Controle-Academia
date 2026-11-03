@@ -1,0 +1,68 @@
+{# Modal obrigatório do termo de privacidade/uso (LGPD v1.7.0).
+   Incluído em base.html quando g.lgpd_termo_pendente está definido.
+   Sem botão de fechar: só sai aceitando (Não aceito encerra a sessão). #}
+{% set _termo = g.get('lgpd_termo_pendente') %}
+<style>
+    #modalTermoLgpd .modal-content { border-radius: 14px; border: none; }
+    #modalTermoLgpd .modal-header { border-bottom: 1px solid #f0f2f5; }
+    #modalTermoLgpd .modal-title { font-size: 17px; font-weight: 600; color: #1a1a2e; }
+    #modalTermoLgpd .texto-termo {
+        white-space: pre-wrap; word-wrap: break-word;
+        max-height: 55vh; overflow-y: auto;
+        background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 10px;
+        padding: 16px 18px; font-size: 14px; line-height: 1.55; color: #212529;
+    }
+    #modalTermoLgpd .btn-nao-aceito {
+        background: white; border: 1.5px solid #dee2e6; color: #1a1a2e;
+        padding: 10px 24px; border-radius: 8px; font-weight: 500; font-size: 14px;
+    }
+    #modalTermoLgpd .btn-nao-aceito:hover { border-color: #c62828; color: #c62828; }
+    @media (max-width: 576px) {
+        #modalTermoLgpd .modal-footer button { width: 100%; justify-content: center; }
+    }
+</style>
+
+<div class="modal fade" id="modalTermoLgpd" tabindex="-1" aria-labelledby="modalTermoLgpdTitulo"
+     aria-modal="true" role="dialog" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalTermoLgpdTitulo">
+                    <i class="bi bi-shield-lock me-2" style="color: var(--cor-principal);"></i>Termo de uso e privacidade
+                </h5>
+                <span class="ms-auto" style="font-size:12px; color:#6c757d;">Versão {{ _termo.versao }}</span>
+            </div>
+            <div class="modal-body">
+                <p style="font-size:13px; color:#6c757d;" class="mb-2">
+                    Leia o termo abaixo. Para utilizar o sistema é necessário aceitá-lo.
+                </p>
+                <div class="texto-termo" tabindex="0">{{ _termo.conteudo }}</div>
+            </div>
+            <form method="POST" action="{{ url_for('lgpd.responder') }}" id="formTermoLgpd" class="modal-footer">
+                <input type="hidden" name="csrf_token" value="{{ lgpd_csrf_token() }}">
+                <input type="hidden" name="termo_versao_id" value="{{ _termo.id }}">
+                <input type="hidden" name="conteudo_hash" value="{{ _termo.conteudo_hash }}">
+                <button type="submit" name="manifestacao" value="nao_aceito" class="btn-nao-aceito">
+                    <i class="bi bi-x-circle me-1"></i>Não aceito
+                </button>
+                <button type="submit" name="manifestacao" value="aceito" class="btn-principal">
+                    <i class="bi bi-check2-circle"></i> Aceito
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    const el = document.getElementById('modalTermoLgpd');
+    if (!el || typeof bootstrap === 'undefined') return;
+    bootstrap.Modal.getOrCreateInstance(el).show();
+    // Evita envio duplicado (o servidor tambem trata). O valor do botao
+    // clicado ja entrou no formulario antes de desabilitar.
+    document.getElementById('formTermoLgpd').addEventListener('submit', function () {
+        const botoes = this.querySelectorAll('button[type=submit]');
+        setTimeout(() => botoes.forEach(b => b.disabled = true), 0);
+    });
+})();
+</script>

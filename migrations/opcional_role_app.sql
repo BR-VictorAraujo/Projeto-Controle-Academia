@@ -5,8 +5,8 @@
 -- Motivação: hoje o app conecta com um superusuário/dono das tabelas. Superusuário
 -- ignora GRANT/REVOKE, então a proteção das tabelas LGPD depende só dos triggers
 -- (que um superusuário também pode desabilitar). Com um role dedicado, sem
--- UPDATE/DELETE/TRUNCATE nas tabelas append-only, a imutabilidade passa a ter
--- duas camadas: permissão + trigger.
+-- UPDATE/DELETE/TRUNCATE em lgpd_termo_versao e lgpd_manifestacao (e sem INSERT
+-- em lgpd_termo_versao), a imutabilidade passa a ter duas camadas: permissão + trigger.
 --
 -- Pré-requisitos:
 --   1. Migração 001_v1.7.0_lgpd_up.sql já aplicada.
@@ -50,15 +50,12 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO gymflow_a
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO gymflow_app;
 REVOKE TRUNCATE ON ALL TABLES IN SCHEMA public FROM gymflow_app;
 
--- LGPD: tabelas append-only -> somente SELECT e INSERT
-REVOKE UPDATE, DELETE, TRUNCATE ON lgpd_manifestacao    FROM gymflow_app;
-REVOKE UPDATE, DELETE, TRUNCATE ON lgpd_termo_auditoria FROM gymflow_app;
+-- LGPD: versões do termo são publicadas só pelo desenvolvedor (migração aplicada
+-- pelo dono do banco) -> o app apenas lê.
+REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON lgpd_termo_versao FROM gymflow_app;
 
--- LGPD: termos não são excluídos pela aplicação (apenas ativados/desativados)
-REVOKE DELETE ON lgpd_termo FROM gymflow_app;
-
--- LGPD: lgpd_termo_versao mantém UPDATE/DELETE porque rascunhos são editáveis e
--- excluíveis; versões publicadas são protegidas pelo trigger lgpd_termo_versao_protege.
+-- LGPD: respostas dos usuários são append-only -> somente SELECT e INSERT
+REVOKE UPDATE, DELETE, TRUNCATE ON lgpd_manifestacao FROM gymflow_app;
 
 -- Controle de migrações: somente leitura para o app
 REVOKE INSERT, UPDATE, DELETE ON schema_migracao FROM gymflow_app;

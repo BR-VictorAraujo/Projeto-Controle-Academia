@@ -1,60 +1,58 @@
 Preparacao: 405 usuarios, 400 alunos
-OK    [Termo] publicacao do modelo com [PREENCHER] e recusada
-OK    [Termo] aviso v1.0 publicado apos preencher os campos
-OK    [Termo] gate ligado pelo admin
-OK    [1] usuario sem manifestacao e redirecionado para a tela obrigatoria
-OK    [1] tela mostra o aviso (ciencia antes do consentimento) e a versao
-OK    [1] tela de ciencia nao oferece "Concordo"
-OK    [1] login sozinho nao gerou manifestacao
-OK    [2] ciencia registrada
-OK    [2] em seguida apresenta o consentimento com Concordo/Nao concordo
-OK    [2] concordo registrado
-OK    [2] acesso liberado apos responder
-OK    [2] registro tem usuario, versao do termo, hash, versao do software e data/hora
-OK    [2] registro nao guarda IP, senha nem dados adicionais
+OK    [0] sem termo publicado: dashboard normal, sem pop-up
+OK    [0] sem termo publicado: demais telas acessiveis
+OK    [1] primeiro acesso mostra o pop-up com Aceito / Nao aceito e a versao
+OK    [1] pop-up sem botao de fechar e com backdrop estatico
+OK    [1] dados do dashboard nao sao exibidos atras do pop-up
+OK    [1] login sozinho nao registra aceite
+OK    [1] admin tambem ve o pop-up no primeiro acesso
+OK    [2] aceite registrado e volta ao dashboard
+OK    [2] apos aceitar o pop-up some e o dashboard completo carrega
+OK    [2] demais telas liberadas
+OK    [2] registro: usuario, aceito, versao, hash, versao do software e data/hora
+OK    [2] registro sem IP, senha ou dados adicionais
+OK    [2] log de auditoria do aceite sem IP
 OK    [2] clique duplo gera um unico registro
-OK    [3] recusa registrada como nao_concordo (sem consentimento positivo)
+OK    [3] recusa registrada como nao_aceito
+OK    [3] recusa volta para a tela de login
+OK    [3] login exibe a mensagem generica
+OK    [3] sessao encerrada apos a recusa
 OK    [3] conta nao excluida nem desativada
-OK    [3] funcionalidades bloqueadas apos recusa
-OK    [3] tela de recusa mostra o contato da academia
-OK    [3] XHR bloqueado com 403 JSON lgpd_recusado
-OK    [3] usuario pode rever e concordar depois (novo registro, historico preservado)
-OK    [4] sem resposta nada e gravado e o termo continua pendente no proximo login
-[2026-10-23 18:33:27,620] ERROR in lgpd: LGPD: falha ao registrar manifestacao (usuario_id=5, erro=OperationalError)
+OK    [3] no proximo login o pop-up aparece de novo
+OK    [3] pode aceitar depois; historico mantem a recusa e o aceite
+OK    [4] nada gravado e o pop-up volta no proximo login
+[2026-10-24 02:01:08,826] ERROR in lgpd: LGPD: falha ao registrar resposta (usuario_id=5, erro=OperationalError)
 OK    [5] falha no commit: nada gravado
-OK    [5] falha no commit: interface informa erro e nao sucesso
-[2026-10-23 18:33:27,636] ERROR in lgpd: LGPD: falha ao verificar situacao (usuario_id=5, erro=OperationalError)
-OK    [5] falha ao verificar situacao: acesso negado (503, falha fechada)
+OK    [5] falha no commit: interface informa erro, nao "Termo aceito"
+[2026-10-24 02:01:08,834] ERROR in lgpd: LGPD: falha ao verificar aceite (usuario_id=5, erro=OperationalError)
+OK    [5] falha ao verificar o termo: acesso negado (503, falha fechada)
 OK    [5] apos a falha o sistema volta a funcionar
-OK    [6] novo login nao pede de novo e nao gera registro
-OK    [7] versao nao material (1.1) nao exige nova manifestacao
-OK    [7] versao material (2.0) exige nova manifestacao
-OK    [7] tela apresenta a versao 2.0
-OK    [7] historico preservado e novo registro na 2.0
-OK    [7] publicacao gerou auditoria administrativa
-OK    [7] manifestacao em versao antiga ou com hash divergente e recusada no backend
-OK    [8] todas as rotas internas redirecionam para a manifestacao
-OK    [8] polling do monitoramento recebe 403 JSON lgpd_pendente
+OK    [6] novo login nao mostra o pop-up nem gera registro
+OK    [7] nova versao: pop-up volta com a versao 2.0
+OK    [7] aceite enviado para a versao antiga e recusado
+OK    [7] aceite com hash divergente do texto exibido e recusado
+OK    [7] aceite da 2.0 registrado; aceite da 1.0 preservado
+OK    [8] rotas internas redirecionam ao dashboard (pop-up) 
+OK    [8] polling recebe 403 JSON lgpd_pendente
 OK    [8] POST sem token CSRF nao grava
-OK    [8] manifestacao incompativel (concordo em termo de ciencia) e recusada
-OK    [8] sem login nao acessa nada da area de privacidade
-OK    [8] FingerPoint (POST /acessos/biometria) continua isento do gate
-OK    [9] operador nao consulta historico, situacao, auditoria nem configuracao
-OK    [9] operador nao consegue desligar o gate
-OK    [9] operador nao cria versao de termo
-OK    [9] operador ve apenas o proprio historico
-OK    [9] UPDATE direto em lgpd_manifestacao bloqueado pelo banco
-OK    [9] DELETE direto em lgpd_manifestacao bloqueado pelo banco
-OK    [9] TRUNCATE em lgpd_manifestacao bloqueado pelo banco
-OK    [9] UPDATE em versao publicada bloqueado pelo banco
-OK    [9] DELETE em auditoria bloqueado pelo banco
-OK    [9] excluir usuario com manifestacao bloqueado (FK RESTRICT)
-OK    [9] registros intactos apos as tentativas
-OK    [11] 399 usuarios x 2 termos registrados em 3.6s
-   /dashboard: gate desligado 9.5 ms, gate ligado 13.7 ms (media de 100)
-OK    [11] overhead do gate por requisicao < 50 ms (medido 4.2 ms)
-OK    [11] painel de situacao com 404+ usuarios responde em 1.78s (< 3s)
-OK    [11] historico paginado responde em 0.07s (< 2s)
-OK    [11] listagem de alunos (400) com gate ligado responde em 0.01s
+OK    [8] resposta invalida nao grava
+OK    [8] sem login: /lgpd/responder exige login
+OK    [8] FingerPoint (POST /acessos/biometria) continua isento
+OK    [9] operador nao acessa Configuracoes > LGPD
+OK    [9] operador nao ve a aba LGPD
+OK    [9] admin ve a aba LGPD
+OK    [9] admin ve o termo vigente e a tabela de respostas
+OK    [9] tela LGPD nao permite alterar o termo (sem formulario de edicao)
+OK    [9] UPDATE em resposta bloqueado pelo banco
+OK    [9] DELETE em resposta bloqueado pelo banco
+OK    [9] TRUNCATE em resposta bloqueado pelo banco
+OK    [9] UPDATE no texto do termo bloqueado pelo banco
+OK    [9] DELETE de versao do termo bloqueado pelo banco
+OK    [9] excluir usuario com resposta bloqueado (FK RESTRICT)
+OK    [9] registros intactos
+OK    [11] 399 aceites registrados em 2.1s
+   /alunos (400 alunos): sem verificacao 6.7 ms, com verificacao 8.5 ms (media de 100)
+OK    [11] custo da verificacao por requisicao < 50 ms (medido 1.9 ms)
+OK    [11] Configuracoes > LGPD com 405 respostas abre em 0.02s
 
-TOTAL: 54 verificacoes, 54 OK, 0 falhas
+TOTAL: 52 verificacoes, 52 OK, 0 falhas

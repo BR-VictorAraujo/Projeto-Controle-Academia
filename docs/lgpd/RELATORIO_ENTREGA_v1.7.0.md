@@ -1,92 +1,95 @@
-# Relatório de entrega: GymFlow web 1.7.0 (LGPD: ciência e consentimento)
+# Relatório de entrega: GymFlow web 1.7.0 (LGPD: termo com aceite em pop-up)
 
-Data: 2026-10-23. Situação: implementado e testado no Docker de desenvolvimento.
-**Ainda não foi validado em QAS e não há commit nem tag.**
+Data: 2026-10-24. Situação: implementado e testado no Docker de desenvolvimento.
+**Ainda não foi validado em QAS e não há tag.**
 
-## Decisões de escopo
+## Escopo final (simplificado a pedido do Victor)
 
 | Tema | Decisão |
 |---|---|
-| Titular | Somente **funcionários** (`usuarios`), pelo gate após o login. Os alunos não têm login e ficaram fora desta versão. |
-| Ciência × consentimento | O Aviso de Privacidade usa **"Li e estou ciente"**, que não é consentimento. "Concordo"/"Não concordo" vale só para termos do tipo consentimento cadastrados pela academia. Nenhum consentimento vem pré-cadastrado. |
-| Migração | Scripts SQL numerados em `migrations/`, aplicados com `psql` (sem Alembic). |
-| Exclusão | FK `RESTRICT`: não é possível excluir um usuário que tenha manifestação. A exclusão de alunos não foi alterada. |
-| Ativação | A exigência começa **desligada** e o admin liga depois de publicar o termo. |
+| Titular | Somente **funcionários** (`usuarios`). Os alunos não têm login e ficaram fora desta versão. |
+| Termo | Um único termo de uso e privacidade, com **"Aceito"** e **"Não aceito"**. |
+| Apresentação | **Pop-up obrigatório** sobre o dashboard, no primeiro acesso de qualquer usuário (operador ou admin), sem botão de fechar. Enquanto o aceite está pendente, o dashboard não mostra dados. |
+| Recusa | Registrada. A sessão é encerrada e o usuário volta ao login com mensagem genérica; no próximo login, o pop-up aparece de novo. Conta e dados preservados. |
+| Texto | **Não editável pela interface.** Só o desenvolvedor publica versões, por migração SQL gerada com `tools/gerar_migracao_termo.py`. Nova versão exige novo aceite. |
+| Tela | **Configurações → LGPD** (somente admin): termo vigente em somente leitura e tabela de respostas (usuário, resposta, data/hora e versão). |
+| Migração | Scripts SQL numerados em `migrations/`, aplicados com `psql`. |
+| Usuários | `/usuarios` restrito ao admin, com proteção contra autobloqueio. |
+
+Uma primeira versão mais ampla (vários termos, ciência × consentimento, telas "Privacidade" e
+"Termos LGPD" e chave liga/desliga) foi substituída por este modelo antes de qualquer implantação.
 
 Constatação da análise: o `CLAUDE.md` descreve como existentes um gate LGPD, os termos
 `consentimento`/`privacidade`/`uso` e o fluxo `lgpd_delete_request`. **Nada disso existia no código.**
-A v1.7.0 foi feita do zero.
 
 ## Arquivos
 
 ### Alterados
-| Arquivo | Mudança | Justificativa |
-|---|---|---|
-| `app/models.py` | 5 models novos (`LgpdTermo`, `LgpdTermoVersao`, `LgpdManifestacao`, `LgpdTermoAuditoria`, `SchemaMigracao`) | Espelham as tabelas da migração, para que o ORM e o `create_all` fiquem coerentes com o banco |
-| `app/__init__.py` | Registra o blueprint `lgpd` e o `before_request` do gate | Bloqueio feito no backend, para todas as rotas |
-| `app/routes/config.py` | As 4 rotas de `/usuarios` passam a usar `perfil_required('admin')`, com proteção contra autobloqueio | Sem isso, qualquer operador se promovia a admin e chegava à administração LGPD |
-| `app/routes/auth.py` | `perfil_required()` e `registrar_log_sem_commit()` (sem IP) | Não havia controle por perfil. O `registrar_log` existente faz commit interno e quebraria a atomicidade do registro |
-| `app/templates/base.html` | Itens de menu "Privacidade" e "Termos LGPD" (admin) | Navegação. Só aparecem com a migração aplicada |
-| `app/version.py` | 1.7.0 / 2026-10-23 | A versão é gravada em cada manifestação |
-| `CHANGELOG.md` | Entrada [1.7.0] | Convenção do projeto |
+| Arquivo | Justificativa |
+|---|---|
+| `app/models.py` | Models `LgpdTermoVersao`, `LgpdManifestacao` e `SchemaMigracao`, espelhando a migração |
+| `app/__init__.py` | Registro do blueprint `lgpd` e do `before_request` que bloqueia o uso enquanto o aceite está pendente |
+| `app/routes/auth.py` | `perfil_required()`, `registrar_log_sem_commit()` (sem IP) e o dashboard sem dados quando o aceite está pendente |
+| `app/routes/config.py` | `/usuarios` restrito ao admin, com proteção contra autobloqueio (antes qualquer operador podia se promover a admin) |
+| `app/templates/base.html` | Inclusão do pop-up |
+| `app/templates/{configuracoes,usuarios,parametros,planos,tecnologias}.html` | Aba "LGPD", visível só para admin. A barra de abas é repetida em cada template |
+| `app/version.py` | 1.7.0. A versão é gravada em cada resposta |
+| `CHANGELOG.md` | Entrada [1.7.0] |
 
 ### Criados
 | Arquivo | Conteúdo |
 |---|---|
-| `app/lgpd.py` | Regras: hash canônico, versão vigente e de referência, situação do usuário, registro atômico e idempotente, gate, `@requer_consentimento`, CSRF |
-| `app/routes/lgpd.py` | Blueprint `/privacidade`: telas do titular e administração (admin) |
-| `app/templates/lgpd/*.html` | 17 telas: 5 do titular, no estilo do login, e as de administração, no estilo das telas de configuração |
-| `migrations/001_v1.7.0_lgpd_up.sql` / `_down.sql` | Migração idempotente e transacional, com triggers de imutabilidade. O down é protegido contra uso acidental |
-| `migrations/opcional_role_app.sql` | Usuário de banco dedicado, sem UPDATE/DELETE nas tabelas LGPD (opcional, não aplicado) |
-| `migrations/README.md` | Aplicação, verificação e rollback do banco |
-| `docs/lgpd/modelo_aviso_privacidade.txt` | Modelo do aviso, com campos `[PREENCHER]`. A publicação fica bloqueada até que sejam preenchidos |
-| `docs/lgpd/INSTALACAO_E_ATUALIZACAO.md` | Atualização, retorno à versão anterior e desligamento emergencial |
-| `docs/lgpd/CONFIGURACAO_DO_TERMO.md` | Guia para a academia |
-| `docs/lgpd/DADOS_E_ACESSOS.md` | Dados armazenados, perfis e separação de responsabilidades |
-| `tests/lgpd_v170/teste_cenarios.py`, `README.md`, `resultado_execucao.txt` | Testes de aceitação e resultado |
+| `app/lgpd.py` | Hash canônico, versão vigente, verificação de pendência, registro atômico e idempotente, gate e CSRF |
+| `app/routes/lgpd.py` | `POST /lgpd/responder` e `GET /configuracoes/lgpd` |
+| `app/templates/lgpd/_modal_termo.html` | Pop-up |
+| `app/templates/lgpd/dashboard_pendente.html` | Fundo neutro, sem dados, atrás do pop-up |
+| `app/templates/lgpd/configuracao_lgpd.html` | Configurações → LGPD |
+| `migrations/001_v1.7.0_lgpd_up.sql` / `_down.sql` | Estrutura, triggers de imutabilidade e down protegido |
+| `migrations/opcional_role_app.sql` | Usuário de banco restrito (opcional) |
+| `migrations/README.md` | Aplicação, publicação de termo e rollback |
+| `tools/gerar_migracao_termo.py` | Gera a migração de uma nova versão do termo a partir de um .txt |
+| `docs/lgpd/termo/MODELO.txt` | Modelo do termo com `[PREENCHER]` (a ferramenta recusa enquanto houver) |
+| `docs/lgpd/*.md` | Instalação, funcionamento e publicação do termo, dados e acessos, e este relatório |
+| `tests/lgpd_v170/*` | Testes de aceitação e resultados |
+| `.gitattributes` | LF fixo em `migrations/*.sql` e `docs/lgpd/*.txt` (o texto do termo entra no hash) |
 
 ## Testes executados
 
-Os testes rodaram no Docker, em um banco descartável copiado do banco de desenvolvimento, com
-**405 usuários e 400 alunos**. Resultado: **54 verificações, 54 OK** (`tests/lgpd_v170/resultado_execucao.txt`).
+Os testes rodaram no Docker, em bancos descartáveis copiados do banco de desenvolvimento, com
+**405 usuários e 400 alunos**.
+- `teste_cenarios.py`: **52/52 OK** (`tests/lgpd_v170/resultado_execucao.txt`).
+- `teste_usuarios_admin.py`: **18/18 OK**.
 
 | # | Cenário | Resultado |
 |---|---|---|
-| 1 | Usuário existente sem manifestação | Redirecionado para a tela obrigatória; o login sozinho não gera registro |
-| 2 | Usuário concorda | Ciência e concordância registradas com todos os campos; acesso liberado; clique duplo gera 1 registro |
-| 3 | Usuário não concorda | `nao_concordo` registrado, conta mantida, sistema bloqueado com o contato da academia, XHR recebe 403; pode rever a decisão depois |
-| 4 | Fecha antes de responder | Nada gravado; o termo continua pendente no próximo login |
-| 5 | Falha de banco | Commit falho: nada gravado e a interface mostra erro (nunca "registrado"). Falha na verificação: 503 (falha fechada) |
-| 6 | Novo login após manifestação | Não pergunta de novo |
-| 7 | Nova versão | Não material (1.1): não pergunta. Material (2.0): pergunta de novo. Histórico preservado e publicação auditada. Hash divergente ou versão antiga: recusado |
-| 8 | Acesso direto | 7 rotas internas redirecionadas, polling recebe 403 JSON, POST sem CSRF recusado, FingerPoint e webhooks isentos |
-| 9 | Sem permissão | Operador barrado em todas as telas e ações de admin. UPDATE/DELETE/TRUNCATE direto no banco recusado pelas triggers. Usuário com manifestação não pode ser excluído |
-| 10 | Atualização preservando dados | Down → up → up novamente na cópia: contagens de alunos, usuários, acessos, planos, configurações e logs idênticas. Up reaplicado com 808 manifestações não perdeu nenhuma. Down recusado com manifestações |
-| 11 | Carga (400+) | Gate: +4,6 ms por requisição (8,7 → 13,9 ms). Registro de 798 manifestações em 3,7 s. Histórico: 0,06 s. Painel "Situação" com 405 usuários: ~1,9 s |
+| 0 | Sem termo publicado | Sistema igual ao anterior, sem pop-up |
+| 1 | Usuário existente sem aceite | O pop-up aparece para operador e admin, com backdrop estático, sem botão de fechar e sem dados atrás; o login sozinho não registra nada |
+| 2 | Aceita | Registro com todos os campos e sem IP; o pop-up some e o sistema fica liberado; clique duplo gera 1 registro |
+| 3 | Não aceita | `nao_aceito` registrado; sessão encerrada; login com mensagem genérica; conta mantida; pop-up de novo no próximo login |
+| 4 | Fecha antes de responder | Nada gravado; o pop-up volta |
+| 5 | Falha de banco | Commit falho: nada gravado e a tela mostra erro (nunca "Termo aceito"). Falha na verificação: 503 |
+| 6 | Novo login após aceite | Sem pop-up e sem novo registro |
+| 7 | Nova versão | O pop-up volta com a nova versão; aceite enviado para a versão antiga ou com hash divergente é recusado; histórico preservado |
+| 8 | Acesso direto | As rotas voltam ao dashboard; polling recebe 403 JSON; POST sem CSRF ou com resposta inválida não grava; FingerPoint isento |
+| 9 | Sem permissão | O operador não vê nem acessa a aba LGPD; a tela não permite editar o termo (POST → 405); UPDATE, DELETE e TRUNCATE no banco são recusados; usuário com resposta não pode ser excluído |
+| 10 | Atualização preservando dados | Reaplicar o up com 405 respostas não mudou nenhuma contagem; o down foi recusado com respostas; a migração de termo gerada pela ferramenta foi aplicada e o hash bate com o Python; a ferramenta recusa o MODELO com `[PREENCHER]` |
+| 11 | Carga | Verificação do aceite: +1,8 ms por requisição; 399 aceites registrados em poucos segundos; Configurações → LGPD abre rápido |
 
 Itens que **não** foram testados aqui e devem ser validados em QAS:
-- aparência das telas no navegador, inclusive no celular;
-- aplicação da migração com o `psql` do Windows;
+- aparência do pop-up no navegador, inclusive no celular;
+- aplicação das migrações com o `psql` do Windows;
 - execução sob o serviço NSSM.
 
 ## Pontos de atenção
 
-1. **`/usuarios` restrito ao admin (corrigido nesta versão).** Antes, qualquer usuário logado podia
-   criar ou promover um admin. Agora só o admin acessa, com proteção contra autobloqueio. Quem for
-   rebaixado mantém o acesso até o próximo login (no máximo 1 hora). Testes:
-   `tests/lgpd_v170/teste_usuarios_admin.py`, com 18/18 OK.
+1. **Texto do termo:** antes de publicar, a academia precisa fornecer os dados dos `[PREENCHER]` e
+   aprovar o texto.
 2. **Superusuário do banco** pode desativar triggers. Veja `migrations/opcional_role_app.sql`.
-3. **Painel "Situação"** consulta um usuário por vez (~1,9 s com 405 usuários). É suficiente para o
-   volume atual de funcionários.
-4. **IP no log de login:** o `registrar_log` existente já gravava o IP no login e no logout. Isso não
-   foi alterado e permite, por horário, associar o IP a um aceite.
-5. **Fora do escopo, encontrados na análise:**
-   - fotos e documentos de alunos servidos em `/static` sem autenticação;
-   - `POST /acessos/biometria` sem autenticação devolve dados pessoais;
-   - senha do PostgreSQL em `biometria/bio_config.json`;
-   - logs do FingerPoint com nomes de alunos versionados no Git;
-   - ações destrutivas por GET, sem CSRF;
-   - exclusão física de aluno em cascata.
-6. **Alunos:** o aceite dos titulares alunos, coletado pela recepção, e o consentimento para
-   biometria (dado sensível) ficam para uma próxima versão. O `bio_db.py` grava digitais direto no
-   banco, sem passar por nenhuma checagem.
+3. **IP no log de login:** o `registrar_log` existente já gravava o IP no login e no logout. Isso não foi
+   alterado e permite, por horário, associar o IP a um aceite.
+4. **Perfil na sessão:** quem for rebaixado de admin mantém o acesso até o próximo login (no máximo 1 hora).
+5. **Fora do escopo:** exposições de dados encontradas na análise (fotos e documentos em `/static`,
+   `POST /acessos/biometria` sem autenticação, senha em `bio_config.json`, logs versionados) foram
+   tratadas em outro branch, `claude/nostalgic-mestorf-7ac4ec`, ainda não mesclado.
+6. **Alunos e biometria:** o aceite dos alunos e o consentimento para a biometria (dado sensível)
+   ficam para uma próxima versão.

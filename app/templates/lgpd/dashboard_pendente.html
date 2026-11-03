@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+{# Fundo neutro do dashboard enquanto o aceite do termo está pendente
+   (LGPD v1.7.0). Não exibe dados; o modal vem de base.html. #}
+
+{% block titulo %}Dashboard{% endblock %}
+{% block titulo_pagina %}Dashboard{% endblock %}
+{% block subtitulo %}Aceite do termo pendente{% endblock %}
+
+{% set pagina_ativa = 'dashboard' %}
+
+{% block conteudo %}
+<div class="card-base text-center" style="padding:48px 24px; color:#6c757d;">
+    <i class="bi bi-shield-lock" style="font-size:40px; color: var(--cor-principal);"></i>
+    <p class="mt-3 mb-0" style="font-size:14px;">
+        Para utilizar o sistema, leia e responda ao termo de uso e privacidade.
+    </p>
+</div>
+{% endblock %}

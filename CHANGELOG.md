@@ -3,16 +3,15 @@
 ## [1.7.0] — 2026-10-23
 
 ### Adicionado
-- **LGPD — ciência e consentimento dos usuários do sistema (funcionários)**. Alunos ficam fora desta versão.
-  - Tabelas novas (`lgpd_termo`, `lgpd_termo_versao`, `lgpd_manifestacao`, `lgpd_termo_auditoria`, `schema_migracao`) criadas por script SQL numerado em `migrations/` (aplicado com `psql`, sem Alembic). Nenhuma tabela existente é alterada; as configurações `lgpd_gate_ativo` (padrão `0`) e `lgpd_contato_privacidade` são inseridas em `configuracoes`.
-  - Manifestações e auditoria dos termos são append-only (triggers no banco); versão publicada não pode ser alterada nem excluída.
-  - Hash canônico SHA-256 do texto (`app/lgpd.py`: `canonicalizar`/`hash_conteudo`), conferido no registro da manifestação.
-  - Gate após o login (`before_request`): com a exigência ligada, termo pendente leva a `/privacidade/manifestacao`; consentimento exigido recusado leva a `/privacidade/recusado`; requisições XHR/JSON recebem 403 JSON. Erro de banco na verificação falha fechado (503). Webhooks de pagamento e `POST /acessos/biometria` (FingerPoint) continuam isentos.
-  - Telas do titular: resposta aos termos (ciência: "Li e estou ciente"; consentimento: "Concordo"/"Não concordo"), consentimento não concedido e "Privacidade" (histórico e revogação/alteração de consentimento).
-  - Administração (`/privacidade/admin`, perfil admin): termos, versões (rascunho, cópia da vigente, publicação com vigência imediata ou agendada, bloqueio de publicação com `[PREENCHER`), manifestações, situação por usuário, auditoria e configuração. Sem exportação e sem edição/exclusão de manifestações.
-  - Decorator `@requer_consentimento('codigo')` disponível para rotas que dependam de consentimento específico (nenhuma rota usa nesta versão).
-  - `perfil_required(*perfis)` e `registrar_log_sem_commit()` em `auth.py`; CSRF local mínimo nos POST do blueprint `lgpd`.
-- Sem a migração aplicada, ou com `lgpd_gate_ativo = 0`, o sistema se comporta como na versão anterior.
+- **LGPD — termo de uso e privacidade dos usuários do sistema (funcionários)**. Alunos ficam fora desta versão.
+  - Tabelas novas `lgpd_termo_versao`, `lgpd_manifestacao` e `schema_migracao`, criadas por script SQL numerado em `migrations/` (aplicado com `psql`, sem Alembic). Nenhuma tabela existente é alterada e nenhuma chave é criada em `configuracoes`.
+  - Versões do termo são publicadas somente pelo desenvolvedor, por script SQL gerado com `tools/gerar_migracao_termo.py` a partir de `docs/lgpd/termo/`. O texto não é editável pela interface. Versões e respostas são imutáveis no banco (triggers; FK RESTRICT).
+  - Hash canônico SHA-256 do texto (`app/lgpd.py`: `canonicalizar`/`hash_conteudo`), conferido ao registrar a resposta.
+  - **Pop-up obrigatório** sobre o dashboard para qualquer usuário (operador ou admin) que ainda não aceitou a versão vigente, com o texto rolável, a versão e os botões "Aceito" / "Não aceito" (sem botão de fechar). "Aceito" libera o uso; "Não aceito" é registrado, encerra a sessão e volta ao login. Nova versão publicada exige novo aceite de todos.
+  - Gate após o login (`before_request`): com aceite pendente, só o dashboard (com o modal), a resposta, login/logout, arquivos estáticos, webhooks de pagamento e `POST /acessos/biometria` (FingerPoint) ficam liberados; as demais rotas voltam ao dashboard e requisições XHR/JSON recebem 403 `{"erro":"lgpd_pendente"}`. Erro de banco na verificação falha fechado (503).
+  - **Configurações → aba "LGPD"** (`/configuracoes/lgpd`, somente admin): termo vigente em somente leitura (versão, data de publicação, texto e hash) e tabela paginada das respostas (usuário, resposta, data/hora e versão). Sem exportar, editar ou excluir.
+  - `perfil_required(*perfis)` e `registrar_log_sem_commit()` (sem gravar IP) em `auth.py`; CSRF local mínimo no POST de resposta.
+- Sem a migração aplicada, ou sem versão do termo publicada, o sistema se comporta como na versão anterior.
 
 ### Alterado
 - **Gerenciamento de usuários restrito ao perfil admin**: `GET /usuarios`, `POST /usuarios/novo`, `POST /usuarios/<id>/editar` e `GET /usuarios/<id>/toggle` passam a usar `@perfil_required('admin')` (antes bastava estar logado). Proteção contra autobloqueio: o admin logado não pode desativar o próprio usuário nem remover o próprio perfil admin se for o último admin ativo (nada é gravado e uma mensagem é exibida).

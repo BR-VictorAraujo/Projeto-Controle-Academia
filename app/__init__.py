@@ -38,10 +38,10 @@ def create_app():
     app.register_blueprint(pagamentos_bp)
     app.register_blueprint(lgpd_bp)
 
-    # Gate LGPD (v1.7.0): apos o login, exige ciencia/consentimento dos
-    # termos publicados. Sem efeito enquanto a migracao 1.7.0 nao estiver
-    # aplicada ou com configuracoes.lgpd_gate_ativo <> '1'.
-    # Endpoints isentos: app/lgpd.py (ENDPOINTS_ISENTOS / ENDPOINTS_TITULAR).
+    # Gate LGPD (v1.7.0): apos o login, exige o aceite da versao vigente do
+    # termo (modal no dashboard). Sem efeito enquanto a migracao 1.7.0 nao
+    # estiver aplicada ou sem versao publicada.
+    # Endpoints liberados: app/lgpd.py (ENDPOINTS_LIBERADOS + dashboard GET).
     from app.lgpd import verificar_gate
     app.before_request(verificar_gate)
 

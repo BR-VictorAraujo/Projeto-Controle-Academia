@@ -40,8 +40,9 @@ def cliente(login):
 
 
 with app.app_context():
-    # gate desligado para isolar o teste de perfil
-    db.session.execute(text("update configuracoes set valor='0' where chave='lgpd_gate_ativo'"))
+    # rodar em banco sem versao de termo publicada (sem pop-up), para isolar o teste de perfil
+    assert not db.session.execute(text('select count(*) from lgpd_termo_versao')).scalar(), \
+        'use um banco sem versao de termo publicada'
     db.session.execute(text("update usuarios set perfil='operador' where perfil='admin' and usuario<>'admin'"))
     db.session.execute(text("update usuarios set ativo=false where usuario='admin'"))
     h = generate_password_hash(SENHA)

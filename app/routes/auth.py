@@ -184,6 +184,12 @@ def logout():
 @bp.route('/dashboard')
 @login_required
 def dashboard():
+    # LGPD v1.7.0: com aceite pendente, nao consulta nem exibe dados —
+    # apenas fundo neutro com o modal do termo (g definido pelo gate).
+    from flask import g
+    if g.get('lgpd_termo_pendente'):
+        return render_template('lgpd/dashboard_pendente.html')
+
     from app.routes.financeiro import (
         corrigir_vencimentos_desatualizados,
         inativar_alunos_inativos,

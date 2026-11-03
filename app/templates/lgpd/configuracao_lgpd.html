@@ -1,0 +1,141 @@
+{% extends 'base.html' %}
+{% from '_paginacao.html' import paginacao %}
+
+{% block titulo %}LGPD{% endblock %}
+{% block titulo_pagina %}LGPD{% endblock %}
+{% block subtitulo %}Termo de uso e privacidade e respostas dos usuários{% endblock %}
+
+{% set pagina_ativa = 'configuracoes' %}
+
+{% block estilos %}
+.param-card {
+    background: white; border-radius: 12px; padding: 28px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 24px;
+}
+.param-section-title {
+    font-size: 14px; font-weight: 600; color: #1a1a2e;
+    margin-bottom: 20px; padding-bottom: 12px;
+    border-bottom: 1px solid #f0f2f5;
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+.texto-termo {
+    white-space: pre-wrap; word-wrap: break-word;
+    max-height: 45vh; overflow-y: auto;
+    background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 10px;
+    padding: 16px 18px; font-size: 14px; line-height: 1.55;
+}
+.hash { font-family: monospace; font-size: 11px; color: #8a9199; word-break: break-all; }
+.hash-ajuda { font-size: 11px; color: #8a9199; margin-top: 2px; }
+.meta { font-size: 13px; color: #6c757d; }
+.badge-aceito     { background-color: #e8f5e9; color: #2e7d32; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 500; }
+.badge-nao-aceito { background-color: #fdecea; color: #c62828; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 500; }
+.page-link-custom {
+    display: flex; align-items: center; justify-content: center;
+    min-width: 34px; height: 34px; padding: 0 8px;
+    border: 1.5px solid #dee2e6; border-radius: 8px;
+    color: #6c757d; text-decoration: none; font-size: 13px; font-weight: 500;
+    transition: all 0.15s;
+}
+.page-link-custom:hover { border-color: var(--cor-principal); color: var(--cor-principal); }
+.page-link-custom.ativo { background: var(--cor-principal); border-color: var(--cor-principal); color: white; }
+.page-link-custom.disabled { opacity: 0.4; pointer-events: none; }
+{% endblock %}
+
+{% block conteudo %}
+<!-- Tabs -->
+<div style="display:flex; gap:8px; margin-bottom:24px; flex-wrap:wrap;">
+    <a href="/configuracoes" style="background:white; border:1px solid #dee2e6; color:#6c757d; padding:8px 20px; border-radius:8px; font-size:13px; text-decoration:none;">
+        <i class="bi bi-palette me-1"></i> Aparência
+    </a>
+    <a href="/usuarios" style="background:white; border:1px solid #dee2e6; color:#6c757d; padding:8px 20px; border-radius:8px; font-size:13px; text-decoration:none;">
+        <i class="bi bi-people me-1"></i> Usuários
+    </a>
+    <a href="/parametros" style="background:white; border:1px solid #dee2e6; color:#6c757d; padding:8px 20px; border-radius:8px; font-size:13px; text-decoration:none;">
+        <i class="bi bi-sliders me-1"></i> Parâmetros
+    </a>
+    <a href="/planos" style="background:white; border:1px solid #dee2e6; color:#6c757d; padding:8px 20px; border-radius:8px; font-size:13px; text-decoration:none;">
+        <i class="bi bi-tag me-1"></i> Planos
+    </a>
+    <a href="/configuracoes/tecnologias" style="background:white; border:1px solid #dee2e6; color:#6c757d; padding:8px 20px; border-radius:8px; font-size:13px; text-decoration:none;">
+        <i class="bi bi-cpu me-1"></i> Tecnologias
+    </a>
+    <a href="/configuracoes/lgpd" style="background: var(--cor-principal); border:none; color:white; padding:8px 20px; border-radius:8px; font-size:13px; text-decoration:none;">
+        <i class="bi bi-shield-lock me-1"></i> LGPD
+    </a>
+</div>
+
+{% if not aplicada %}
+<div class="param-card">
+    <div class="param-section-title">
+        <i class="bi bi-database-exclamation" style="color: var(--cor-principal);"></i> Migração do banco não aplicada
+    </div>
+    <p class="meta mb-0">
+        A estrutura de banco da versão 1.7.0 ainda não foi aplicada. Até lá, o termo não é exibido
+        e o sistema funciona como antes.
+    </p>
+</div>
+{% else %}
+
+<div class="param-card">
+    <div class="param-section-title">
+        <i class="bi bi-file-earmark-text" style="color: var(--cor-principal);"></i> Termo vigente
+        {% if vigente %}
+            <span class="meta ms-auto">Versão {{ vigente.versao }} · publicada em {{ vigente.publicado_em|utc_naive|local_time }}</span>
+        {% endif %}
+    </div>
+    {% if vigente %}
+        <div class="texto-termo mb-3">{{ vigente.conteudo }}</div>
+        <div class="hash">Código de verificação do texto (SHA-256): {{ vigente.conteudo_hash }}</div>
+        <div class="hash-ajuda">Impressão digital do texto desta versão. É gravada em cada aceite e comprova qual conteúdo foi aceito.</div>
+        <p class="meta mt-3 mb-0">
+            Somente leitura. Novas versões do termo são publicadas pelo desenvolvedor do sistema;
+            a cada nova versão, todos os usuários precisam aceitar novamente.
+        </p>
+    {% else %}
+        <p class="meta mb-0">
+            Nenhuma versão do termo publicada. Enquanto não houver versão publicada, o termo não é exibido
+            aos usuários.
+        </p>
+    {% endif %}
+</div>
+
+<div class="param-card">
+    <div class="param-section-title">
+        <i class="bi bi-list-check" style="color: var(--cor-principal);"></i> Respostas dos usuários
+    </div>
+    <div class="table-responsive">
+    <table class="table table-borderless mb-0">
+        <thead>
+            <tr>
+                <th>Usuário</th>
+                <th>Resposta</th>
+                <th>Data e hora</th>
+                <th>Versão</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for m, v, u in pag.items %}
+            <tr>
+                <td>{{ u.nome }}</td>
+                <td>
+                    {% if m.manifestacao == 'aceito' %}
+                        <span class="badge-aceito">{{ rotulos.aceito }}</span>
+                    {% else %}
+                        <span class="badge-nao-aceito">{{ rotulos.get(m.manifestacao, m.manifestacao) }}</span>
+                    {% endif %}
+                </td>
+                <td style="white-space:nowrap;">{{ m.registrado_em|utc_naive|local_time }}</td>
+                <td>{{ v.versao }}</td>
+            </tr>
+        {% else %}
+            <tr>
+                <td colspan="4" style="text-align:center; color:#6c757d; padding:40px 0;">Nenhuma resposta registrada</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    </div>
+    {{ paginacao(pag, request.args) }}
+</div>
+{% endif %}
+{% endblock %}
