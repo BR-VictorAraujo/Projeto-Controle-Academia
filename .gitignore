@@ -29,3 +29,8 @@ biometria/logs/
 # Instalador: saida do ISCC e instalador do Python embutido
 installer/python/
 installer/saida/
+
+# Termo LGPD preenchido (dados da academia): fica so local, nao vai para o Git.
+# O build.ps1 usa os arquivos do disco, entao o instalador continua com o termo.
+docs/lgpd/termo/termo_*.txt
+migrations/*_termo_*.sql

@@ -1,5 +1,12 @@
 # Changelog — GymFlow
 
+## [1.7.1] — 2026-11-06
+
+### Adicionado
+- **Termo LGPD v1.0 publicado** pela migração `002_termo_v1.0.sql`, gerada por `tools/gerar_migracao_termo.py` com o texto preenchido pela academia. O texto preenchido e a migração ficam só no ambiente de build, fora do Git (`.gitignore`), e chegam ao cliente pelo instalador. A partir da 002, todos os usuários precisam aceitar o termo no próximo acesso.
+
+---
+
 ## [1.7.0] — Instalador e serviço Windows
 
 ### Adicionado
