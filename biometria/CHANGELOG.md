@@ -25,6 +25,13 @@ Versionamento segue [SemVer](https://semver.org/lang/pt-BR/): `MAJOR.MINOR.PATCH
   só os campos da tela + `simulado`, perdendo `flask_port` (e agora
   `api_token`). O cfg da tela passa a ser mesclado com o já salvo.
 
+### Adicionado
+- **Instalador próprio** (`FingerPoint-Setup-1.2.3.exe`, `installer/fingerpoint.iss`):
+  instala na pasta do GymFlow Web (`<pasta>\biometria`) usando o venv dele, faz
+  backup da pasta antiga, preserva `bio_config.json` e `logs/`, sincroniza o
+  `api_token` com o `BIOMETRIA_API_TOKEN` e cria o atalho "FingerPoint". O
+  `iniciar_biometria.bat` passa a usar o Python do venv.
+
 ## [1.2.1] — 2026-06-19
 
 ### Corrigido

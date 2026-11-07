@@ -5,14 +5,18 @@ deixa rodando como **serviço Windows "GymFlow"**. Ele segue o modelo do instala
 o próprio app (`serve.py`, com pywin32) registra e controla o serviço, **sem NSSM**.
 
 O PostgreSQL não é instalado nem alterado (só usado). O FingerPoint (`biometria/`) **não** faz parte
-deste instalador: a pasta `biometria/` nunca é copiada nem apagada por ele.
+deste instalador: a pasta `biometria/` nunca é copiada nem apagada por ele. O FingerPoint tem
+instalador próprio (`FingerPoint-Setup-<versao>.exe`), descrito em
+[Instalador do FingerPoint](#4-instalador-do-fingerpoint).
 
 | Arquivo | Para quê |
 |---|---|
-| `gymflow.iss` | Script do Inno Setup |
-| `build.ps1` | Gera o `.exe` (chama o `ISCC.exe`) |
+| `gymflow.iss` | Script do Inno Setup do GymFlow Web |
+| `fingerpoint.iss` | Script do Inno Setup do FingerPoint |
+| `build.ps1` | Gera o `.exe` (chama o `ISCC.exe`): `-Produto web` (padrão) ou `-Produto fingerpoint` |
 | `atualizar_banco.py` | Cria o banco se faltar, `db.create_all()` + registros padrão e as migrações |
 | `config_inicial.py` | Instalação nova: gera o `.env`. Sempre: sincroniza o `BIOMETRIA_API_TOKEN` |
+| `iniciar_biometria.bat` | Copiado para `biometria\` pelo instalador do FingerPoint: abre o FingerPoint com console (diagnóstico) |
 | `../serve.py` | Servidor (waitress) e comandos do serviço Windows |
 
 ## 1. Gerar o instalador (máquina de desenvolvimento)
@@ -198,6 +202,101 @@ que foi gravado depois do backup. Os backups não são apagados automaticamente.
 - [ ] Instalação nova numa pasta vazia: "Testar conexão" com senha errada, porta errada e banco
       inexistente mostra a mensagem certa.
 - [ ] Desinstalar: o serviço some e, respondendo "Não", os dados ficam.
+
+## 4. Instalador do FingerPoint
+
+`FingerPoint-Setup-<versao>.exe` instala e atualiza o FingerPoint (leitor biométrico) em
+`<pasta do GymFlow>\biometria`, usando o `venv` do GymFlow Web. Ele não instala Python, driver do
+leitor nem PostgreSQL.
+
+### Gerar
+
+```powershell
+.\installer\build.ps1 -Produto fingerpoint
+.\installer\build.ps1 -Produto fingerpoint -Sufixo -teste -Saida C:\builds
+```
+
+- A versão vem de `APP_VERSAO` em `<Origem>\biometria\app.py`. A saída padrão é `installer\saida`.
+- O build mostra as linhas `Compressing:`. Entram só `app.py`, `bio_*.py`, `bio_config.example.json`,
+  `*.dll`, `CHANGELOG.md` e `installer\iniciar_biometria.bat`. **Nunca entram** `bio_config.json`
+  (senha do banco e token), `logs\`, o `.rar` do SDK, o `.cpp` e o `iniciar_biometria.bat` antigo.
+
+### Instalar na recepção (como administrador)
+
+Ordem obrigatória:
+
+1. **Atualize primeiro o GymFlow Web** (`GymFlow-Setup-<versao>.exe`, 1.7.0 ou mais nova). É ele que
+   cria o `venv`, o `.env` com o `BIOMETRIA_API_TOKEN` e o `installer\config_inicial.py`.
+2. **Depois rode o `FingerPoint-Setup-<versao>.exe`.**
+
+O que o instalador faz:
+
+1. **Pasta.** Sugere a do GymFlow Web, lida do registro de desinstalação do GymFlow
+   (`InstallLocation`), com reserva `C:\GymFlow`. Pode ser trocada. A pasta precisa ter
+   `venv\Scripts\pythonw.exe`, `venv\Scripts\python.exe`, `.env`, `app\` e
+   `installer\config_inicial.py`. Senão, mostra "instale ou atualize primeiro o GymFlow Web" e não
+   continua.
+2. **FingerPoint fechado.** Procura uma janela com título começando por "FingerPoint" (de um processo
+   python) ou um `python`/`pythonw` rodando `app.py` (com o caminho da pasta ou `app.py` relativo,
+   como no atalho e no `.bat`). Se achar, pergunta: **Sim** encerra (pedido normal e, se não fechar,
+   à força), **Não** verifica de novo e **Cancelar** não continua. Em modo silencioso, a resposta
+   padrão é Cancelar.
+3. **Backup.** Zip da pasta `biometria` atual (sem `logs` e sem o desinstalador) em
+   `backups_instalacao\biometria-<data>.zip`. Se falhar, nada é alterado. Se a pasta `biometria`
+   ainda não existir, não há backup.
+4. **Cópia** dos arquivos novos. `bio_config.json` e `logs\` existentes ficam como estão. O
+   `iniciar_biometria.bat` antigo (Python fixo em `C:\Program Files\Python314`) é substituído pelo
+   novo, que usa `..\venv\Scripts\python.exe` e abre com console, para diagnóstico.
+5. **Dependências.** Confere `import tkinter, customtkinter, psycopg, requests` no `venv`. Só se
+   faltar algo, roda `pip install -r requirements.txt` (com nova tentativa usando
+   `--use-feature=truststore`). Se faltar o `tkinter`, o Python foi instalado sem "tcl/tk and IDLE",
+   e é preciso modificar a instalação do Python.
+6. **Token.** Roda `venv\Scripts\python.exe installer\config_inicial.py`, o mesmo passo da
+   atualização do GymFlow Web:
+   - se o `bio_config.json` existe sem `api_token` (caso do 1.2.2), grava nele o
+     `BIOMETRIA_API_TOKEN` do `.env`, e os outros campos ficam iguais;
+   - se o `bio_config.json` **não existe**, ele é criado a partir do `bio_config.example.json`, com
+     servidor, porta, banco, usuário e senha do `DATABASE_URL` do `.env`, `simulado: false` e o
+     `api_token` do `.env`. Na primeira execução, a tela de conexão do FingerPoint já vem preenchida,
+     e o "Conectar" mescla os campos com o arquivo salvo, então o token não se perde;
+   - se os dois têm valores **diferentes**, nada é alterado e o instalador avisa. Nesse caso o
+     FingerPoint mostraria ERRO DE AUTENTICACAO.
+7. **Atalhos.** "FingerPoint" na Área de Trabalho de todos os usuários
+   (`venv\Scripts\pythonw.exe app.py`, pasta inicial `biometria`). A opção "Iniciar com o Windows"
+   (pasta Inicializar de todos os usuários) é opcional e vem desmarcada.
+8. **Fim.** Opção "Abrir o FingerPoint agora", que abre como o usuário logado, não como
+   administrador.
+
+Logs: `logs\instalacao.log` da pasta do sistema e `%TEMP%\Setup Log *.txt`.
+
+Instalação silenciosa (exemplo sem o atalho da Área de Trabalho):
+
+```powershell
+FingerPoint-Setup-<versao>.exe /VERYSILENT /SUPPRESSMSGBOXES /DIR="C:\GymFlow" /MERGETASKS="!desktopicon"
+```
+
+**Desinstalar.** Painel de Controle → Programas → FingerPoint. Remove só os atalhos e os arquivos
+instalados. `bio_config.json`, `logs\` e `backups_instalacao\` ficam. O desinstalador fica em
+`biometria\unins000.exe`, separado do desinstalador do GymFlow Web.
+
+**Voltar à versão anterior.** Feche o FingerPoint e extraia `backups_instalacao\biometria-<data>.zip`
+sobre a pasta `biometria`.
+
+### Checklist pós-instalação (recepção)
+
+- [ ] O título da janela mostra **v<versao>** (ex.: `FingerPoint  v1.2.3`).
+- [ ] `biometria\bio_config.json` manteve servidor, banco e usuário, e o `api_token` é igual ao
+      `BIOMETRIA_API_TOKEN` do `.env`.
+- [ ] Uma digital reconhecida mostra o resultado certo (liberado, vencido ou inativo), e a passagem
+      aparece no GymFlow Web. Se aparecer **ERRO DE AUTENTICACAO**, o `api_token` está diferente do
+      `BIOMETRIA_API_TOKEN`, ou o serviço GymFlow não foi reiniciado depois de mudar o `.env`.
+- [ ] `backups_instalacao\biometria-<data>.zip` existe e não tem `logs`.
+- [ ] O atalho "FingerPoint" da Área de Trabalho abre sem console, e o `biometria\iniciar_biometria.bat`
+      abre com console.
+- [ ] Se "Iniciar com o Windows" foi marcado, o FingerPoint abre depois de sair e entrar de novo no
+      Windows.
+- [ ] Não sobrou atalho antigo apontando para `C:\Program Files\Python314\python.exe` (o `.bat` antigo
+      ou atalhos feitos à mão). Remova-os, para a recepção não abrir a versão 1.2.2.
 
 ## Apêndice (opcional): outros ajustes de energia do servidor
 
