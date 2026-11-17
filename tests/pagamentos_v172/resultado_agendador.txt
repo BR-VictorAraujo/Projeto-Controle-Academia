@@ -1,0 +1,2 @@
+sem credenciais: None
+com credenciais: jobs= 1 interval[1:00:00] max_instances= 1 coalesce= True proxima= 2026-11-17 12:26:02.035153-03:00

@@ -1,0 +1,4 @@
+== Apos docker compose restart db ==
+  [OK]   primeiro aviso apos restart: HTTP 200, pagamentos=1
+
+RESULTADO: TUDO OK

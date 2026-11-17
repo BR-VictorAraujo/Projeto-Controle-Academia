@@ -1,0 +1,12 @@
+  [OK]   confirmado 2x -> 1 pagamento (1)
+  [OK]   vencimento = confirmedDate + 1 mes (2026-12-12)
+  [OK]   subscription vinculada na 1a confirmacao
+[2026-11-17 12:20:51,262] WARNING in pagamentos: [pagamentos] asaas: resultado: tentativa negada 1/4 assinatura_id=304 aluno_id=406 (payment_id=pay_40169589f4)
+  [OK]   OVERDUE 2x com o mesmo payment.id -> tentativas 1 (1)
+  [OK]   sem token -> 401 (401)
+     log: ('INFO', 'Pagamento confirmado — Aluno Teste V172 5049394328 (#406), R$ 60,00, cobrado em 12/11/2026; Novo vencimento: 12/12/2026 (antes 10/11/2026) — chave pay_ae02ff54d2, cartão final 8829 (MASTERCARD)')
+     log: ('INFO', 'Aviso repetido ignorado (já processado) — chave pay_ae02ff54d2, cartão final 8829 (MASTERCARD)')
+     log: ('WARNING', 'Cobrança não paga (PAYMENT_OVERDUE) — Aluno Teste V172 5049394328 (#406), R$ 60,00, cobrança de 12/12/2026; tentativa 1/4; motivo não informado pela Asaas no aviso — chave pay_40169589f4')
+     log: ('INFO', 'Aviso repetido ignorado (recusa já contada) — chave pay_40169589f4')
+
+RESULTADO: TUDO OK

@@ -1,0 +1,39 @@
+== a) completo + curto sequenciais (meucheckout_order_number) ==
+  [OK]   HTTP 200/200
+  [OK]   1 pagamento (obtido 1)
+  [OK]   vencimento 11/12/2026 (obtido 2026-12-11)
+     log: ('pagamento_lancado', 'INFO', 'Pagamento confirmado — Aluno Teste V172 8019304469 (#333), R$ 60,00, cobrado em 11/11/2026; Novo vencimento: 11/12/2026 (antes 10/11/2026) — pedido assin8019304469, chave 563383fcfe035d576f40026c82c9981b, cartão final 2128 (Visa)')
+     log: ('pagamento_lancado', 'INFO', 'Aviso repetido ignorado (já processado) — pedido assin8019304469, chave 563383fcfe035d576f40026c82c9981b')
+== b) completo + curto em paralelo (20 rodadas) ==
+  [OK]   20 rodadas paralelas com 1 pagamento e vencimento +1 mes uma vez (ruins=0; em 11 o aviso curto foi processado primeiro -> vencimento hoje+1 mes)
+== b2) mesma chave em 2 assinaturas diferentes, em paralelo (caminho IntegrityError) ==
+  [OK]   10 rodadas: 1 pagamento por chave, HTTP 200 nos dois (ruins=0)
+     logs "Aviso repetido ignorado" no banco: 96
+== c) formato antigo (checkout_cielo_order_number) ==
+  [OK]   1 pagamento (obtido 1), HTTP 200/200
+  [OK]   sem created_date -> hoje + 1 mes = 2026-12-17 (obtido 2026-12-17)
+== d) aviso sem nenhuma chave ==
+  [OK]   HTTP 200, pagamentos=0, vencimento inalterado
+  [OK]   log ERROR: [('ERROR', 'Aviso sem chave do pedido — não processado (status 2 (Pago), pedido assin2372199597; faltam checkout_cielo_order_number e meucheckout_order_number)')]
+== e) recusa completa + curta (sequencial e paralela) ==
+  [OK]   tentativas 1 -> 2 (obtido 2)
+     log: ('tentativa_negada', 'WARNING', 'Cartão recusado — Aluno Teste V172 6259307703 (#376), R$ 60,00, cobrança de 14/11/2026; tentativa 2/4; motivo não informado pela Cielo no aviso — pedido assin6259307703, chave 4492e7aa33b4f8c7e504a994a06ce357, cartão final 2128 (Visa)')
+     log: ('pagamento_lancado', 'INFO', 'Aviso repetido ignorado (recusa já contada) — pedido assin6259307703, chave 4492e7aa33b4f8c7e504a994a06ce357')
+  [OK]   paralelo (3 avisos): tentativas 0 -> 1 (obtido 1)
+  [OK]   4a recusa com chave nova bloqueia ({'venc': datetime.date(2026, 11, 10), 'ativo': False, 'status': 'bloqueada_inadimplencia', 'tent': 4, 'pags': 0})
+     log: ('tentativa_negada', 'WARNING', 'Aluno bloqueado após 4ª recusa — Aluno Teste V172 1185887977 (#378). Cartão recusado — Aluno Teste V172 1185887977 (#378), R$ 60,00, cobrança de 11/11/2026; tentativa 4/4; motivo não informado pela Cielo no aviso — pedido assin1185887977, chave ab1449ba2fee7347121ae03b99a078b0, cartão final 2128 (Visa)')
+== item 7) regra de vencimento ==
+  [OK]   cobranca de 11/11 chegando hoje -> 11/12/2026 (obtido 2026-12-11)
+  [OK]   mesmo aviso com chave diferente: vencimento nao muda (2026-12-11), pagamentos=2
+  [OK]   vencimento a frente nao regride (2027-01-20)
+  [OK]   curto sem created_date -> hoje + 1 mes (2026-12-17)
+  [OK]   created_date invalido -> hoje + 1 mes (2026-12-17)
+     log: ('pagamento_lancado', 'INFO', 'Pagamento confirmado — Aluno Teste V172 3223178093 (#382), R$ 60,00, cobrado em 17/11/2026; Novo vencimento: 17/12/2026 (antes 01/11/2026) — pedido assin3223178093, chave 6ebd2e2dea9488377220fc8813a3c611, cartão final 2128 (Visa); data da cobrança: created_date "13/31/2026 10:00:00" fora do formato DD/MM/AAAA; usada a data de hoje')
+== item 8) frases legiveis ==
+     log: ('pagamento_lancado', 'INFO', 'Pagamento confirmado — Aluno Teste V172 3129793694 (#383), R$ 60,00, cobrado em 11/11/2026; Novo vencimento: 11/12/2026 (antes 13/11/2026) — pedido assin3129793694, chave fbe13b9bcd87a1f6eb550ce7d92f7843, cartão final 2128 (Visa)')
+     log: ('recorrencia_cielo', 'WARNING', 'Recorrência Desativada na Cielo — Aluno Teste V172 3129793694 (#383), pedido assin3129793694. O status da assinatura no GymFlow NÃO foi alterado (decisão manual).')
+     log: ('tentativa_negada', 'WARNING', 'Cartão recusado — Aluno Teste V172 3129793694 (#383), R$ 60,00, cobrança de 14/11/2026; tentativa 1/4; return_message=Saldo insuficiente — pedido assin3129793694, chave f4592bb5b631dbeb48aabb38c9efb00a, cartão final 2128 (Visa)')
+     log: ('webhook_recebido', 'WARNING', 'Aviso com status 5 (Cancelado) não tratado automaticamente — Aluno Teste V172 3129793694 (#383) — pedido assin3129793694, chave ab8633272d1ac4be1e95f6011586454b, cartão final 2128 (Visa). Nada foi alterado.')
+     log: [('WARNING', 'Assinatura não encontrada para order_number assin0000000000')]
+
+RESULTADO: TUDO OK

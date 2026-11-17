@@ -1,0 +1,39 @@
+== 1) order Paid sem pagamento -> lanca 1 vez; rodar de novo nao duplica ==
+  [OK]   1 pagamento, vencimento 11/12/2026 ({'venc': datetime.date(2026, 12, 11), 'ativo': True, 'status': 'ativa', 'tent': 0, 'pags': 1}); contagens {'consultadas': 20, 'lancadas': 1, 'avisos': 0, 'erros': 0} / {'consultadas': 20, 'lancadas': 0, 'avisos': 0, 'erros': 0}
+     log: ('pagamento_lancado', 'INFO', 'Pagamento recuperado pela consulta à Cielo (o aviso não chegou) — Aluno Teste V172 2974226321 (#384), R$ 60,00, cobrado em 11/11/2026; Novo vencimento: 11/12/2026 (antes 10/11/2026) — pedido assin2974226321, chave 23d9ca6a267459adca9587d8608e0d10')
+== 2) order Paid com pagamento ja existente pela chave -> nada ==
+  [OK]   continua 1 pagamento (1)
+== 3) order Paid + pagamento recorrente SEM chave de 17/11 -> WARNING (1 vez), nao lanca ==
+[2026-11-17 12:20:48,621] WARNING in pagamentos: [pagamentos] reconciliação Cielo: conferir chave=c3d2a3a0254e831962711a4147777f45 assinatura_id=284 (possível lançamento sem chave)
+  [OK]   nao lancou (1 pagamento) e 1 WARNING (1)
+     log: ('reconciliacao_conferir', 'WARNING', 'Cobrança paga na Cielo sem chave correspondente no GymFlow — possível lançamento já existente sem chave; conferir (pedido c3d2a3a0254e831962711a4147777f45, aluno Aluno Teste V172 8230085372 (#386), R$ 60,00, cobrado em 11/11/2026; lançamento #354 de 17/11/2026, R$ 60,00, origem recorrente_gateway). Nada foi lançado.')
+   3b) pagamento MANUAL pago do mesmo aluno em 12/11 -> WARNING, nao lanca
+[2026-11-17 12:20:48,708] WARNING in pagamentos: [pagamentos] reconciliação Cielo: conferir chave=a508a238d43b454bf4e84781890c2947 assinatura_id=285 (possível lançamento sem chave)
+  [OK]   nao lancou (0) e 1 WARNING
+   3c) pagamento sem chave de 40 dias antes (fora da janela de 25) -> lanca
+  [OK]   lancou (2 pagamentos: o antigo + o recuperado)
+== 4) webhook e reconciliacao ao mesmo tempo -> 1 pagamento (10 rodadas) ==
+  [OK]   10 rodadas com 1 pagamento (ruins=0)
+== 5) order Denied (e Pending/Expired) -> nao lanca ==
+  [OK]   nada lancado nem contado ({'venc': datetime.date(2026, 11, 10), 'ativo': True, 'status': 'ativa', 'tent': 0, 'pags': 0})
+   5b) order Paid de 50 dias atras (fora dos 40) -> nao lanca
+  [OK]   nao lancou
+== 6) API fora -> ERROR, job segue para a proxima assinatura ==
+[2026-11-17 12:20:49,704] ERROR in pagamentos: [pagamentos] reconciliação Cielo: erro ao consultar assinatura_id=299: CieloClientError
+  [OK]   ERROR registrado: ('erro_comunicacao', 'ERROR', 'Reconciliação: falha ao consultar as cobranças do link na Cielo (CieloClientError: Falha de comunicacao com a Cielo: ConnectTimeout)')
+  [OK]   a proxima assinatura foi lancada mesmo com a falha anterior
+   6b) cliente HTTP: 1 retentativa em erro de rede, timeout repassado
+  [OK]   2a tentativa funcionou (chamadas=2, timeout=15)
+  [OK]   2 tentativas e CieloClientError (chamadas=2)
+== 7) recusa com errorCode 51 -> log com "saldo/limite insuficiente" ==
+[2026-11-17 12:20:49,758] WARNING in pagamentos: [pagamentos] cielo: resultado: tentativa negada 2/4 assinatura_id=301 aluno_id=403 (order_number=assin5919303688 chave=265df4bd30912ab1c113a3f441b89021)
+  [OK]   log: Cartão recusado — Aluno Teste V172 5919303688 (#403), R$ 60,00, cobrança de 14/11/2026; tentativa 2/4; motivo: saldo/limite insuficiente (código 51) — pedido assin5919303688, chave 265df4bd30912ab1c113a3f441b89021, cartão final 2128 (Visa)
+   7b) consulta falha -> fica "motivo nao informado"
+[2026-11-17 12:20:49,803] WARNING in pagamentos: [pagamentos] cielo: motivo da recusa indisponível (chave=ad89eda493e7945cd072a8a46399dbbe): CieloClientError
+[2026-11-17 12:20:49,803] WARNING in pagamentos: [pagamentos] cielo: resultado: tentativa negada 1/4 assinatura_id=302 aluno_id=404 (order_number=assin7407780480 chave=ad89eda493e7945cd072a8a46399dbbe)
+  [OK]   log: Cartão recusado — Aluno Teste V172 7407780480 (#404), R$ 60,00, cobrança de 11/11/2026; tentativa 1/4; motivo não informado pela Cielo no aviso — pedido assin7407780480, chave ad89eda493e7945cd072a8a46399dbbe, cartão final 2128 (Visa)
+   7c) codigo fora da tabela -> "codigo X"
+[2026-11-17 12:20:49,832] WARNING in pagamentos: [pagamentos] cielo: resultado: tentativa negada 1/4 assinatura_id=303 aluno_id=405 (order_number=assin5012862916 chave=9fc5dba1c2f50fe93b75f1f99148e9aa)
+  [OK]   Cartão recusado — Aluno Teste V172 5012862916 (#405), R$ 60,00, cobrança de 11/11/2026; tentativa 1/4; motivo: código AB — pedido assin5012862916, chave 9fc5dba1c2f50fe93b75f1f99148e9aa, cartão final 2128 (Visa)
+
+RESULTADO: TUDO OK

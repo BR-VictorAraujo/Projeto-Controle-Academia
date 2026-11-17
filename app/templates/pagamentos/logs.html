@@ -35,6 +35,8 @@
 .evento-tag { font-size: 11px; color: #6c757d; background: #f8f9fa; padding: 2px 8px; border-radius: 6px; }
 .btn-ver-payload { background: none; border: 1px solid #dee2e6; border-radius: 6px; padding: 3px 10px; font-size: 12px; color: #6c757d; cursor: pointer; }
 .btn-ver-payload:hover { border-color: var(--cor-principal); color: var(--cor-principal); }
+.resultado-txt { font-size: 13.5px; color: #1a1a2e; font-weight: 500; line-height: 1.45; min-width: 360px; white-space: normal; word-break: break-word; }
+.ids-txt { font-size: 11px; font-family: monospace; color: #6c757d; line-height: 1.5; word-break: break-all; }
 .payload-pre { background: #1a1a2e; color: #e8f5e9; padding: 16px; border-radius: 10px; font-size: 12px; max-height: 400px; overflow: auto; white-space: pre-wrap; word-break: break-all; }
 {% endblock %}
 
@@ -70,12 +72,12 @@
 <div class="log-card mb-3">
     <div class="row g-3 align-items-end">
         <div class="col-md-4">
-            <label class="form-label" style="font-size:13px; font-weight:500;">Buscar por ID (RecurrentPaymentId / PaymentId)</label>
+            <label class="form-label" style="font-size:13px; font-weight:500;">Buscar por aluno (nome ou nº), pedido ou chave</label>
             <form method="GET" action="/api/v1/pagamentos/recorrencias/logs" id="form-busca-log">
                 <input type="hidden" name="nivel" value="{{ nivel_filtro }}">
                 <div style="display:flex; gap:6px;">
                     <input type="text" name="f_busca" id="busca" class="search-box"
-                           placeholder="🔍 Ex: RP123456..."
+                           placeholder="🔍 Ex: Maria, 682, assin682..."
                            value="{{ request.args.get('f_busca', '') }}"
                            autocomplete="off">
                     <button type="submit" class="btn-principal" style="padding:8px 14px; border-radius:8px;">
@@ -85,10 +87,10 @@
             </form>
         </div>
         <div class="col-md-8 d-flex gap-2 align-items-end flex-wrap">
-            <a href="?nivel=todos"   class="tab-btn {% if nivel_filtro == 'todos' %}ativo{% endif %}">Todos</a>
-            <a href="?nivel=ERROR"   class="tab-btn {% if nivel_filtro == 'ERROR' %}ativo{% endif %}" style="{% if nivel_filtro != 'ERROR' %}color:#c62828; border-color:#fdecea;{% endif %}">Erros</a>
-            <a href="?nivel=WARNING" class="tab-btn {% if nivel_filtro == 'WARNING' %}ativo{% endif %}" style="{% if nivel_filtro != 'WARNING' %}color:#f9a825; border-color:#fff8e1;{% endif %}">Avisos</a>
-            <a href="?nivel=INFO"    class="tab-btn {% if nivel_filtro == 'INFO' %}ativo{% endif %}">Informativos</a>
+            <a href="?nivel=todos&f_busca={{ request.args.get('f_busca', '') | urlencode }}"   class="tab-btn {% if nivel_filtro == 'todos' %}ativo{% endif %}">Todos</a>
+            <a href="?nivel=ERROR&f_busca={{ request.args.get('f_busca', '') | urlencode }}"   class="tab-btn {% if nivel_filtro == 'ERROR' %}ativo{% endif %}" style="{% if nivel_filtro != 'ERROR' %}color:#c62828; border-color:#fdecea;{% endif %}">Erros</a>
+            <a href="?nivel=WARNING&f_busca={{ request.args.get('f_busca', '') | urlencode }}" class="tab-btn {% if nivel_filtro == 'WARNING' %}ativo{% endif %}" style="{% if nivel_filtro != 'WARNING' %}color:#f9a825; border-color:#fff8e1;{% endif %}">Avisos</a>
+            <a href="?nivel=INFO&f_busca={{ request.args.get('f_busca', '') | urlencode }}"    class="tab-btn {% if nivel_filtro == 'INFO' %}ativo{% endif %}">Informativos</a>
         </div>
     </div>
 </div>
@@ -110,8 +112,8 @@
     <table class="table table-borderless mb-0">
         <thead>
             <tr>
-                <th>Data/Hora</th><th>Evento</th><th>Nível</th>
-                <th>RecurrentPaymentId</th><th>PaymentId</th><th>Resultado</th><th></th>
+                <th>Data/Hora</th><th>Nível</th><th>O que aconteceu</th>
+                <th>Evento</th><th>Recorrência / Chave</th><th></th>
             </tr>
         </thead>
         <tbody>
@@ -119,23 +121,22 @@
                 {% for log in pag.items %}
                 <tr>
                     <td style="white-space:nowrap; font-size:13px;">{{ log.criado_em | local_time }}</td>
-                    <td><span class="evento-tag">{{ log.tipo_evento }}</span></td>
                     <td>
                         {% if log.nivel == 'ERROR' %}<span class="badge-nivel-error">ERROR</span>
                         {% elif log.nivel == 'WARNING' %}<span class="badge-nivel-warning">WARNING</span>
                         {% else %}<span class="badge-nivel-info">INFO</span>{% endif %}
                     </td>
-                    <td style="font-size:12px; font-family:monospace;">{{ log.recurrent_payment_id or '—' }}</td>
-                    <td style="font-size:12px; font-family:monospace;">{{ log.payment_id_gateway or '—' }}</td>
-                    <td style="font-size:13px; max-width:280px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
-                        {{ log.resultado or '—' }}
+                    <td class="resultado-txt">{{ log.resultado or '—' }}</td>
+                    <td><span class="evento-tag">{{ log.tipo_evento }}</span></td>
+                    <td class="ids-txt">
+                        {{ log.recurrent_payment_id or '—' }}<br>{{ log.payment_id_gateway or '—' }}
                     </td>
                     <td>
-                        {% if log.payload_bruto %}
+                        {% if log.id in payloads %}
                         <button class="btn-ver-payload" onclick="verPayload({{ log.id }})">
                             <i class="bi bi-code-slash"></i> Payload
                         </button>
-                        <div id="payload-data-{{ log.id }}" style="display:none;">{{ log.payload_bruto | tojson }}</div>
+                        <div id="payload-data-{{ log.id }}" style="display:none;">{{ payloads[log.id] | tojson }}</div>
                         {% endif %}
                     </td>
                 </tr>
@@ -157,7 +158,7 @@
         <div class="modal-content" style="border-radius:12px; border:none;">
             <div class="modal-header" style="border-bottom:1px solid #f0f2f5; padding:16px 24px;">
                 <h5 class="modal-title" style="font-size:15px; font-weight:600;">
-                    <i class="bi bi-code-slash me-2" style="color:var(--cor-principal);"></i> Payload bruto
+                    <i class="bi bi-code-slash me-2" style="color:var(--cor-principal);"></i> Payload bruto (CPF, e-mail e telefone ocultos)
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>

@@ -6,6 +6,7 @@ O que já foi aplicado fica registrado na tabela `schema_migracao` (criada pela 
 | Arquivo | Versão do app | Descrição |
 |---|---|---|
 | `001_v1.7.0_lgpd_up.sql` / `001_v1.7.0_lgpd_down.sql` | web 1.7.0 | Estrutura LGPD: `lgpd_termo_versao` (versões imutáveis do termo), `lgpd_manifestacao` (respostas, append-only), `schema_migracao`. **Não publica termo.** |
+| `003_v1.7.2_pagamentos_unicidade_up.sql` / `_down.sql` | web 1.7.2 | Índice UNIQUE parcial `uq_pagamentos_payment_id_gateway` (mesma cobrança do gateway não gera dois lançamentos) e índice em `log_integracao_pagamento(criado_em)`. Aborta, sem alterar nada, se já houver duplicatas pela chave. |
 | `NNN_termo_v<versao>.sql` | - | Publica uma versão do termo. Gerado por `tools/gerar_migracao_termo.py`. Sem rollback. |
 | `opcional_role_app.sql` | - | **Opcional, não aplicado automaticamente.** Role `gymflow_app` sem permissão de alterar as tabelas LGPD. |
 
@@ -73,6 +74,30 @@ Cuidados:
 - A migração gerada é idempotente; se a versão já existir com outro texto, ela aborta.
 - O trigger confere que o hash gravado é o SHA-256 do texto; se a codificação for corrompida
   no caminho, a migração falha em vez de publicar texto errado.
+
+## 3. Unicidade dos pagamentos (003) - junto com o deploy da v1.7.2
+
+O instalador aplica sozinho (`installer/atualizar_banco.py`; registra `003_v1.7.2_pagamentos_unicidade`
+em `schema_migracao` e não roda de novo). Manualmente:
+
+1. Conferir que não há duplicatas pela chave (precisa voltar 0 linhas):
+   ```sql
+   SELECT payment_id_gateway, count(*), string_agg(id::text, ', ' ORDER BY id)
+     FROM pagamentos WHERE payment_id_gateway IS NOT NULL
+    GROUP BY 1 HAVING count(*) > 1;
+   ```
+2. Backup (`pg_dump`) e aplicar:
+   ```powershell
+   & "C:\Program Files\PostgreSQLin\psql.exe" -U <usuario> -d <banco> -v ON_ERROR_STOP=1 -f 003_v1.7.2_pagamentos_unicidade_up.sql
+   ```
+   Se houver duplicatas, a migração aborta listando as chaves e os ids; nada é alterado.
+3. Verificar:
+   ```sql
+   SELECT indexname, indexdef FROM pg_indexes
+    WHERE indexname IN ('uq_pagamentos_payment_id_gateway', 'ix_log_integracao_pagamento_criado_em');  -- 2 linhas
+   SELECT * FROM schema_migracao WHERE versao = '003_v1.7.2_pagamentos_unicidade';               -- 1 linha
+   ```
+4. Rollback (só remove os índices e o registro; não mexe em dados): `003_v1.7.2_pagamentos_unicidade_down.sql`.
 
 ## Regras garantidas pelo banco
 

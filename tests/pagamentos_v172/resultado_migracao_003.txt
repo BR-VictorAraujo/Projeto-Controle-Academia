@@ -1,0 +1,44 @@
+== copia do banco de dev para gymflow_mig003_teste ==
+indices=-
+schema_migracao_003=0
+pagamentos=0 soma_ids=0 com_chave=0
+
+== 1) up sem duplicatas -> cria os indices ==
+NOTICE:  relation "schema_migracao" already exists, skipping
+codigo de saida: 0
+indices=ix_log_integracao_pagamento_criado_em,uq_pagamentos_payment_id_gateway
+schema_migracao_003=1
+pagamentos=0 soma_ids=0 com_chave=0
+CREATE UNIQUE INDEX uq_pagamentos_payment_id_gateway ON public.pagamentos USING btree (payment_id_gateway) WHERE (payment_id_gateway IS NOT NULL)
+
+== 2) up de novo -> idempotente ==
+codigo de saida: 1
+indices=ix_log_integracao_pagamento_criado_em,uq_pagamentos_payment_id_gateway
+schema_migracao_003=1
+pagamentos=0 soma_ids=0 com_chave=0
+
+== 3) down ==
+codigo de saida: 0
+indices=-
+schema_migracao_003=0
+pagamentos=0 soma_ids=0 com_chave=0
+
+== 4) com duplicata pela chave -> aborta sem alterar nada ==
+antes:
+indices=-
+schema_migracao_003=0
+pagamentos=5 soma_ids=15 com_chave=5
+ERROR:  Migração 003 abortada: há pagamentos duplicados pela chave do gateway (payment_id_gateway): 41f28923bd3040fe9cb1 (3 lançamentos: ids 3, 4, 5); a02c1169a9e34c62882c37f2e3ba8c7f (2 lançamentos: ids 1, 2). Nada foi alterado. Revise esses lançamentos no Financeiro e rode a migração de novo.
+CONTEXT:  PL/pgSQL function inline_code_block line 16 at RAISE
+codigo de saida: 3 (esperado != 0)
+depois:
+indices=-
+schema_migracao_003=0
+pagamentos=5 soma_ids=15 com_chave=5
+
+== 5) nome que o installer/atualizar_banco.py usa para pular a 003 ==
+003_v1.7.2_pagamentos_unicidade
+
+== 2 (corrigido) reaplicacao no gymflow_v172_teste (003 ja aplicada): codigo 0 duas vezes (o 1 acima era o codigo do grep) ==
+
+== Instalacao nova (banco vazio gymflow_novo_teste): inicializar_banco()/create_all criou os dois indices (parcial com WHERE payment_id_gateway IS NOT NULL); a 003 depois roda sem erro (codigo 0, so NOTICEs) ==

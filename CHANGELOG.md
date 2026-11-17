@@ -1,5 +1,27 @@
 # Changelog — GymFlow
 
+## [1.7.2] — 2026-11-17 — Correção da integração de pagamentos
+
+### Corrigido
+- **Falha da primeira requisição após horas sem uso (madrugada)**: conexões mortas do pool causavam 500 e nada era gravado (a cobrança só entrava na retentativa da Cielo, 1 h depois). `SQLALCHEMY_ENGINE_OPTIONS = {'pool_pre_ping': True, 'pool_recycle': 1800}` em `app/config.py`, e o `_log` de `pagamentos.py`, `cielo_client.py` e `asaas_client.py` faz `rollback()` quando falha (antes deixava a sessão inválida, com `PendingRollbackError` no resto da requisição).
+- **Pagamento lançado duas vezes e vencimento avançado 2 meses**: a Cielo manda dois avisos por cobrança (um completo e um curto, com 1-5 s de intervalo), e desde nov/2026 a chave vem em `meucheckout_order_number` em vez de `checkout_cielo_order_number`. Os dois campos são aceitos. Aviso de confirmação/recusa sem nenhuma das duas chaves não é processado (log ERROR "Aviso sem chave do pedido — não processado", resposta 200). A chave também é gravada no log `webhook_recebido`.
+- **Avisos simultâneos**: os webhooks Cielo e Asaas travam a assinatura (`SELECT ... FOR UPDATE`) antes da checagem de duplicidade. Índice UNIQUE parcial `uq_pagamentos_payment_id_gateway` (migração 003 e model); se mesmo assim a inserção colidir, o aviso é registrado como "duplicado (já processado)" e respondido com 200.
+- **Recusa contada mais de uma vez** (aluna bloqueada antes da hora): a tentativa negada é contada uma única vez por chave do pedido (registro `tentativa_negada` no log); aviso repetido da mesma recusa não conta de novo; recusa sem chave não conta.
+
+### Alterado
+- **Regra do vencimento no pagamento recorrente**: o novo vencimento passa a ser **data da cobrança + 1 mês**, aplicado só se for maior que o vencimento atual (antes: maior entre vencimento e hoje + 1 mês, acumulando a cada aviso). Aviso repetido ou atrasado da mesma cobrança nunca empurra além de 1 mês após a cobrança, e o vencimento nunca regride. Data da cobrança: Cielo = `created_date` do aviso completo (DD/MM/AAAA; `start_date`/`end_date` vêm em MM/DD e não são usados); Asaas = `confirmedDate`/`paymentDate`/`clientPaymentDate`/`dueDate`. Sem data válida (aviso curto, formato antigo): hoje (fuso configurado), registrado no log.
+- **Logs de pagamento legíveis**: cada evento grava uma frase com aluno (nome e nº), valor, data da cobrança, pedido, chave, final do cartão e bandeira, e o que aconteceu (ex.: "Cartão recusado — Maria (#682), R$ 65,00, cobrança de 14/11/2026; tentativa 2/4; motivo: saldo/limite insuficiente (código 51)"). `payment_status` traduzido; `recurrent_status` diferente de "Ativa" gera WARNING "Recorrência <status> na Cielo — <aluno>" (só log; o status da assinatura continua decisão manual).
+- **Tela de logs** (Recorrências > Log): coluna "O que aconteceu" em destaque e sem corte, busca por nome ou nº do aluno, pedido ou chave (combinável com o filtro de nível), payload exibido com CPF, e-mail e telefone mascarados.
+- **`servico.log`**: uma linha por aviso recebido (gateway, order_number, chave, status/evento) e outra com o resultado (lançado / duplicado / ignorado / erro), sem dados pessoais (aluno só pelo id).
+
+### Adicionado
+- **Reconciliação com a Cielo** (job do APScheduler a cada 60 min, ligado só com `CIELO_CLIENT_ID`/`CIELO_CLIENT_SECRET`): para cada assinatura Cielo ativa ou bloqueada com link, consulta `GET /api/public/v1/products/{link}/payments` e lança, pelo mesmo caminho do webhook (trava, índice único, regra do vencimento), as cobranças `Paid` dos últimos 40 dias cuja chave não está em `pagamentos` ("Pagamento recuperado pela consulta à Cielo (o aviso não chegou)"). Não lança se a assinatura já tiver pagamento recorrente **sem chave** ou o aluno tiver pagamento manual pago a até 25 dias da cobrança: registra um WARNING de conferência, uma única vez por pedido. Falha de rede/API: log ERROR e segue (timeout 15 s, 1 retentativa). Início e fim de cada rodada no `servico.log`, com contagens.
+- **Motivo da recusa**: após registrar a recusa, consulta `GET /api/public/v2/orders/{chave}` (timeout 5 s) e acrescenta o motivo do `errorCode` (tabela ABECS: 51, 05, 54, 57, 14, 41/43, 59, 61, 62, 78, 91, 96, N7; outros: "código X"). Se a consulta falhar, fica "motivo não informado pela Cielo no aviso".
+- Migração `migrations/003_v1.7.2_pagamentos_unicidade_up.sql` / `_down.sql`: índice UNIQUE parcial em `pagamentos(payment_id_gateway)` e índice em `log_integracao_pagamento(criado_em)`. Aborta, sem alterar nada, se já houver duplicatas pela chave. Aplicada automaticamente pelo instalador na atualização.
+- Testes manuais em `tests/pagamentos_v172/`.
+
+---
+
 ## [1.7.1] — 2026-11-06
 
 ### Adicionado

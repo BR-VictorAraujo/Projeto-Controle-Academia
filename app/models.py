@@ -109,6 +109,14 @@ class Pagamento(db.Model):
     assinatura_recorrente_id = db.Column(db.Integer, db.ForeignKey('assinatura_recorrente.id'))
     payment_id_gateway       = db.Column(db.String(50))  # PaymentId da Cielo — usado para deduplicação de webhook
 
+    # v1.7.2: a mesma cobrança do gateway nunca gera dois lançamentos.
+    # Espelha migrations/003_v1.7.2_pagamentos_unicidade_up.sql (instalações
+    # novas recebem o índice pelo db.create_all()).
+    __table_args__ = (
+        Index('uq_pagamentos_payment_id_gateway', 'payment_id_gateway', unique=True,
+              postgresql_where=text('payment_id_gateway IS NOT NULL')),
+    )
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Módulo API para Pagamentos — Cobrança Recorrente via Cartão (Cielo)
@@ -161,6 +169,8 @@ class LogIntegracaoPagamento(db.Model):
 
     # 'webhook_recebido', 'consulta_disparada', 'consulta_respondida',
     # 'pagamento_lancado', 'cancelamento_solicitado', 'erro_parsing', 'alerta_disparado'
+    # v1.7.2: 'tentativa_negada' (recusa contada, chave em payment_id_gateway),
+    # 'recorrencia_cielo', 'reconciliacao_conferir'
     tipo_evento = db.Column(db.String(30), nullable=False)
     nivel       = db.Column(db.String(10), nullable=False, default='INFO')  # INFO | WARNING | ERROR
 
@@ -172,6 +182,11 @@ class LogIntegracaoPagamento(db.Model):
     resultado     = db.Column(db.Text)
 
     ip_origem = db.Column(db.String(45))
+
+    # v1.7.2: a tela de logs ordena por criado_em (migração 003)
+    __table_args__ = (
+        Index('ix_log_integracao_pagamento_criado_em', 'criado_em'),
+    )
 
 # ─────────────────────────────────────────────────────────────────────────────
 # LGPD v1.7.0 (simplificada) — termo único de privacidade/uso (Aceito/Não aceito)

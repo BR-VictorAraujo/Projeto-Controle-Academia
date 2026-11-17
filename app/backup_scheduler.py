@@ -19,6 +19,7 @@ logger = logging.getLogger('backup_scheduler')
 
 JOB_ID_BACKUP     = 'backup_automatico'
 JOB_ID_INATIVACAO = 'inativacao_automatica'
+JOB_ID_RECONCILIACAO = 'reconciliacao_cielo'
 
 _scheduler = None  # singleton — um unico scheduler por processo Flask
 
@@ -66,6 +67,17 @@ def _executar_job_inativacao(app):
             logger.info(f'Inativacao automatica: {inativados} aluno(s) inativado(s).')
         else:
             logger.debug('Inativacao automatica: nenhum aluno inativado.')
+
+
+def _executar_job_reconciliacao(app):
+    """v1.7.2 -- a cada 60 min: lanca cobrancas pagas na Cielo cujo aviso nao
+    chegou (ver reconciliar_cielo em app/routes/pagamentos.py)."""
+    with app.app_context():
+        from app.routes.pagamentos import reconciliar_cielo
+        try:
+            reconciliar_cielo()
+        except Exception as e:
+            logger.error(f'Reconciliacao Cielo falhou: {type(e).__name__}: {e}')
 
 
 def _construir_trigger(modo, horario_str, intervalo_horas):
@@ -141,6 +153,28 @@ def iniciar_agendador(app):
         misfire_grace_time=3600,
     )
     logger.info('Inativacao automatica agendada: diariamente as 04:00.')
+
+    # ── Reconciliação Cielo (v1.7.2) — a cada 60 min, só com credenciais ──────
+    # Um único job por processo: id fixo + replace_existing; max_instances=1
+    # impede duas rodadas simultâneas; coalesce junta execuções atrasadas.
+    if _scheduler.get_job(JOB_ID_RECONCILIACAO):
+        _scheduler.remove_job(JOB_ID_RECONCILIACAO)
+    if app.config.get('CIELO_CLIENT_ID') and app.config.get('CIELO_CLIENT_SECRET'):
+        from datetime import datetime, timedelta
+        _scheduler.add_job(
+            _executar_job_reconciliacao,
+            trigger=IntervalTrigger(minutes=60),
+            id=JOB_ID_RECONCILIACAO,
+            args=[app],
+            replace_existing=True,
+            coalesce=True,
+            max_instances=1,
+            misfire_grace_time=600,
+            next_run_time=datetime.now() + timedelta(minutes=5),
+        )
+        logger.info('Reconciliacao Cielo agendada: a cada 60 min (primeira em 5 min).')
+    else:
+        logger.info('Reconciliacao Cielo desligada: CIELO_CLIENT_ID/CIELO_CLIENT_SECRET ausentes.')
 
     # ── Recuperação de execução perdida ───────────────────────────────────────
     # Se o servidor estava offline às 04:00 ou a rotina não rodou hoje por

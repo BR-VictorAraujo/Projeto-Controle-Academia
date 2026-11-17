@@ -8,6 +8,10 @@ class Config:
     SECRET_KEY = os.getenv('SECRET_KEY', 'chave-padrao')
     SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL')
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    # v1.7.2: conexões do pool mortas após horas sem uso (madrugada) faziam a
+    # primeira requisição falhar. pool_pre_ping testa a conexão antes de usar
+    # (e reconecta); pool_recycle descarta conexões com mais de 30 min.
+    SQLALCHEMY_ENGINE_OPTIONS = {'pool_pre_ping': True, 'pool_recycle': 1800}
 
     # Sessão expira em 1 hora sem atividade
     PERMANENT_SESSION_LIFETIME = timedelta(hours=1)

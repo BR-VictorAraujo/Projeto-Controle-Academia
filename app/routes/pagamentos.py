@@ -9,11 +9,15 @@ Duas famílias de rota aqui dentro:
     porque quem chama é a Cielo, não um usuário logado)
 """
 
-from flask import Blueprint, request, jsonify, current_app, render_template
+from flask import Blueprint, request, jsonify, current_app, render_template, has_request_context
 from functools import wraps
 from datetime import date, timedelta, datetime
 from dateutil.relativedelta import relativedelta
+from decimal import Decimal, InvalidOperation
 import hmac
+import re
+
+from sqlalchemy.exc import IntegrityError
 
 from app import db
 from app.models import Aluno, Plano, AssinaturaRecorrente, Pagamento, LogIntegracaoPagamento, Configuracao
@@ -108,11 +112,17 @@ def _log(tipo_evento, nivel='INFO', resultado=None, payload=None,
             tipo_evento=tipo_evento, nivel=nivel, resultado=resultado,
             payload_bruto=payload, assinatura_recorrente_id=assinatura_recorrente_id,
             recurrent_payment_id=recurrent_payment_id, payment_id_gateway=payment_id_gateway,
-            ip_origem=request.remote_addr,
+            ip_origem=request.remote_addr if has_request_context() else None,
         )
         db.session.add(log)
         db.session.commit()
     except Exception as e:
+        # v1.7.2: sem rollback a sessão ficava inválida (PendingRollbackError)
+        # e o resto da requisição falhava com 500
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
         current_app.logger.error(f"Falha ao gravar log_integracao_pagamento: {e}")
 
 
@@ -441,15 +451,27 @@ def painel_logs():
     if nivel_filtro != 'todos':
         query = query.filter(LogIntegracaoPagamento.nivel == nivel_filtro)
     if busca:
-        query = query.filter(
-            db.or_(
-                LogIntegracaoPagamento.recurrent_payment_id.ilike(f'%{busca}%'),
-                LogIntegracaoPagamento.payment_id_gateway.ilike(f'%{busca}%'),
-            )
-        )
+        # v1.7.2: busca também pelo texto do resultado (nome do aluno, pedido)
+        # e pelo aluno da assinatura (nome ou número)
+        query = query.outerjoin(
+            AssinaturaRecorrente, LogIntegracaoPagamento.assinatura_recorrente_id == AssinaturaRecorrente.id
+        ).outerjoin(Aluno, AssinaturaRecorrente.aluno_id == Aluno.id)
+        condicoes = [
+            LogIntegracaoPagamento.recurrent_payment_id.ilike(f'%{busca}%'),
+            LogIntegracaoPagamento.payment_id_gateway.ilike(f'%{busca}%'),
+            LogIntegracaoPagamento.resultado.ilike(f'%{busca}%'),
+            Aluno.nome.ilike(f'%{busca}%'),
+        ]
+        numero = busca.lstrip('#')
+        if numero.isdigit():
+            condicoes.append(Aluno.id == int(numero))
+        query = query.filter(db.or_(*condicoes))
 
     query = query.order_by(LogIntegracaoPagamento.criado_em.desc())
     pag = query.paginate(page=pagina, per_page=por_pagina, error_out=False)
+
+    # Payload exibido com CPF, e-mail e telefone mascarados (o banco guarda o original)
+    payloads = {log.id: _mascarar_payload(log.payload_bruto) for log in pag.items if log.payload_bruto}
 
     contagens = {
         'todos':   LogIntegracaoPagamento.query.count(),
@@ -463,8 +485,30 @@ def painel_logs():
         pag=pag,
         nivel_filtro=nivel_filtro,
         contagens=contagens,
+        payloads=payloads,
         opcoes_por_pagina=[20, 30, 50, 100],
     )
+
+
+# Chaves de payload com dado pessoal que não aparecem na tela (comparação sem
+# '_' e sem maiúsculas, por trecho). '*_type' (ex.: customer_identity_type) fica.
+_TRECHOS_PESSOAIS = ('identity', 'cpf', 'cnpj', 'document', 'email', 'phone', 'telefone',
+                     'celular', 'mobile')
+_RE_EMAIL = re.compile(r'[^@\s]+@[^@\s]+\.[^@\s]+')
+
+
+def _mascarar_payload(valor, chave=''):
+    """Cópia do payload para exibição, com CPF/documento, e-mail e telefone mascarados."""
+    if isinstance(valor, dict):
+        return {k: _mascarar_payload(v, str(k)) for k, v in valor.items()}
+    if isinstance(valor, list):
+        return [_mascarar_payload(v, chave) for v in valor]
+    nome = chave.lower().replace('_', '')
+    if valor not in (None, '') and not nome.endswith('type') and any(t in nome for t in _TRECHOS_PESSOAIS):
+        return '***'
+    if isinstance(valor, str) and _RE_EMAIL.search(valor):
+        return _RE_EMAIL.sub('***', valor)
+    return valor
 
 
 @bp.route('/pagamentos-estorno/<int:pagamento_id>/estornar', methods=['POST'])
@@ -521,7 +565,203 @@ def estornar_pagamento(pagamento_id):
 
 
 # ─────────────────────────────────────────────────────────────────────────
-# Webhook Cielo — SEM login_required de sessão, com Basic Auth própria
+# v1.7.2 — Helpers dos webhooks: chave do pedido, trava, datas e frases
+# legíveis para a tela de logs. No servico.log NUNCA vão dados pessoais
+# (aluno só pelo id; nada de nome, e-mail, telefone, CPF ou cartão).
+# ─────────────────────────────────────────────────────────────────────────
+
+# Chave única de cada cobrança no aviso da Cielo. O nome do campo mudou:
+# 'checkout_cielo_order_number' (até out/2026) e 'meucheckout_order_number'
+# (reenvios desde nov/2026); mesmo valor/formato (20 ou 32 hex). É o mesmo
+# 'orderNumber' da consulta GET /products/{id}/payments.
+CAMPOS_CHAVE_CIELO = ('checkout_cielo_order_number', 'meucheckout_order_number')
+
+STATUS_CIELO_CONFIRMADO = ('2',)
+STATUS_CIELO_NEGADO = ('3', '10', '13')
+
+# payment_status do Checkout/Link de Pagamento (só para exibir no log)
+NOMES_STATUS_CIELO = {
+    '1': 'Pendente', '2': 'Pago', '3': 'Negado', '4': 'Expirado', '5': 'Cancelado',
+    '6': 'Não finalizado', '7': 'Autorizado', '8': 'Chargeback',
+}
+
+# payment_method_brand do Checkout Cielo (só para exibir no log)
+BANDEIRAS_CIELO = {
+    '1': 'Visa', '2': 'Mastercard', '3': 'American Express', '4': 'Diners', '5': 'Elo',
+    '6': 'Aura', '7': 'JCB', '8': 'Discover', '9': 'Hipercard',
+}
+
+# Códigos de retorno ABECS mais comuns (errorCode da consulta GET /v2/orders/{id})
+MOTIVOS_RECUSA = {
+    '51': 'saldo/limite insuficiente',
+    '05': 'não autorizada pelo banco',
+    '54': 'cartão vencido',
+    '57': 'transação não permitida para o cartão',
+    '14': 'cartão inválido',
+    '41': 'cartão perdido/roubado',
+    '43': 'cartão perdido/roubado',
+    '59': 'suspeita de fraude',
+    '61': 'valor excede o limite',
+    '62': 'cartão restrito',
+    '78': 'cartão bloqueado',
+    '91': 'emissor indisponível',
+    '96': 'falha no sistema',
+    'N7': 'código de segurança inválido',
+}
+
+# Chaves de motivo/retorno que, se algum dia vierem no aviso, são exibidas
+# (comparação sem '_' e sem maiúsculas: return_code, returnMessage, ...)
+CAMPOS_MOTIVO_AVISO = {'returncode', 'returnmessage', 'reason', 'paymentstatusdescription'}
+
+TEXTO_SEM_MOTIVO = 'motivo não informado pela {gateway} no aviso'
+
+# Reconciliação (item 9): janela de busca e de proteção contra lançamentos sem chave
+RECONCILIACAO_DIAS = 40
+RECONCILIACAO_JANELA_SEM_CHAVE = 25
+STATUS_RECONCILIACAO = ('ativa', 'bloqueada_inadimplencia')
+
+
+def _hoje_local():
+    """Data de hoje no fuso configurado (Fortaleza = -3), mesmo critério de acessos.py."""
+    fuso = int(get_param('fuso_horario', '-3'))
+    return (datetime.utcnow() + timedelta(hours=fuso)).date()
+
+
+def _chave_pedido_cielo(dados):
+    for campo in CAMPOS_CHAVE_CIELO:
+        valor = dados.get(campo)
+        if valor is not None and str(valor).strip():
+            return str(valor).strip()
+    return None
+
+
+def _status_cielo_txt(payment_status):
+    nome = NOMES_STATUS_CIELO.get(str(payment_status)) if payment_status is not None else None
+    return f'{payment_status} ({nome})' if nome else str(payment_status)
+
+
+def _travar_assinatura(assinatura_id):
+    """SELECT ... FOR UPDATE da assinatura: avisos simultâneos da mesma
+    assinatura (o completo e o curto chegam com 1-5 s de diferença, e a
+    reconciliação pode rodar ao mesmo tempo) passam a ser processados um
+    de cada vez. A trava dura até o próximo commit/rollback.
+    populate_existing: relê a linha mesmo que já esteja na sessão."""
+    return (AssinaturaRecorrente.query.filter_by(id=assinatura_id)
+            .with_for_update().populate_existing().first())
+
+
+def _data_cobranca_cielo(dados):
+    """Data da cobrança na Cielo: 'created_date' do aviso completo, sempre
+    DD/MM/AAAA HH:MM:SS (ex.: "11/11/2026 03:45:43"). start_date/end_date vêm
+    em MM/DD e NÃO são usados. Sem created_date (aviso curto) ou fora do
+    formato: hoje. Retorna (data, observação ou None)."""
+    hoje = _hoje_local()
+    bruto = dados.get('created_date')
+    bruto = bruto.strip() if isinstance(bruto, str) else ''
+    if not bruto:
+        return hoje, 'aviso sem created_date; usada a data de hoje'
+    for formato in ('%d/%m/%Y %H:%M:%S', '%d/%m/%Y'):
+        try:
+            data = datetime.strptime(bruto, formato).date()
+        except ValueError:
+            continue
+        if data > hoje + timedelta(days=1):
+            # Data no futuro = provável troca de dia/mês: não confia
+            return hoje, f'created_date "{bruto}" no futuro; usada a data de hoje'
+        return data, None
+    return hoje, f'created_date "{bruto}" fora do formato DD/MM/AAAA; usada a data de hoje'
+
+
+def _data_cobranca_asaas(pagamento):
+    """Asaas manda datas AAAA-MM-DD. Ordem: confirmação, pagamento, pagamento
+    informado pelo cliente, vencimento da cobrança; sem nenhuma: hoje."""
+    for campo in ('confirmedDate', 'paymentDate', 'clientPaymentDate', 'dueDate'):
+        bruto = pagamento.get(campo)
+        if bruto:
+            try:
+                return datetime.strptime(str(bruto)[:10], '%Y-%m-%d').date(), None
+            except ValueError:
+                continue
+    return _hoje_local(), 'aviso sem data de pagamento; usada a data de hoje'
+
+
+def _data_iso(bruto):
+    """'2026-11-11T03:45:43' ou '2026-09-11T11:28:30.317' (horário local) → date."""
+    try:
+        return datetime.strptime(str(bruto)[:19], '%Y-%m-%dT%H:%M:%S').date()
+    except (TypeError, ValueError):
+        return None
+
+
+def _reais(valor):
+    if valor is None:
+        return 'R$ —'
+    texto = f'{Decimal(valor):,.2f}'
+    return 'R$ ' + texto.replace(',', 'X').replace('.', ',').replace('X', '.')
+
+
+def _centavos(valor):
+    try:
+        return Decimal(str(valor)) / 100 if valor not in (None, '') else None
+    except (InvalidOperation, ValueError):
+        return None
+
+
+def _dt(d):
+    return d.strftime('%d/%m/%Y') if d else '—'
+
+
+def _cartao_cielo(dados):
+    mascarado = str(dados.get('payment_maskedcreditcard') or dados.get('cardMaskedNumber') or '')
+    bandeira = BANDEIRAS_CIELO.get(str(dados.get('payment_method_brand') or ''))
+    if not bandeira:
+        b = dados.get('brand')
+        bandeira = b if b and b != 'Undefined' else None
+    final = mascarado[-4:] if len(mascarado) >= 4 and mascarado[-4:].isdigit() else None
+    if final and bandeira:
+        return f'cartão final {final} ({bandeira})'
+    if final:
+        return f'cartão final {final}'
+    return f'bandeira {bandeira}' if bandeira else None
+
+
+def _cartao_asaas(pagamento):
+    cartao = pagamento.get('creditCard') or {}
+    final = cartao.get('creditCardNumber')
+    bandeira = cartao.get('creditCardBrand')
+    if final and bandeira:
+        return f'cartão final {final} ({bandeira})'
+    return f'cartão final {final}' if final else None
+
+
+def _motivo_no_aviso(dados):
+    achados = [f'{k}={v}' for k, v in (dados or {}).items()
+               if k.lower().replace('_', '') in CAMPOS_MOTIVO_AVISO and v not in (None, '')]
+    return '; '.join(achados) if achados else None
+
+
+def _aluno_txt(aluno):
+    return f'{aluno.nome} (#{aluno.id})' if aluno else 'aluno não identificado'
+
+
+def _ref(ctx):
+    partes = []
+    if ctx.get('order_number'):
+        partes.append(f'pedido {ctx["order_number"]}')
+    if ctx.get('chave'):
+        partes.append(f'chave {ctx["chave"]}')
+    if ctx.get('cartao'):
+        partes.append(ctx['cartao'])
+    return ', '.join(partes) if partes else 'sem identificação do pedido'
+
+
+def _arq(gateway, mensagem, nivel='info'):
+    """Linha no servico.log. NUNCA passar nome/e-mail/telefone/CPF/cartão."""
+    getattr(current_app.logger, nivel)(f'[pagamentos] {gateway}: {mensagem}')
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# Webhook Cielo — SEM autenticação (limitação do produto)
 # ─────────────────────────────────────────────────────────────────────────
 
 @bp.route('/webhooks/cielo', methods=['GET', 'POST'])
@@ -535,48 +775,95 @@ def webhook_cielo():
     # notificação (confirmado na doc: "não há implementação de
     # autenticação para o envio de notificações").
     #
-    # IMPORTANTE — corrigido em 02/09/2026: o payload REAL da linha
-    # Checkout Cielo/Link de Pagamento não usa os campos RecurrentPaymentId/
-    # PaymentId/ChangeType (isso era suposição baseada em doc genérica,
-    # nunca confirmada). O payload real, confirmado direto de um webhook
-    # recebido em produção, é:
-    #   {
-    #     "amount": "6000",
-    #     "authorization_code": "997643",
-    #     "brand": "Visa",
-    #     "checkout_cielo_order_number": "644091a088fe4901a4ff",
-    #     "nsu": "024002",
-    #     "order_number": "assin4611788298706",
-    #     "pagador_recurrent_payment_id": "67342290-0bb5-4257-872a-63306ce2f620",
-    #     "payment_status": "2",
-    #     "test_transaction": "False"
-    #   }
-    # Isso explicou uma falha real em produção: pagamentos confirmados de
-    # verdade nunca eram processados porque o parsing antigo não reconhecia
-    # nenhum campo desse payload.
+    # Payload REAL (Checkout Cielo / Link de Pagamento, recorrência). Os
+    # campos RecurrentPaymentId/PaymentId/ChangeType da doc genérica NÃO
+    # existem nesta linha de produto (corrigido em 02/09/2026).
     #
-    # NOTA DE SEGURANÇA: idealmente faríamos uma consulta ativa antes de
-    # confiar nisso (como fazemos, em teoria, no desenho original), mas não
-    # temos ainda um endpoint de consulta confirmado para essa linha de
-    # produto. Por ora confiamos no payload diretamente — reavaliar quando
-    # tivermos a consulta confirmada.
+    # v1.7.2 — confirmado com dados de produção: a Cielo manda DOIS avisos
+    # por cobrança, no mesmo endpoint, com 1-5 s de intervalo:
+    #   completo:
+    #   {"nsu": "051002", "tid": "28769360595NP9TK55HE", "amount": "6000",
+    #    "end_date": "08/10/2027 00:00:00", "interval": "Mensal",
+    #    "product_id": "<link id>", "start_date": "09/11/2026 11:28:30",
+    #    "created_date": "11/11/2026 03:45:43", "order_number": "assin3131789133860",
+    #    "product_type": "5", "shipping_type": "5", "payment_status": "2",
+    #    "shipping_price": "0", "recurrent_status": "Ativa", "test_transaction": "False",
+    #    "authorization_code": "011173", "payment_method_type": "1",
+    #    "product_description": "...", "payment_installments": "1",
+    #    "payment_method_brand": "1", "customer_identity_type": "0",
+    #    "meucheckout_order_number": "a02c1169a9e34c62882c37f2e3ba8c7f",
+    #    "payment_maskedcreditcard": "415275******2128",
+    #    "pagador_recurrent_payment_id": "ec6f46ce-5425-4df3-a9d3-60ac9d0e2c02"}
+    #   curto (1-2 s depois):
+    #   {"nsu": "051002", "brand": "Undefined", "amount": "6000",
+    #    "order_number": "assin3131789133860", "payment_status": "2",
+    #    "test_transaction": "False", "authorization_code": "011173",
+    #    "meucheckout_order_number": "a02c1169a9e34c62882c37f2e3ba8c7f",
+    #    "pagador_recurrent_payment_id": "ec6f46ce-5425-4df3-a9d3-60ac9d0e2c02"}
+    # Formato antigo (até out/2026): a chave vinha em
+    # "checkout_cielo_order_number" (ex.: "41f28923bd3040fe9cb1"); desde
+    # nov/2026 vem em "meucheckout_order_number". Os dois são aceitos.
+    # Recusa: mesmo formato com "payment_status": "3" e sem authorization_code;
+    # o motivo NÃO vem no aviso (só na consulta GET /v2/orders/{chave}).
+    # created_date é DD/MM/AAAA; start_date/end_date são MM/DD (não usados).
+    #
+    # A chave identifica a cobrança: sem ela o aviso não é processado, e um
+    # aviso repetido com a mesma chave não lança nem conta recusa de novo.
+    #
+    # NOTA DE SEGURANÇA: confiamos no payload (sem autenticação). A
+    # reconciliação horária (reconciliar_cielo) consulta a Cielo e lança
+    # cobranças pagas cujo aviso não chegou.
     if request.is_json:
         dados = request.get_json(silent=True) or {}
     else:
         dados = request.form.to_dict()
 
     order_number = dados.get('order_number')
+    chave = _chave_pedido_cielo(dados)
+    payment_status = dados.get('payment_status')
+
+    _arq('cielo', f'aviso recebido: order_number={order_number} chave={chave} '
+                  f'payment_status={_status_cielo_txt(payment_status)} '
+                  f'recurrent_status={dados.get("recurrent_status") or "-"}')
+    try:
+        resumo, nivel = _webhook_cielo_processar(dados)
+    except Exception as e:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        _arq('cielo', f'resultado: erro ({type(e).__name__}) order_number={order_number} chave={chave}; '
+                      f'respondendo 500 para a Cielo reenviar', 'error')
+        raise
+    _arq('cielo', f'resultado: {resumo} (order_number={order_number} chave={chave})', nivel)
+    return jsonify({'status': 'recebido'}), 200
+
+
+def _webhook_cielo_processar(dados):
+    """Processa o aviso da Cielo. Retorna (resumo sem dados pessoais, nível do servico.log)."""
+    order_number = dados.get('order_number')
     pagador_recurrent_payment_id = dados.get('pagador_recurrent_payment_id')
     payment_status = dados.get('payment_status')
-    checkout_order_number = dados.get('checkout_cielo_order_number')  # identificador único desta cobrança específica
+    chave = _chave_pedido_cielo(dados)
+    status_txt = _status_cielo_txt(payment_status)
 
     _log('webhook_recebido', payload=dados,
-         recurrent_payment_id=pagador_recurrent_payment_id, payment_id_gateway=checkout_order_number)
+         recurrent_payment_id=pagador_recurrent_payment_id, payment_id_gateway=chave,
+         resultado=f'Aviso recebido da Cielo — status {status_txt}, pedido {order_number or "—"}, '
+                   f'chave {chave or "—"}')
 
     if not order_number and not pagador_recurrent_payment_id:
         _log('erro_parsing', nivel='ERROR', payload=dados,
-             resultado='Webhook Cielo sem order_number nem pagador_recurrent_payment_id identificável')
-        return jsonify({'status': 'recebido'}), 200
+             resultado='Aviso da Cielo sem order_number nem pagador_recurrent_payment_id — não processado')
+        return 'ignorado (sem order_number nem pagador_recurrent_payment_id)', 'warning'
+
+    if payment_status in STATUS_CIELO_CONFIRMADO + STATUS_CIELO_NEGADO and not chave:
+        _log('erro_parsing', nivel='ERROR', payload=dados,
+             recurrent_payment_id=pagador_recurrent_payment_id,
+             resultado=f'Aviso sem chave do pedido — não processado (status {status_txt}, pedido '
+                       f'{order_number or "—"}; faltam checkout_cielo_order_number e '
+                       f'meucheckout_order_number)')
+        return 'ignorado (aviso sem chave do pedido)', 'error'
 
     # Prioridade de busca: 1) recurrent_payment_id já vinculado (cobranças
     # subsequentes), 2) order_number (1ª confirmação, vincula pra sempre)
@@ -589,38 +876,85 @@ def webhook_cielo():
         assinatura = AssinaturaRecorrente.query.filter_by(
             order_number=order_number, gateway='cielo'
         ).first()
-        if assinatura and pagador_recurrent_payment_id and not assinatura.recurrent_payment_id:
-            assinatura.recurrent_payment_id = pagador_recurrent_payment_id
 
     if not assinatura:
         _log('erro_parsing', nivel='WARNING', payload=dados,
-             recurrent_payment_id=pagador_recurrent_payment_id,
-             resultado=f'Nenhuma assinatura encontrada para order_number={order_number}')
-        return jsonify({'status': 'recebido'}), 200
+             recurrent_payment_id=pagador_recurrent_payment_id, payment_id_gateway=chave,
+             resultado=f'Assinatura não encontrada para order_number {order_number}')
+        return 'ignorado (assinatura não encontrada)', 'warning'
 
-    # payment_status confirmados (enum padrão de status Cielo):
-    # 1=Authorized, 2=PaymentConfirmed(capturado) -> tratamos como confirmado
-    # 3=Denied, 10=Voided, 13=Aborted -> tratamos como negado
-    if payment_status in ('2',):
-        _processar_pagamento_confirmado(assinatura, checkout_order_number, dados)
-    elif payment_status in ('3', '10', '13'):
-        _processar_pagamento_negado(assinatura, checkout_order_number, dados)
+    # Trava ANTES da checagem de idempotência. Nada pendente na sessão aqui
+    # (o vínculo do recurrent_payment_id é feito depois), então o autoflush
+    # não grava nada antes da trava.
+    assinatura = _travar_assinatura(assinatura.id)
+    if pagador_recurrent_payment_id and not assinatura.recurrent_payment_id:
+        assinatura.recurrent_payment_id = pagador_recurrent_payment_id
+
+    data_cobranca, obs_data = _data_cobranca_cielo(dados)
+    ctx = {
+        'gateway': 'Cielo',
+        'order_number': order_number,
+        'chave': chave,
+        'valor': _centavos(dados.get('amount')),
+        'data_cobranca': data_cobranca,
+        'obs_data': obs_data,
+        'cartao': _cartao_cielo(dados),
+        'motivo': _motivo_no_aviso(dados),
+        'rotulo_negado': 'Cartão recusado',
+        'criado_por': 'cielo_webhook',
+    }
+
+    if payment_status in STATUS_CIELO_CONFIRMADO:
+        codigo, resumo, nivel = _processar_pagamento_confirmado(assinatura, ctx)
+    elif payment_status in STATUS_CIELO_NEGADO:
+        codigo, resumo, nivel = _processar_pagamento_negado(assinatura, ctx)
+        if codigo == 'negado' and payment_status == '3':
+            _completar_motivo_recusa(ctx)
     else:
-        _log('webhook_recebido', nivel='WARNING', recurrent_payment_id=pagador_recurrent_payment_id,
-             resultado=f'payment_status não mapeado: {payment_status}', payload=dados)
+        aluno = assinatura.aluno
+        _log('webhook_recebido', nivel='WARNING', assinatura_recorrente_id=assinatura.id,
+             recurrent_payment_id=pagador_recurrent_payment_id, payment_id_gateway=chave, payload=dados,
+             resultado=f'Aviso com status {status_txt} não tratado automaticamente — '
+                       f'{_aluno_txt(aluno)} — {_ref(ctx)}. Nada foi alterado.')
+        resumo, nivel = f'ignorado (payment_status não mapeado: {payment_status})', 'warning'
 
-    return jsonify({'status': 'recebido'}), 200
+    # Recorrência desativada/cancelada pela Cielo: só registra (decisão manual)
+    recurrent_status = dados.get('recurrent_status')
+    if recurrent_status and str(recurrent_status).strip().lower() != 'ativa':
+        assinatura_id = assinatura.id
+        aluno = assinatura.aluno
+        _log('recorrencia_cielo', nivel='WARNING', assinatura_recorrente_id=assinatura_id,
+             recurrent_payment_id=pagador_recurrent_payment_id, payment_id_gateway=chave,
+             resultado=f'Recorrência {recurrent_status} na Cielo — {_aluno_txt(aluno)}, '
+                       f'pedido {order_number or "—"}. O status da assinatura no GymFlow NÃO foi '
+                       f'alterado (decisão manual).')
+        _arq('cielo', f'recorrência {recurrent_status} na Cielo: assinatura_id={assinatura_id} '
+                      f'aluno_id={aluno.id if aluno else "-"} order_number={order_number}', 'warning')
+
+    return resumo, nivel
 
 
-def _processar_pagamento_confirmado(assinatura, payment_id, detalhe):
-    # Deduplicação: se esse payment_id já foi lançado, não faz nada de novo
+def _processar_pagamento_confirmado(assinatura, ctx):
+    """Lança o pagamento e ajusta o vencimento. Chamado com a assinatura
+    TRAVADA (webhook Cielo/Asaas e reconciliação).
+    Retorna (codigo, resumo sem dados pessoais, nível do servico.log);
+    codigo: 'lancado' | 'lancado_cancelada' | 'duplicado'."""
+    payment_id = ctx.get('chave')
+    assinatura_id = assinatura.id
+
+    # Idempotência: essa cobrança já foi lançada (sob a trava, então o
+    # outro aviso da mesma cobrança já terminou)
     if payment_id and Pagamento.query.filter_by(payment_id_gateway=payment_id).first():
-        _log('pagamento_lancado', nivel='INFO', assinatura_recorrente_id=assinatura.id,
-             payment_id_gateway=payment_id, resultado='Já processado anteriormente (idempotência)')
-        return
+        _log('pagamento_lancado', nivel='INFO', assinatura_recorrente_id=assinatura_id,
+             payment_id_gateway=payment_id,
+             resultado=f'Aviso repetido ignorado (já processado) — {_ref(ctx)}')
+        return 'duplicado', f'duplicado (já processado) assinatura_id={assinatura_id}', 'info'
 
     aluno = assinatura.aluno
+    aluno_id, aluno_txt = aluno.id, _aluno_txt(aluno)
     hoje = date.today()
+    valor_txt = _reais(ctx.get('valor') if ctx.get('valor') is not None else assinatura.valor_mensal)
+    data_cobranca = ctx['data_cobranca']
 
     # Proteção crítica: a Cielo confirma que desativar uma recorrência NÃO
     # cancela uma cobrança que já estava em trânsito naquele momento — ela
@@ -630,67 +964,296 @@ def _processar_pagamento_confirmado(assinatura, payment_id, detalhe):
     ja_cancelada = assinatura.status in ('cancelada', 'expirada_cartao')
 
     pagamento = Pagamento(
-        aluno_id=aluno.id,
+        aluno_id=aluno_id,
         valor=assinatura.valor_mensal,
         forma_pagamento='cartao_recorrente',
         status='pago',
         data_vencimento=aluno.vencimento or hoje,
         data_pagamento=hoje,
         referencia=assinatura.recurrent_payment_id,
-        criado_por='cielo_webhook',
+        criado_por=ctx.get('criado_por', 'cielo_webhook'),
         origem='recorrente_gateway',
-        assinatura_recorrente_id=assinatura.id,
+        assinatura_recorrente_id=assinatura_id,
         payment_id_gateway=payment_id,
         observacao='Cobrança já autorizada antes do cancelamento — processada tardiamente.' if ja_cancelada else None,
     )
+
+    venc_anterior = aluno.vencimento
+    if not ja_cancelada:
+        # v1.7.2 — regra que não acumula: vencimento = data da cobrança + 1
+        # mês, só se for MAIOR que o atual. Aviso repetido/atrasado da mesma
+        # cobrança nunca empurra além de 1 mês após a cobrança.
+        candidato = _avancar_data(data_cobranca, meses=1)
+        if venc_anterior is None or candidato > venc_anterior:
+            aluno.vencimento = candidato
+        aluno.ativo = True
+        assinatura.tentativas_negadas = 0
+        assinatura.status = 'ativa'
+        assinatura.proxima_cobranca = aluno.vencimento
+    venc_novo = aluno.vencimento
+
     db.session.add(pagamento)
+    try:
+        db.session.commit()
+    except IntegrityError as e:
+        # Índice único uq_pagamentos_payment_id_gateway: outro processo
+        # lançou a mesma cobrança (ex.: mesma chave em outra assinatura)
+        if 'uq_pagamentos_payment_id_gateway' not in str(e):
+            raise
+        db.session.rollback()
+        _log('pagamento_lancado', nivel='INFO', assinatura_recorrente_id=assinatura_id,
+             payment_id_gateway=payment_id,
+             resultado=f'Aviso repetido ignorado (já processado) — {_ref(ctx)}')
+        return 'duplicado', f'duplicado (já processado, índice único) assinatura_id={assinatura_id}', 'info'
+
+    prefixo = ctx.get('prefixo') or 'Pagamento confirmado'
+    obs = f'; data da cobrança: {ctx["obs_data"]}' if ctx.get('obs_data') else ''
 
     if ja_cancelada:
         # Dinheiro é real e precisa aparecer no Financeiro, mas NÃO
         # reativamos a assinatura nem mexemos no vencimento automaticamente
         # — quem decide o que fazer com esse pagamento tardio é a recepção.
-        db.session.commit()
-        _log('pagamento_lancado', nivel='WARNING', assinatura_recorrente_id=assinatura.id,
+        _log('pagamento_lancado', nivel='WARNING', assinatura_recorrente_id=assinatura_id,
              payment_id_gateway=payment_id,
-             resultado='Pagamento confirmado numa assinatura JÁ CANCELADA — lançado no Financeiro, '
-                        'mas status/vencimento NÃO foram alterados automaticamente. Revisar manualmente.')
-        return
+             resultado=f'{prefixo} numa assinatura JÁ CANCELADA — {aluno_txt}, {valor_txt}, cobrado em '
+                       f'{_dt(data_cobranca)}. Lançado no Financeiro, mas status/vencimento NÃO foram '
+                       f'alterados automaticamente. Revisar manualmente — {_ref(ctx)}{obs}')
+        return ('lancado_cancelada',
+                f'lançado em assinatura cancelada (vencimento não alterado) assinatura_id={assinatura_id} '
+                f'aluno_id={aluno_id}', 'warning')
 
-    # Avança o vencimento do aluno automaticamente — mesma fonte de verdade
-    # que o fluxo manual já usa para controle de acesso
-    base = aluno.vencimento if aluno.vencimento and aluno.vencimento >= hoje else hoje
-    aluno.vencimento = _avancar_data(base, meses=1)
-    aluno.ativo = True
-
-    assinatura.tentativas_negadas = 0
-    assinatura.status = 'ativa'
-    assinatura.proxima_cobranca = aluno.vencimento
-
-    db.session.commit()
-
-    _log('pagamento_lancado', assinatura_recorrente_id=assinatura.id,
-         payment_id_gateway=payment_id,
-         resultado=f'Pagamento confirmado. Novo vencimento: {aluno.vencimento}')
+    if venc_novo != venc_anterior:
+        venc_txt = f'Novo vencimento: {_dt(venc_novo)} (antes {_dt(venc_anterior)})'
+    else:
+        venc_txt = f'vencimento mantido em {_dt(venc_anterior)} (já cobria esta cobrança)'
+    _log('pagamento_lancado', assinatura_recorrente_id=assinatura_id, payment_id_gateway=payment_id,
+         resultado=f'{prefixo} — {aluno_txt}, {valor_txt}, cobrado em {_dt(data_cobranca)}; '
+                   f'{venc_txt} — {_ref(ctx)}{obs}')
+    return ('lancado',
+            f'lançado assinatura_id={assinatura_id} aluno_id={aluno_id} vencimento {venc_anterior} -> {venc_novo}',
+            'info')
 
 
-def _processar_pagamento_negado(assinatura, payment_id, detalhe):
+def _processar_pagamento_negado(assinatura, ctx):
+    """Conta a tentativa negada UMA vez por chave do pedido. Chamado com a
+    assinatura TRAVADA. A recusa contada fica registrada no log com
+    tipo_evento 'tentativa_negada' e payment_id_gateway = chave; um aviso
+    repetido da mesma cobrança encontra esse registro e não conta de novo.
+    Retorna (codigo, resumo, nível); codigo: 'negado' | 'duplicado' | 'ignorado'."""
+    payment_id = ctx.get('chave')
+    assinatura_id = assinatura.id
+
+    if not payment_id:
+        _log('erro_parsing', nivel='ERROR', assinatura_recorrente_id=assinatura_id,
+             resultado=f'Aviso sem chave do pedido — não processado (recusa não contada) — {_ref(ctx)}')
+        return 'ignorado', 'ignorado (recusa sem chave do pedido)', 'error'
+
+    if LogIntegracaoPagamento.query.filter_by(tipo_evento='tentativa_negada',
+                                              payment_id_gateway=payment_id).first():
+        _log('pagamento_lancado', nivel='INFO', assinatura_recorrente_id=assinatura_id,
+             payment_id_gateway=payment_id,
+             resultado=f'Aviso repetido ignorado (recusa já contada) — {_ref(ctx)}')
+        return 'duplicado', f'duplicado (recusa já contada) assinatura_id={assinatura_id}', 'info'
+
+    aluno = assinatura.aluno
+    aluno_txt = _aluno_txt(aluno)
+    valor_txt = _reais(ctx.get('valor') if ctx.get('valor') is not None else assinatura.valor_mensal)
+
     assinatura.tentativas_negadas += 1
     assinatura.data_ultima_negativa = db.func.now()
+    tentativas = assinatura.tentativas_negadas
 
     max_tentativas = current_app.config.get('RECORRENCIA_MAX_TENTATIVAS_NEGADAS', 4)
 
-    if assinatura.tentativas_negadas >= max_tentativas:
-        assinatura.status = 'bloqueada_inadimplencia'
-        assinatura.aluno.ativo = False
-        _log('pagamento_lancado', nivel='WARNING', assinatura_recorrente_id=assinatura.id,
-             payment_id_gateway=payment_id,
-             resultado=f'{max_tentativas}ª tentativa negada — aluno bloqueado')
-    else:
-        _log('pagamento_lancado', nivel='WARNING', assinatura_recorrente_id=assinatura.id,
-             payment_id_gateway=payment_id,
-             resultado=f'Tentativa {assinatura.tentativas_negadas}/{max_tentativas} negada')
+    motivo = ctx.get('motivo') or TEXTO_SEM_MOTIVO.format(gateway=ctx.get('gateway', 'Cielo'))
+    frase = (f'{ctx.get("rotulo_negado", "Cartão recusado")} — {aluno_txt}, {valor_txt}, cobrança de '
+             f'{_dt(ctx.get("data_cobranca"))}; tentativa {tentativas}/{max_tentativas}; {motivo} — {_ref(ctx)}')
 
-    db.session.commit()
+    bloqueado = tentativas >= max_tentativas
+    if bloqueado:
+        assinatura.status = 'bloqueada_inadimplencia'
+        aluno.ativo = False
+        frase = f'Aluno bloqueado após {max_tentativas}ª recusa — {aluno_txt}. {frase}'
+
+    marcador = LogIntegracaoPagamento(
+        tipo_evento='tentativa_negada', nivel='WARNING', resultado=frase,
+        assinatura_recorrente_id=assinatura_id,
+        recurrent_payment_id=assinatura.recurrent_payment_id,
+        payment_id_gateway=payment_id,
+        ip_origem=request.remote_addr if has_request_context() else None,
+    )
+    db.session.add(marcador)
+    db.session.commit()   # contagem + registro da recusa juntos
+
+    ctx['log_recusa_id'] = marcador.id
+    ctx['frase_recusa'] = frase
+    resumo = (f'tentativa negada {tentativas}/{max_tentativas}' + (' — aluno bloqueado' if bloqueado else '')
+              + f' assinatura_id={assinatura_id} aluno_id={aluno.id}')
+    return 'negado', resumo, 'warning'
+
+
+def _completar_motivo_recusa(ctx):
+    """Depois do commit da recusa: consulta GET /v2/orders/{chave} (timeout
+    5 s) e troca 'motivo não informado' pelo motivo do errorCode. Qualquer
+    falha mantém o texto original. Nada aqui altera regra de negócio."""
+    log_id, chave = ctx.get('log_recusa_id'), ctx.get('chave')
+    if not log_id or not chave or ctx.get('motivo'):
+        return
+    if not (current_app.config.get('CIELO_CLIENT_ID') and current_app.config.get('CIELO_CLIENT_SECRET')):
+        return
+    try:
+        pedido = cielo_client.consultar_pedido(chave, timeout=5)
+        codigo = str(((pedido or {}).get('payment') or {}).get('errorCode') or '').strip()
+        if not codigo:
+            return
+        descricao = MOTIVOS_RECUSA.get(codigo.upper())
+        motivo = f'motivo: {descricao} (código {codigo})' if descricao else f'motivo: código {codigo}'
+        log = db.session.get(LogIntegracaoPagamento, log_id)
+        if log and log.resultado:
+            log.resultado = log.resultado.replace(TEXTO_SEM_MOTIVO.format(gateway='Cielo'), motivo)
+            db.session.commit()
+        _arq('cielo', f'motivo da recusa (chave={chave}): código {codigo}')
+    except Exception as e:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        _arq('cielo', f'motivo da recusa indisponível (chave={chave}): {type(e).__name__}', 'warning')
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# Reconciliação com a Cielo (job horário em backup_scheduler.py)
+# Lança cobranças PAGAS na Cielo cujo aviso não chegou (ex.: falha na
+# madrugada), pelo mesmo caminho do webhook (trava + índice único + regra
+# de vencimento).
+# ─────────────────────────────────────────────────────────────────────────
+
+def reconciliar_cielo():
+    """Uma rodada. Precisa de app context (o job do APScheduler abre um).
+    Retorna o dict de contagens."""
+    cont = {'consultadas': 0, 'lancadas': 0, 'avisos': 0, 'erros': 0}
+    if not (current_app.config.get('CIELO_CLIENT_ID') and current_app.config.get('CIELO_CLIENT_SECRET')):
+        return cont
+
+    current_app.logger.info('[pagamentos] reconciliação Cielo: início da rodada')
+    limite = _hoje_local() - timedelta(days=RECONCILIACAO_DIAS)
+    ids = [a.id for a in AssinaturaRecorrente.query.filter(
+        AssinaturaRecorrente.gateway == 'cielo',
+        AssinaturaRecorrente.status.in_(STATUS_RECONCILIACAO),
+        AssinaturaRecorrente.link_pagamento_id.isnot(None),
+    ).order_by(AssinaturaRecorrente.id).all()]
+    db.session.rollback()   # não segura transação durante as chamadas HTTP
+
+    for assinatura_id in ids:
+        try:
+            assinatura = db.session.get(AssinaturaRecorrente, assinatura_id)
+            link_id = assinatura.link_pagamento_id
+            db.session.rollback()
+            try:
+                resposta = cielo_client.listar_pagamentos_link(link_id, timeout=15)
+            except Exception as e:
+                cont['erros'] += 1
+                _log('erro_comunicacao', nivel='ERROR', assinatura_recorrente_id=assinatura_id,
+                     resultado=f'Reconciliação: falha ao consultar as cobranças do link na Cielo '
+                               f'({type(e).__name__}: {str(e)[:200]})')
+                current_app.logger.error(f'[pagamentos] reconciliação Cielo: erro ao consultar '
+                                         f'assinatura_id={assinatura_id}: {type(e).__name__}')
+                continue
+            cont['consultadas'] += 1
+
+            for order in (resposta or {}).get('orders') or []:
+                pagamento_cielo = order.get('payment') or {}
+                chave = order.get('orderNumber')
+                criado = _data_iso(pagamento_cielo.get('createdDate') or order.get('createdDate'))
+                if not chave or not criado or criado < limite:
+                    continue
+                if pagamento_cielo.get('status') != 'Paid':
+                    continue   # Denied, Pending, Expired, Voided...: não lança
+                codigo = _reconciliar_cobranca_paga(assinatura_id, str(chave), pagamento_cielo, criado)
+                if codigo == 'lancado' or codigo == 'lancado_cancelada':
+                    cont['lancadas'] += 1
+                elif codigo == 'aviso':
+                    cont['avisos'] += 1
+        except Exception as e:
+            cont['erros'] += 1
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
+            current_app.logger.error(f'[pagamentos] reconciliação Cielo: erro na assinatura_id='
+                                     f'{assinatura_id}: {type(e).__name__}')
+
+    current_app.logger.info(
+        f'[pagamentos] reconciliação Cielo: fim da rodada — consultadas={cont["consultadas"]} '
+        f'lançadas={cont["lancadas"]} avisos={cont["avisos"]} erros={cont["erros"]}')
+    return cont
+
+
+def _reconciliar_cobranca_paga(assinatura_id, chave, pagamento_cielo, data_cobranca):
+    """Retorna 'existe' | 'aviso' | 'aviso_repetido' | código de _processar_pagamento_confirmado."""
+    if Pagamento.query.filter_by(payment_id_gateway=chave).first():
+        db.session.rollback()
+        return 'existe'
+
+    assinatura = _travar_assinatura(assinatura_id)
+    # De novo, sob a trava: o webhook pode ter lançado enquanto esperávamos
+    if Pagamento.query.filter_by(payment_id_gateway=chave).first():
+        db.session.rollback()
+        return 'existe'
+
+    # Proteção: pagamento já lançado SEM chave (versões antigas) ou lançamento
+    # manual pago do mesmo aluno perto da data da cobrança → não lança
+    janela = timedelta(days=RECONCILIACAO_JANELA_SEM_CHAVE)
+    inicio, fim = data_cobranca - janela, data_cobranca + janela
+    suspeito = Pagamento.query.filter(
+        db.or_(
+            db.and_(Pagamento.assinatura_recorrente_id == assinatura.id,
+                    Pagamento.origem == 'recorrente_gateway',
+                    Pagamento.payment_id_gateway.is_(None)),
+            db.and_(Pagamento.aluno_id == assinatura.aluno_id,
+                    Pagamento.origem != 'recorrente_gateway',
+                    Pagamento.status == 'pago'),
+        ),
+        db.or_(Pagamento.data_pagamento.between(inicio, fim),
+               db.func.date(Pagamento.criado_em).between(inicio, fim)),
+    ).order_by(Pagamento.id).first()
+
+    ctx = {
+        'gateway': 'Cielo',
+        'order_number': assinatura.order_number,
+        'chave': chave,
+        'valor': _centavos(pagamento_cielo.get('price')),
+        'data_cobranca': data_cobranca,
+        'obs_data': None,
+        'cartao': None,
+        'motivo': None,
+        'criado_por': 'cielo_reconciliacao',
+        'prefixo': 'Pagamento recuperado pela consulta à Cielo (o aviso não chegou)',
+    }
+
+    if suspeito:
+        aluno = assinatura.aluno
+        aluno_txt = _aluno_txt(aluno)
+        existente = (f'lançamento #{suspeito.id} de {_dt(suspeito.data_pagamento or suspeito.criado_em)}, '
+                     f'{_reais(suspeito.valor)}, origem {suspeito.origem}')
+        db.session.rollback()   # libera a trava
+        if LogIntegracaoPagamento.query.filter_by(tipo_evento='reconciliacao_conferir',
+                                                  payment_id_gateway=chave).first():
+            db.session.rollback()
+            return 'aviso_repetido'
+        _log('reconciliacao_conferir', nivel='WARNING', assinatura_recorrente_id=assinatura_id,
+             payment_id_gateway=chave,
+             resultado=f'Cobrança paga na Cielo sem chave correspondente no GymFlow — possível lançamento '
+                       f'já existente sem chave; conferir (pedido {chave}, aluno {aluno_txt}, '
+                       f'{_reais(ctx["valor"])}, cobrado em {_dt(data_cobranca)}; {existente}). '
+                       f'Nada foi lançado.')
+        current_app.logger.warning(f'[pagamentos] reconciliação Cielo: conferir chave={chave} '
+                                   f'assinatura_id={assinatura_id} (possível lançamento sem chave)')
+        return 'aviso'
+
+    codigo, resumo, nivel = _processar_pagamento_confirmado(assinatura, ctx)
+    _arq('cielo', f'reconciliação: {resumo} chave={chave}', nivel)
+    return codigo
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -701,20 +1264,39 @@ def _processar_pagamento_negado(assinatura, payment_id, detalhe):
 @asaas_webhook_auth_required
 def webhook_asaas():
     dados = request.get_json(silent=True) or {}
-
     evento = dados.get('event')
-    pagamento = dados.get('payment', {})
+    payment_id = (dados.get('payment') or {}).get('id')
+
+    _arq('asaas', f'aviso recebido: evento={evento} payment_id={payment_id} '
+                  f'subscription={(dados.get("payment") or {}).get("subscription")}')
+    try:
+        resumo, nivel = _webhook_asaas_processar(dados)
+    except Exception as e:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        _arq('asaas', f'resultado: erro ({type(e).__name__}) payment_id={payment_id}; respondendo 500', 'error')
+        raise
+    _arq('asaas', f'resultado: {resumo} (payment_id={payment_id})', nivel)
+    return jsonify({'status': 'recebido'}), 200
+
+
+def _webhook_asaas_processar(dados):
+    evento = dados.get('event')
+    pagamento = dados.get('payment') or {}
     payment_id = pagamento.get('id')
     subscription_id = pagamento.get('subscription')   # ID da assinatura (só existe após 1ª cobrança confirmada)
     payment_link_id = pagamento.get('paymentLink')     # ID do link original — é o que salvamos em link_pagamento_id
 
     _log('webhook_recebido', payload=dados,
-         recurrent_payment_id=subscription_id, payment_id_gateway=payment_id)
+         recurrent_payment_id=subscription_id, payment_id_gateway=payment_id,
+         resultado=f'Aviso recebido da Asaas — evento {evento}, pagamento {payment_id or "—"}')
 
     if not payment_id:
         _log('erro_parsing', nivel='ERROR', payload=dados,
-             resultado='Webhook Asaas sem payment.id identificável')
-        return jsonify({'status': 'recebido'}), 200
+             resultado='Aviso da Asaas sem payment.id identificável — não processado')
+        return 'ignorado (sem payment.id)', 'error'
 
     # Diferente da Cielo, a Asaas já manda o payload completo — não é
     # necessário consultar ativamente antes de processar. Localizamos a
@@ -725,6 +1307,7 @@ def webhook_asaas():
     #      salvamos como link_pagamento_id na criação)
     #   3. Por payment_id já registrado em Pagamento (fallback)
     assinatura = None
+    vincular_subscription = False
     if subscription_id:
         assinatura = AssinaturaRecorrente.query.filter_by(
             recurrent_payment_id=subscription_id, gateway='asaas'
@@ -733,30 +1316,55 @@ def webhook_asaas():
         assinatura = AssinaturaRecorrente.query.filter_by(
             link_pagamento_id=payment_link_id, gateway='asaas'
         ).first()
-        # Primeira confirmação dessa assinatura — grava o subscription_id
-        # de verdade, pra buscas futuras (e pro cancelamento saber que já
-        # existe assinatura real, não só um link pendente).
-        if assinatura and subscription_id and not assinatura.recurrent_payment_id:
-            assinatura.recurrent_payment_id = subscription_id
+        vincular_subscription = True
     if not assinatura:
         pagamento_existente = Pagamento.query.filter_by(payment_id_gateway=payment_id).first()
         if pagamento_existente:
             assinatura = pagamento_existente.assinatura_recorrente
 
     if not assinatura:
-        _log('erro_parsing', nivel='WARNING', payment_id_gateway=payment_id,
-             resultado='Evento Asaas não corresponde a nenhuma assinatura conhecida', payload=dados)
-        return jsonify({'status': 'recebido'}), 200
+        _log('erro_parsing', nivel='WARNING', payment_id_gateway=payment_id, payload=dados,
+             resultado=f'Assinatura não encontrada para o pagamento Asaas {payment_id} (evento {evento})')
+        return 'ignorado (assinatura não encontrada)', 'warning'
+
+    # Trava antes da idempotência (ver webhook Cielo)
+    assinatura = _travar_assinatura(assinatura.id)
+    # Primeira confirmação dessa assinatura — grava o subscription_id
+    # de verdade, pra buscas futuras (e pro cancelamento saber que já
+    # existe assinatura real, não só um link pendente).
+    if vincular_subscription and subscription_id and not assinatura.recurrent_payment_id:
+        assinatura.recurrent_payment_id = subscription_id
+
+    data_cobranca, obs_data = _data_cobranca_asaas(pagamento)
+    valor = pagamento.get('value')
+    try:
+        valor = Decimal(str(valor)) if valor is not None else None
+    except (InvalidOperation, ValueError):
+        valor = None
+    ctx = {
+        'gateway': 'Asaas',
+        'order_number': None,
+        'chave': payment_id,
+        'valor': valor,
+        'data_cobranca': data_cobranca,
+        'obs_data': obs_data,
+        'cartao': _cartao_asaas(pagamento),
+        'motivo': _motivo_no_aviso(pagamento),
+        'rotulo_negado': f'Cobrança não paga ({evento})',
+        'criado_por': 'cielo_webhook',   # valor histórico mantido (era o mesmo para a Asaas)
+    }
 
     eventos_confirmados = ('PAYMENT_CONFIRMED', 'PAYMENT_RECEIVED')
     eventos_negados = ('PAYMENT_OVERDUE', 'PAYMENT_DELETED', 'PAYMENT_REFUSED')
 
     if evento in eventos_confirmados:
-        _processar_pagamento_confirmado(assinatura, payment_id, pagamento)
+        _, resumo, nivel = _processar_pagamento_confirmado(assinatura, ctx)
     elif evento in eventos_negados:
-        _processar_pagamento_negado(assinatura, payment_id, pagamento)
+        _, resumo, nivel = _processar_pagamento_negado(assinatura, ctx)
     else:
-        _log('webhook_recebido', nivel='WARNING', payment_id_gateway=payment_id,
-             resultado=f'Evento Asaas não mapeado: {evento}', payload=dados)
-
-    return jsonify({'status': 'recebido'}), 200
+        _log('webhook_recebido', nivel='WARNING', assinatura_recorrente_id=assinatura.id,
+             payment_id_gateway=payment_id, payload=dados,
+             resultado=f'Evento Asaas não mapeado: {evento} — {_aluno_txt(assinatura.aluno)}, '
+                       f'pagamento {payment_id}. Nada foi alterado.')
+        resumo, nivel = f'ignorado (evento não mapeado: {evento})', 'warning'
+    return resumo, nivel

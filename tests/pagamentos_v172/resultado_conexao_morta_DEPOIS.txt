@@ -1,0 +1,37 @@
+== Conexao morta (pg_terminate_backend) ==
+  rodada 1: 5 conexao(oes) do app encerradas; 1 aviso(s) seguidos
+    HTTP 200, pagamentos gravados=1 -> OK
+  rodada 2: 5 conexao(oes) do app encerradas; 5 aviso(s) seguidos
+    HTTP 200, pagamentos gravados=1 -> OK
+    HTTP 200, pagamentos gravados=1 -> OK
+    HTTP 200, pagamentos gravados=1 -> OK
+    HTTP 200, pagamentos gravados=1 -> OK
+    HTTP 200, pagamentos gravados=1 -> OK
+  rodada 3: 5 conexao(oes) do app encerradas; 1 aviso(s) seguidos
+    HTTP 200, pagamentos gravados=1 -> OK
+  rodada 4: 5 conexao(oes) do app encerradas; 5 aviso(s) seguidos (matando as conexoes antes de cada aviso)
+    HTTP 200, pagamentos gravados=1 -> OK
+    +3 encerradas
+    HTTP 200, pagamentos gravados=1 -> OK
+    +3 encerradas
+    HTTP 200, pagamentos gravados=1 -> OK
+    +3 encerradas
+    HTTP 200, pagamentos gravados=1 -> OK
+    +3 encerradas
+    HTTP 200, pagamentos gravados=1 -> OK
+  rodada 5: 5 conexao(oes) do app encerradas; 5 aviso(s) seguidos
+    HTTP 200, pagamentos gravados=1 -> OK
+    HTTP 200, pagamentos gravados=1 -> OK
+    HTTP 200, pagamentos gravados=1 -> OK
+    HTTP 200, pagamentos gravados=1 -> OK
+    HTTP 200, pagamentos gravados=1 -> OK
+  rodada 6: 5 conexao(oes) do app encerradas; 3 aviso(s) seguidos (matando as conexoes antes de cada aviso)
+    HTTP 200, pagamentos gravados=1 -> OK
+    +3 encerradas
+    HTTP 200, pagamentos gravados=1 -> OK
+    +3 encerradas
+    HTTP 200, pagamentos gravados=1 -> OK
+  rodada paralela: 3 conexoes encerradas; 6 avisos simultaneos; codigos=[200, 200, 200, 200, 200, 200]
+  [OK]   26/26 avisos processados na primeira tentativa
+
+RESULTADO: TUDO OK

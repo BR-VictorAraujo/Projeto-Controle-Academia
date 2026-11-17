@@ -1,0 +1,37 @@
+== Conexao morta (pg_terminate_backend) ==
+  rodada 1: 5 conexao(oes) do app encerradas; 1 aviso(s) seguidos
+    HTTP 500, pagamentos gravados=0 -> FALHOU
+  rodada 2: 5 conexao(oes) do app encerradas; 5 aviso(s) seguidos
+    HTTP 500, pagamentos gravados=0 -> FALHOU
+    HTTP 200, pagamentos gravados=1 -> OK
+    HTTP 200, pagamentos gravados=1 -> OK
+    HTTP 200, pagamentos gravados=1 -> OK
+    HTTP 200, pagamentos gravados=1 -> OK
+  rodada 3: 5 conexao(oes) do app encerradas; 1 aviso(s) seguidos
+    HTTP 500, pagamentos gravados=0 -> FALHOU
+  rodada 4: 5 conexao(oes) do app encerradas; 5 aviso(s) seguidos (matando as conexoes antes de cada aviso)
+    HTTP 500, pagamentos gravados=0 -> FALHOU
+    +0 encerradas
+    HTTP 200, pagamentos gravados=1 -> OK
+    +3 encerradas
+    HTTP 500, pagamentos gravados=1 -> FALHOU
+    +2 encerradas
+    HTTP 200, pagamentos gravados=1 -> OK
+    +3 encerradas
+    HTTP 500, pagamentos gravados=1 -> FALHOU
+  rodada 5: 5 conexao(oes) do app encerradas; 5 aviso(s) seguidos
+    HTTP 500, pagamentos gravados=0 -> FALHOU
+    HTTP 200, pagamentos gravados=1 -> OK
+    HTTP 200, pagamentos gravados=1 -> OK
+    HTTP 200, pagamentos gravados=1 -> OK
+    HTTP 200, pagamentos gravados=1 -> OK
+  rodada 6: 5 conexao(oes) do app encerradas; 3 aviso(s) seguidos (matando as conexoes antes de cada aviso)
+    HTTP 500, pagamentos gravados=0 -> FALHOU
+    +0 encerradas
+    HTTP 200, pagamentos gravados=1 -> OK
+    +3 encerradas
+    HTTP 500, pagamentos gravados=1 -> FALHOU
+  rodada paralela: 2 conexoes encerradas; 6 avisos simultaneos; codigos=[200, 200, 200, 200, 200, 200]
+  [FALHA] 17/26 avisos processados na primeira tentativa
+
+RESULTADO: 1 FALHA(S)

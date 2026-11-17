@@ -1,0 +1,23 @@
+  [OK]   login HTTP 302
+== Tela de logs ==
+  [OK]   busca "Aluno Teste V172 7590209975": HTTP 200, frase legivel presente
+  [OK]   busca "407": HTTP 200, frase legivel presente
+  [OK]   busca "#407": HTTP 200, frase legivel presente
+  [OK]   busca "assin7590209975": HTTP 200, frase legivel presente
+  [OK]   filtro WARNING + busca: nao mostra o INFO
+  [OK]   payload exibido sem e-mail, telefone e CPF
+  [OK]   demais campos continuam no payload
+  [OK]   logs sem filtro HTTP 200
+== Recorrencias e ficha ==
+  [OK]   painel de recorrencias HTTP 200
+  [OK]   assinatura do aluno: 200
+== h) Financeiro / pagamento manual ==
+  [OK]   /financeiro HTTP 200
+  [OK]   registrar pago: HTTP 302, +1 pagamento, vencimento 2027-02-10
+  [OK]   registrar dividido pendente: 2 lancamentos
+  [OK]   confirmar pendente: HTTP 302, status pago
+  [OK]   /financeiro/relatorio-diario HTTP 200
+  [OK]   /financeiro/relatorio-mensal (pdf, com secao recorrente) HTTP 200 application/pdf
+  [OK]   /financeiro/relatorio-mensal (excel, com secao recorrente) HTTP 200 application/pdf
+
+RESULTADO: TUDO OK

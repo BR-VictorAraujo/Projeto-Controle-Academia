@@ -30,6 +30,14 @@ from app.models import LogIntegracaoPagamento
 URL_AUTH = "https://cieloecommerce.cielo.com.br/api/public/v2/token"
 URL_PRODUCTS = "https://cieloecommerce.cielo.com.br/api/public/v1/products/"
 URL_RECURRENT_DEACTIVATE = "https://cieloecommerce.cielo.com.br/api/public/v1/RecurrentPayment/Deactivate/{id}"
+# v1.7.2 -- validadas com chamadas reais em producao (nov/2026):
+#   LINK_PAYMENTS: todas as cobrancas do link, inclusive as mensalidades da
+#     recorrencia ("orders": orderNumber = chave do aviso, payment.status
+#     "Paid"/"Denied", payment.price em centavos, createdDate ISO local).
+#   ORDER: detalhe de uma cobranca (payment.errorCode = motivo da recusa).
+#     A resposta traz dados pessoais do cliente: NUNCA gravar em log.
+URL_LINK_PAYMENTS = "https://cieloecommerce.cielo.com.br/api/public/v1/products/{id}/payments"
+URL_ORDER = "https://cieloecommerce.cielo.com.br/api/public/v2/orders/{id}"
 # TODO CONFIRMAR -- nao localizadas na documentacao consultada ate agora:
 URL_RECURRENT_QUERY = "https://cieloecommerce.cielo.com.br/api/public/v1/RecurrentPayment/{id}"
 URL_RECURRENT_UPDATE_VALUE = "https://cieloecommerce.cielo.com.br/api/public/v1/RecurrentPayment/{id}/Value"
@@ -59,6 +67,11 @@ def _log(tipo_evento, nivel='INFO', resultado=None, payload=None,
         db.session.add(log)
         db.session.commit()
     except Exception as e:
+        # v1.7.2: sem rollback a sessão ficava inválida (PendingRollbackError)
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
         current_app.logger.error(f"Falha ao gravar log_integracao_pagamento: {e}")
 
 
@@ -209,3 +222,29 @@ def desativar_recorrencia(pagador_recurrent_payment_id):
     _log('cancelamento_solicitado', recurrent_payment_id=pagador_recurrent_payment_id,
          resultado='Recorrencia desativada na Cielo (irreversivel)')
     return resp.json() if resp.text else {}
+
+
+def _get_simples(url, timeout, tentativas):
+    """GET com Bearer, sem gravar payload em log (respostas com dados
+    pessoais). Retentativa so em erro de rede. Erros viram CieloClientError."""
+    ultimo_erro = None
+    for _ in range(tentativas):
+        try:
+            resp = requests.get(url, headers=_headers(), timeout=timeout)
+        except requests.exceptions.RequestException as e:
+            ultimo_erro = e
+            continue
+        if resp.status_code >= 400:
+            raise CieloClientError(f"Cielo retornou HTTP {resp.status_code}")
+        return resp.json()
+    raise CieloClientError(f"Falha de comunicacao com a Cielo: {type(ultimo_erro).__name__}")
+
+
+def listar_pagamentos_link(link_pagamento_id, timeout=15):
+    """v1.7.2 -- cobrancas do link (reconciliacao). Uma retentativa em erro de rede."""
+    return _get_simples(URL_LINK_PAYMENTS.format(id=link_pagamento_id), timeout, tentativas=2)
+
+
+def consultar_pedido(order_number, timeout=5):
+    """v1.7.2 -- detalhe da cobranca (motivo da recusa em payment.errorCode)."""
+    return _get_simples(URL_ORDER.format(id=order_number), timeout, tentativas=1)

@@ -50,6 +50,11 @@ def _log(tipo_evento, nivel='INFO', resultado=None, payload=None,
         db.session.add(log)
         db.session.commit()
     except Exception as e:
+        # v1.7.2: sem rollback a sessão ficava inválida (PendingRollbackError)
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
         current_app.logger.error(f"Falha ao gravar log_integracao_pagamento (Asaas): {e}")
 
 
