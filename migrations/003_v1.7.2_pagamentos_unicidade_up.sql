@@ -10,6 +10,9 @@
 --    nunca gera dois lançamentos. Linhas com chave NULL (lançamentos manuais e
 --    antigos) não são afetadas.
 -- 2. Índice ix_log_integracao_pagamento_criado_em (tela de logs ordena por data).
+-- 3. Índice parcial ix_log_integracao_pagamento_payment_id em
+--    log_integracao_pagamento(payment_id_gateway) WHERE payment_id_gateway IS NOT NULL
+--    (checagem de recusa já contada e de aviso de conferência por chave).
 --
 -- Se já houver duas ou mais linhas com a mesma chave não nula, a migração
 -- ABORTA listando as chaves. Nenhum dado é apagado ou alterado.
@@ -56,6 +59,10 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_pagamentos_payment_id_gateway
 CREATE INDEX IF NOT EXISTS ix_log_integracao_pagamento_criado_em
     ON log_integracao_pagamento (criado_em);
 
+CREATE INDEX IF NOT EXISTS ix_log_integracao_pagamento_payment_id
+    ON log_integracao_pagamento (payment_id_gateway)
+    WHERE payment_id_gateway IS NOT NULL;
+
 -- -----------------------------------------------------------------------------
 -- Registro da migração. A versão é o nome do arquivo sem _up.sql: assim o
 -- installer/atualizar_banco.py reconhece a 003 como aplicada e não a roda de novo.
@@ -68,7 +75,7 @@ CREATE TABLE IF NOT EXISTS schema_migracao (
 
 INSERT INTO schema_migracao (versao, descricao)
 VALUES ('003_v1.7.2_pagamentos_unicidade',
-        'Pagamentos: índice único parcial em payment_id_gateway; índice em log_integracao_pagamento(criado_em)')
+        'Pagamentos: índice único parcial em payment_id_gateway; índices em log_integracao_pagamento(criado_em) e (payment_id_gateway)')
 ON CONFLICT (versao) DO NOTHING;
 
 COMMIT;

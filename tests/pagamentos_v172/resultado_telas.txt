@@ -1,9 +1,9 @@
   [OK]   login HTTP 302
 == Tela de logs ==
-  [OK]   busca "Aluno Teste V172 7590209975": HTTP 200, frase legivel presente
-  [OK]   busca "407": HTTP 200, frase legivel presente
-  [OK]   busca "#407": HTTP 200, frase legivel presente
-  [OK]   busca "assin7590209975": HTTP 200, frase legivel presente
+  [OK]   busca "Aluno Teste V172 5023822605": HTTP 200, frase legivel presente
+  [OK]   busca "716": HTTP 200, frase legivel presente
+  [OK]   busca "#716": HTTP 200, frase legivel presente
+  [OK]   busca "assin5023822605": HTTP 200, frase legivel presente
   [OK]   filtro WARNING + busca: nao mostra o INFO
   [OK]   payload exibido sem e-mail, telefone e CPF
   [OK]   demais campos continuam no payload

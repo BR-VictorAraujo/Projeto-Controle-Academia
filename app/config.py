@@ -11,7 +11,9 @@ class Config:
     # v1.7.2: conexões do pool mortas após horas sem uso (madrugada) faziam a
     # primeira requisição falhar. pool_pre_ping testa a conexão antes de usar
     # (e reconecta); pool_recycle descarta conexões com mais de 30 min.
-    SQLALCHEMY_ENGINE_OPTIONS = {'pool_pre_ping': True, 'pool_recycle': 1800}
+    # hide_parameters: a mensagem de erro do banco não traz os valores do
+    # INSERT/UPDATE (payload com CPF, nome etc. não vai para o servico.log).
+    SQLALCHEMY_ENGINE_OPTIONS = {'pool_pre_ping': True, 'pool_recycle': 1800, 'hide_parameters': True}
 
     # Sessão expira em 1 hora sem atividade
     PERMANENT_SESSION_LIFETIME = timedelta(hours=1)

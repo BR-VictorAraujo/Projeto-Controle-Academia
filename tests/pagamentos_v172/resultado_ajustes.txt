@@ -1,0 +1,260 @@
+== 1) reativacao indevida ==
+   1a) bloqueada (4 recusas, ultima em 15/11), aviso Cielo de cobranca de 11/11 (anterior a ultima recusa)
+[2026-11-17 14:29:14,081] WARNING in pagamentos: [pagamentos] cielo: resultado: lançado sem reativar (cobrança anterior à última recusa) assinatura_id=639 aluno_id=741 vencimento 2026-12-11 -> 2027-01-11 (order_number=assin8487912151 chave=8e311709a814b38542178f5390280716)
+  [OK]   lancado sem reativar ({'venc': datetime.date(2027, 1, 11), 'ativo': False, 'status': 'bloqueada_inadimplencia', 'tent': 4, 'pags': 1})
+  [OK]   WARNING: Pagamento antigo lançado; aluno continua bloqueado — conferir. Pagamento confirmado — Aluno Teste V172 8487912151 (#741), R$ 60,00, cobrado em 11/11/2026 (antes da última recusa, 15/11/2026); Novo vencimento: 11/01/2027 (antes 11/12/2026); status, recusas e acesso NÃO foram alterados — pedido assin8487912151, chave 8e311709a814b38542178f5390280716, cartão final 2128 (Visa)
+   1b) bloqueada, cobranca de 16/11 (depois da ultima recusa) e vencimento a frente -> reativa
+  [OK]   reativou; vencimento 20/01 + 1 mes = 20/02/2027 (regra 1.7.2) ({'venc': datetime.date(2027, 2, 20), 'ativo': True, 'status': 'ativa', 'tent': 0, 'pags': 1})
+   1c) bloqueada, cobranca de 11/11 (antes da recusa de 15/11) que avanca o vencimento (10/11 -> 11/12) -> NAO reativa
+[2026-11-17 14:29:14,204] WARNING in pagamentos: [pagamentos] cielo: resultado: lançado sem reativar (cobrança anterior à última recusa) assinatura_id=641 aluno_id=743 vencimento 2026-11-10 -> 2026-12-11 (order_number=assin7757331632 chave=3901ee5f8542d64e6a74eb9ec5d270b8)
+  [OK]   lancado sem reativar, vencimento avancou ({'venc': datetime.date(2026, 12, 11), 'ativo': False, 'status': 'bloqueada_inadimplencia', 'tent': 4, 'pags': 1}); log: Pagamento antigo lançado; aluno continua bloqueado — conferir. Pagamento confirmado — Aluno Teste V172 7757331632 (#743), R$ 60,00, cobrado em 11/11/2026 (antes da última recusa, 15/11/2026); Novo vencimento: 11/12/2026 (antes 10/11/2026); status, recusas e acesso NÃO foram alterados — pedido assin7757331632, chave 3901ee5f8542d64e6a74eb9ec5d270b8, cartão final 2128 (Visa)
+   1d) ativa com 2 recusas (ultima 15/11), pagamento antigo de 11/11 -> recusas mantidas, WARNING
+[2026-11-17 14:29:14,261] WARNING in pagamentos: [pagamentos] cielo: resultado: lançado sem reativar (cobrança anterior à última recusa) assinatura_id=642 aluno_id=744 vencimento 2026-12-11 -> 2027-01-11 (order_number=assin6476195376 chave=6c2867c0c5dbea3b86cc8bc05083a403)
+  [OK]   {'venc': datetime.date(2027, 1, 11), 'ativo': True, 'status': 'ativa', 'tent': 2, 'pags': 1}; log: Pagamento antigo lançado; assinatura continua "ativa" com 2 recusa(s) — conferir. Pagamento confirmado — Aluno Teste V172 6476195376 (#744), R$ 60,00, cobrado em 11/11/2026 (antes da última recusa, 15/11/2026); Novo vencimento: 11/01/2027 (antes 11/12/2026); status, recusas e acesso NÃO foram alterados — pedido assin6476195376, chave 6c2867c0c5dbea3b86cc8bc05083a403, cartão final 2128 (Visa)
+   1e) Asaas: bloqueada, confirmedDate 2026-11-11 antes da ultima recusa -> nao reativa
+[2026-11-17 14:29:14,327] WARNING in pagamentos: [pagamentos] asaas: resultado: lançado sem reativar (cobrança anterior à última recusa) assinatura_id=643 aluno_id=745 vencimento 2026-12-11 -> 2027-01-11 (payment_id=pay_109300c6de)
+  [OK]   Asaas: lancado sem reativar ({'venc': datetime.date(2027, 1, 11), 'ativo': False, 'status': 'bloqueada_inadimplencia', 'tent': 4, 'pags': 1})
+== 2) recusa em assinatura encerrada ==
+  [OK]   Cielo cancelada: 4a recusa nao contada nem bloqueia ({'venc': datetime.date(2026, 12, 11), 'ativo': True, 'status': 'cancelada', 'tent': 3, 'pags': 0})
+  [OK]   log: ('INFO', 'Recusa ignorada: assinatura cancelada — Aluno Teste V172 7145767362 (#746), R$ 60,00, cobrança de 14/11/2026 (Cartão recusado); tentativa não contada e aluno não bloqueado — pedido assin7145767362, chave 5f7088cf54cad1e46fa5c038f072ea3f, cartão final 2128 (Visa)')
+  [OK]   Cielo expirada_cartao: 4a recusa nao contada nem bloqueia ({'venc': datetime.date(2026, 12, 11), 'ativo': True, 'status': 'expirada_cartao', 'tent': 3, 'pags': 0})
+  [OK]   log: ('INFO', 'Recusa ignorada: assinatura encerrada (cartão expirado) — Aluno Teste V172 6107778218 (#747), R$ 60,00, cobrança de 14/11/2026 (Cartão recusado); tentativa não contada e aluno não bloqueado — pedido assin6107778218, chave 5dc037d531d7e2238d1d8069259e85b2, cartão final 2128 (Visa)')
+  [OK]   Asaas PAYMENT_DELETED em cancelada: nao contada ({'venc': datetime.date(2026, 12, 11), 'ativo': True, 'status': 'cancelada', 'tent': 3, 'pags': 0})
+  [OK]   Asaas PAYMENT_OVERDUE em cancelada: nao contada ({'venc': datetime.date(2026, 12, 11), 'ativo': True, 'status': 'cancelada', 'tent': 3, 'pags': 0})
+  [OK]   Asaas PAYMENT_REFUSED em cancelada: nao contada ({'venc': datetime.date(2026, 12, 11), 'ativo': True, 'status': 'cancelada', 'tent': 3, 'pags': 0})
+   log: ('INFO', 'Recusa ignorada: assinatura cancelada — Aluno Teste V172 4336586832 (#750), R$ 60,00, cobrança de 14/11/2026 (Cobrança não paga (PAYMENT_REFUSED)); tentativa não contada e aluno não bloqueado — chave pay_645ac8d42e')
+== 3) data_pagamento = data da cobranca ==
+  [OK]   Cielo completo created 11/11 -> [datetime.date(2026, 11, 11)]
+  [OK]   Cielo curto sem created_date -> hoje [datetime.date(2026, 11, 17)]
+  [OK]   Asaas confirmedDate 2026-11-12 -> [datetime.date(2026, 11, 12)]
+== 4) chave do pedido fora do padrao -> ERROR, 200, nada lancado ==
+[2026-11-17 14:29:14,771] ERROR in pagamentos: [pagamentos] cielo: resultado: ignorado (aviso sem chave do pedido) (order_number=assin7159182814 chave=None)
+  [OK]   19 hex: HTTP 200, pags=0
+[2026-11-17 14:29:14,821] ERROR in pagamentos: [pagamentos] cielo: resultado: ignorado (aviso sem chave do pedido) (order_number=assin7426285687 chave=None)
+  [OK]   33 hex: HTTP 200, pags=0
+[2026-11-17 14:29:14,866] ERROR in pagamentos: [pagamentos] cielo: resultado: ignorado (aviso sem chave do pedido) (order_number=assin5296296561 chave=None)
+  [OK]   21 hex: HTTP 200, pags=0
+[2026-11-17 14:29:14,912] ERROR in pagamentos: [pagamentos] cielo: resultado: ignorado (aviso sem chave do pedido) (order_number=assin4660220064 chave=None)
+  [OK]   nao hex: HTTP 200, pags=0
+[2026-11-17 14:29:14,963] ERROR in pagamentos: [pagamentos] cielo: resultado: ignorado (aviso sem chave do pedido) (order_number=assin1727760943 chave=None)
+  [OK]   caminho: HTTP 200, pags=0
+[2026-11-17 14:29:15,021] ERROR in pagamentos: [pagamentos] cielo: resultado: ignorado (aviso sem chave do pedido) (order_number=assin8307747750 chave=None)
+  [OK]   com espaco no meio: HTTP 200, pags=0
+[2026-11-17 14:29:15,071] ERROR in pagamentos: [pagamentos] cielo: resultado: ignorado (aviso sem chave do pedido) (order_number=assin6559946552 chave=None)
+  [OK]   hex + barra: HTTP 200, pags=0
+   log: Aviso sem chave do pedido — não processado (status 2 (Pago), pedido assin6559946552; chave do pedido fora do padrão da Cielo (20 ou 32 hexadecimais) em checkout_cielo_order_number/meucheckout_order_number)
+  [OK]   20 hex maiusculo: aceita (1 pagamento)
+  [OK]   32 hex: aceita (1 pagamento)
+  [OK]   consultar_pedido com chave invalida: recusado sem HTTP
+== 5) payload que nao e objeto JSON -> 400 + ERROR (sem 500) ==
+[2026-11-17 14:29:15,198] ERROR in pagamentos: [pagamentos] cielo: aviso com conteúdo inválido (lista); respondendo 400
+  [OK]   Cielo lista: HTTP 400
+[2026-11-17 14:29:15,200] ERROR in pagamentos: [pagamentos] cielo: aviso com conteúdo inválido (texto); respondendo 400
+  [OK]   Cielo texto JSON: HTTP 400
+[2026-11-17 14:29:15,202] ERROR in pagamentos: [pagamentos] cielo: aviso com conteúdo inválido (int); respondendo 400
+  [OK]   Cielo numero JSON: HTTP 400
+[2026-11-17 14:29:15,204] ERROR in pagamentos: [pagamentos] cielo: aviso com conteúdo inválido (vazio ou JSON inválido); respondendo 400
+  [OK]   Cielo vazio JSON: HTTP 400
+[2026-11-17 14:29:15,206] ERROR in pagamentos: [pagamentos] cielo: aviso com conteúdo inválido (vazio ou JSON inválido); respondendo 400
+  [OK]   Cielo JSON invalido: HTTP 400
+[2026-11-17 14:29:15,209] ERROR in pagamentos: [pagamentos] cielo: aviso com conteúdo inválido (vazio ou JSON inválido); respondendo 400
+  [OK]   Cielo objeto vazio: HTTP 400
+[2026-11-17 14:29:15,211] ERROR in pagamentos: [pagamentos] cielo: aviso com conteúdo inválido (vazio ou JSON inválido); respondendo 400
+  [OK]   Cielo form vazio: HTTP 400
+[2026-11-17 14:29:15,213] ERROR in pagamentos: [pagamentos] asaas: aviso com conteúdo inválido (lista); respondendo 400
+  [OK]   Asaas lista: HTTP 400
+  [OK]   8 logs ERROR (esperado 8)
+   log: Aviso da Cielo com conteúdo inválido (não é um objeto JSON: lista) — não processado (resposta 400)
+  [OK]   form-urlencoded valido: HTTP 200, 1 pagamento
+== 6) hide_parameters ==
+  [OK]   controle: sem hide_parameters o CPF aparece na mensagem do erro
+  [OK]   engine do app (config.py): mensagem sem os parametros -> (Background on this error at: https://sqlalche.me/e/20/9h9h)
+[2026-11-17 14:29:15,302] INFO in pagamentos: [pagamentos] cielo: aviso recebido: order_number=assin8592279574 chave=75a76897377b8fa1c4994e333867fcf1 payment_status=2 (Pago) recurrent_status=Ativa
+[2026-11-17 14:29:15,303] ERROR in pagamentos: Falha ao gravar log_integracao_pagamento: DataError
+[2026-11-17 14:29:15,309] ERROR in pagamentos: [pagamentos] cielo: resultado: erro (DataError) order_number=assin8592279574 chave=75a76897377b8fa1c4994e333867fcf1; respondendo 500 para a Cielo reenviar
+[2026-11-17 14:29:15,309] ERROR in app: Exception on /api/v1/pagamentos/webhooks/cielo [POST]
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        cursor, str_statement, effective_parameters, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/usr/local/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/site-packages/psycopg/cursor.py", line 117, in execute
+    raise ex.with_traceback(None)
+psycopg.errors.StringDataRightTruncation: value too long for type character varying(50)
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.13/site-packages/flask/app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "/usr/local/lib/python3.13/site-packages/flask/app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "/usr/local/lib/python3.13/site-packages/flask/app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "/usr/local/lib/python3.13/site-packages/flask/app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "/app/app/routes/pagamentos.py", line 861, in webhook_cielo
+    resumo, nivel = _webhook_cielo_processar(dados)
+                    ~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "/app/app/routes/pagamentos.py", line 946, in _webhook_cielo_processar
+    data_cobranca, obs_data = _data_cobranca_cielo(dados)
+                              ~~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "/app/app/routes/pagamentos.py", line 686, in _data_cobranca_cielo
+    hoje = _hoje_local()
+  File "/app/app/routes/pagamentos.py", line 646, in _hoje_local
+    fuso = int(get_param('fuso_horario', '-3'))
+               ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/app/routes/auth.py", line 68, in get_param
+    c = Configuracao.query.filter_by(chave=chave).first()
+  File "/usr/local/lib/python3.13/site-packages/sqlalchemy/orm/query.py", line 2766, in first
+    return self.limit(1)._iter().first()  # type: ignore
+           ~~~~~~~~~~~~~~~~~~~^^
+  File "/usr/local/lib/python3.13/site-packages/sqlalchemy/orm/query.py", line 2864, in _iter
+    result: Union[ScalarResult[_T], Result[_T]] = self.session.execute(
+                                                  ~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+        params,
+        ^^^^^^^
+        execution_options={"_sa_orm_load_options": self.load_options},
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/usr/local/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2351, in execute
+    return self._execute_internal(
+           ~~~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        _add_event=_add_event,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/usr/local/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2228, in _execute_internal
+    ) = compile_state_cls.orm_pre_session_exec(
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        self,
+        ^^^^^
+    ...<4 lines>...
+        False,
+        ^^^^^^
+    )
+    ^
+  File "/usr/local/lib/python3.13/site-packages/sqlalchemy/orm/context.py", line 577, in orm_pre_session_exec
+    session._autoflush()
+    ~~~~~~~~~~~~~~~~~~^^
+  File "/usr/local/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 3051, in _autoflush
+    raise e.with_traceback(sys.exc_info()[2])
+  File "/usr/local/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 3040, in _autoflush
+    self.flush()
+    ~~~~~~~~~~^^
+  File "/usr/local/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 4331, in flush
+    self._flush(objects)
+    ~~~~~~~~~~~^^^^^^^^^
+  File "/usr/local/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 4466, in _flush
+    with util.safe_reraise():
+         ~~~~~~~~~~~~~~~~~^^
+  File "/usr/local/lib/python3.13/site-packages/sqlalchemy/util/langhelpers.py", line 121, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/usr/local/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 4427, in _flush
+    flush_context.execute()
+    ~~~~~~~~~~~~~~~~~~~~~^^
+  File "/usr/local/lib/python3.13/site-packages/sqlalchemy/orm/unitofwork.py", line 466, in execute
+    rec.execute(self)
+    ~~~~~~~~~~~^^^^^^
+  File "/usr/local/lib/python3.13/site-packages/sqlalchemy/orm/unitofwork.py", line 642, in execute
+    util.preloaded.orm_persistence.save_obj(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        self.mapper,
+        ^^^^^^^^^^^^
+        uow.states_for_mapper_hierarchy(self.mapper, False, False),
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        uow,
+        ^^^^
+    )
+    ^
+  File "/usr/local/lib/python3.13/site-packages/sqlalchemy/orm/persistence.py", line 85, in save_obj
+    _emit_update_statements(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        base_mapper,
+        ^^^^^^^^^^^^
+    ...<3 lines>...
+        update,
+        ^^^^^^^
+    )
+    ^
+  File "/usr/local/lib/python3.13/site-packages/sqlalchemy/orm/persistence.py", line 912, in _emit_update_statements
+    c = connection.execute(
+        statement, multiparams, execution_options=execution_options
+    )
+  File "/usr/local/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1419, in execute
+    return meth(
+        self,
+        distilled_parameters,
+        execution_options or NO_OPTIONS,
+    )
+  File "/usr/local/lib/python3.13/site-packages/sqlalchemy/sql/elements.py", line 527, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        self, distilled_params, execution_options
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/usr/local/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1641, in _execute_clauseelement
+    ret = self._execute_context(
+        dialect,
+    ...<8 lines>...
+        cache_hit=cache_hit,
+    )
+  File "/usr/local/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1846, in _execute_context
+    return self._exec_single_context(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~^
+        dialect, context, statement, parameters
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/usr/local/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1986, in _exec_single_context
+    self._handle_dbapi_exception(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        e, str_statement, effective_parameters, cursor, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/usr/local/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 2363, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/usr/local/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        cursor, str_statement, effective_parameters, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/usr/local/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/site-packages/psycopg/cursor.py", line 117, in execute
+    raise ex.with_traceback(None)
+sqlalchemy.exc.DataError: (raised as a result of Query-invoked autoflush; consider using a session.no_autoflush block if this flush is occurring prematurely)
+(psycopg.errors.StringDataRightTruncation) value too long for type character varying(50)
+[SQL: UPDATE assinatura_recorrente SET recurrent_payment_id=%(recurrent_payment_id)s::VARCHAR, atualizado_em=%(atualizado_em)s::TIMESTAMP WITHOUT TIME ZONE WHERE assinatura_recorrente.id = %(assinatura_recorrente_id)s::INTEGER]
+[SQL parameters hidden due to hide_parameters=True]
+(Background on this error at: https://sqlalche.me/e/20/9h9h)
+  [OK]   aviso com erro de banco: HTTP 500
+  [OK]   servico.log sem CPF, nome e e-mail
+  [OK]   falha do _log registrada so com o tipo do erro
+   servico.log (linhas de erro):
+     2026-11-17 14:29:15,303 ERROR [app] Falha ao gravar log_integracao_pagamento: DataError
+     2026-11-17 14:29:15,309 ERROR [app] [pagamentos] cielo: resultado: erro (DataError) order_number=assin8592279574 chave=75a76897377b8fa1c4994e333867fcf1; respondendo 500 para a Cielo reenviar
+     2026-11-17 14:29:15,309 ERROR [app] Exception on /api/v1/pagamentos/webhooks/cielo [POST]
+     psycopg.errors.StringDataRightTruncation: value too long for type character varying(50)
+     sqlalchemy.exc.DataError: (raised as a result of Query-invoked autoflush; consider using a session.no_autoflush block if this flush is occurring prematurely)
+     [SQL parameters hidden due to hide_parameters=True]
+
+RESULTADO: TUDO OK

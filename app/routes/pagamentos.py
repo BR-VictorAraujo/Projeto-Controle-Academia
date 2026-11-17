@@ -23,7 +23,7 @@ from app import db
 from app.models import Aluno, Plano, AssinaturaRecorrente, Pagamento, LogIntegracaoPagamento, Configuracao
 from app.routes.auth import login_required, registrar_log, get_param
 from app import cielo_client
-from app.cielo_client import CieloClientError
+from app.cielo_client import CieloClientError, CieloAuthError, CieloComunicacaoError, chave_pedido_valida
 from app import asaas_client
 from app.asaas_client import AsaasClientError
 
@@ -123,11 +123,26 @@ def _log(tipo_evento, nivel='INFO', resultado=None, payload=None,
             db.session.rollback()
         except Exception:
             pass
-        current_app.logger.error(f"Falha ao gravar log_integracao_pagamento: {e}")
+        # v1.7.2: só o tipo do erro (a mensagem do banco pode trazer o payload)
+        current_app.logger.error(f"Falha ao gravar log_integracao_pagamento: {type(e).__name__}")
 
 
 def _avancar_data(data_base, meses=1):
     return data_base + relativedelta(months=meses)
+
+
+def _novo_vencimento(venc_atual, data_cobranca):
+    """v1.7.2 — vencimento do aluno após uma cobrança paga. Nunca regride.
+
+    Regra: novo vencimento = o mais tarde entre o vencimento atual e a data
+    da cobrança, + 1 mês.
+      - duas cobranças nunca valem o mesmo mês (cada uma soma um mês);
+      - quem paga adiantado não perde dias (conta a partir do vencimento atual);
+      - aluno com vencimento já passado volta a contar da data da cobrança.
+    Testes: tests/pagamentos_v172/teste_regra_vencimento.py."""
+    base = max(venc_atual or data_cobranca, data_cobranca)
+    candidato = _avancar_data(base, meses=1)
+    return candidato if venc_atual is None or candidato > venc_atual else venc_atual
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -620,6 +635,11 @@ RECONCILIACAO_DIAS = 40
 RECONCILIACAO_JANELA_SEM_CHAVE = 25
 STATUS_RECONCILIACAO = ('ativa', 'bloqueada_inadimplencia')
 
+# Status de encerramento da assinatura (models.AssinaturaRecorrente.status):
+# pagamento tardio não reativa; recusa não conta tentativa nem bloqueia.
+STATUS_ENCERRADA = ('cancelada', 'expirada_cartao')
+NOMES_STATUS_ENCERRADA = {'cancelada': 'cancelada', 'expirada_cartao': 'encerrada (cartão expirado)'}
+
 
 def _hoje_local():
     """Data de hoje no fuso configurado (Fortaleza = -3), mesmo critério de acessos.py."""
@@ -628,11 +648,19 @@ def _hoje_local():
 
 
 def _chave_pedido_cielo(dados):
+    """Chave do pedido, só se estiver no formato da Cielo (20 ou 32 hex).
+    Fora do padrão é tratada como aviso sem chave."""
     for campo in CAMPOS_CHAVE_CIELO:
         valor = dados.get(campo)
-        if valor is not None and str(valor).strip():
+        if valor is not None and chave_pedido_valida(str(valor).strip()):
             return str(valor).strip()
     return None
+
+
+def _chave_cielo_fora_do_padrao(dados):
+    """True se o aviso traz o campo da chave preenchido, mas fora do padrão."""
+    preenchida = any(dados.get(c) is not None and str(dados.get(c)).strip() for c in CAMPOS_CHAVE_CIELO)
+    return preenchida and _chave_pedido_cielo(dados) is None
 
 
 def _status_cielo_txt(payment_status):
@@ -814,9 +842,13 @@ def webhook_cielo():
     # reconciliação horária (reconciliar_cielo) consulta a Cielo e lança
     # cobranças pagas cujo aviso não chegou.
     if request.is_json:
-        dados = request.get_json(silent=True) or {}
+        dados = request.get_json(silent=True)
     else:
         dados = request.form.to_dict()
+    erro = _payload_invalido(dados, 'Cielo')
+    if erro:
+        _arq('cielo', f'aviso com conteúdo inválido ({erro}); respondendo 400', 'error')
+        return jsonify({'erro': 'payload inválido'}), 400
 
     order_number = dados.get('order_number')
     chave = _chave_pedido_cielo(dados)
@@ -839,6 +871,23 @@ def webhook_cielo():
     return jsonify({'status': 'recebido'}), 200
 
 
+def _payload_invalido(dados, gateway):
+    """v1.7.2: aviso que não é um objeto JSON (lista, texto, vazio, JSON
+    inválido) não é processado. Grava ERROR na tela e devolve o motivo curto
+    (o chamador responde 400); None se o payload é válido."""
+    if isinstance(dados, dict) and dados:
+        return None
+    if dados is None or (isinstance(dados, dict) and not dados):
+        motivo = 'vazio ou JSON inválido'
+    else:
+        motivo = {list: 'lista', str: 'texto'}.get(type(dados), type(dados).__name__)
+    _log('erro_parsing', nivel='ERROR',
+         payload={'corpo_recebido': request.get_data(as_text=True)[:2000]},
+         resultado=f'Aviso da {gateway} com conteúdo inválido (não é um objeto JSON: {motivo}) — '
+                   f'não processado (resposta 400)')
+    return motivo
+
+
 def _webhook_cielo_processar(dados):
     """Processa o aviso da Cielo. Retorna (resumo sem dados pessoais, nível do servico.log)."""
     order_number = dados.get('order_number')
@@ -858,11 +907,15 @@ def _webhook_cielo_processar(dados):
         return 'ignorado (sem order_number nem pagador_recurrent_payment_id)', 'warning'
 
     if payment_status in STATUS_CIELO_CONFIRMADO + STATUS_CIELO_NEGADO and not chave:
+        if _chave_cielo_fora_do_padrao(dados):
+            falta = ('chave do pedido fora do padrão da Cielo (20 ou 32 hexadecimais) em '
+                     'checkout_cielo_order_number/meucheckout_order_number')
+        else:
+            falta = 'faltam checkout_cielo_order_number e meucheckout_order_number'
         _log('erro_parsing', nivel='ERROR', payload=dados,
              recurrent_payment_id=pagador_recurrent_payment_id,
              resultado=f'Aviso sem chave do pedido — não processado (status {status_txt}, pedido '
-                       f'{order_number or "—"}; faltam checkout_cielo_order_number e '
-                       f'meucheckout_order_number)')
+                       f'{order_number or "—"}; {falta})')
         return 'ignorado (aviso sem chave do pedido)', 'error'
 
     # Prioridade de busca: 1) recurrent_payment_id já vinculado (cobranças
@@ -961,7 +1014,7 @@ def _processar_pagamento_confirmado(assinatura, ctx):
     # pode confirmar alguns instantes/dias depois, mesmo já cancelada.
     # Sem essa checagem, esse pagamento "atrasado" reativava a assinatura
     # e avançava o vencimento de novo, mesmo já tendo sido cancelada.
-    ja_cancelada = assinatura.status in ('cancelada', 'expirada_cartao')
+    ja_cancelada = assinatura.status in STATUS_ENCERRADA
 
     pagamento = Pagamento(
         aluno_id=aluno_id,
@@ -969,7 +1022,8 @@ def _processar_pagamento_confirmado(assinatura, ctx):
         forma_pagamento='cartao_recorrente',
         status='pago',
         data_vencimento=aluno.vencimento or hoje,
-        data_pagamento=hoje,
+        # v1.7.2: data da cobrança (a mesma da regra do vencimento); sem ela, hoje
+        data_pagamento=data_cobranca or hoje,
         referencia=assinatura.recurrent_payment_id,
         criado_por=ctx.get('criado_por', 'cielo_webhook'),
         origem='recorrente_gateway',
@@ -979,18 +1033,31 @@ def _processar_pagamento_confirmado(assinatura, ctx):
     )
 
     venc_anterior = aluno.vencimento
+    reativou = False
     if not ja_cancelada:
-        # v1.7.2 — regra que não acumula: vencimento = data da cobrança + 1
-        # mês, só se for MAIOR que o atual. Aviso repetido/atrasado da mesma
-        # cobrança nunca empurra além de 1 mês após a cobrança.
-        candidato = _avancar_data(data_cobranca, meses=1)
-        if venc_anterior is None or candidato > venc_anterior:
-            aluno.vencimento = candidato
-        aluno.ativo = True
-        assinatura.tentativas_negadas = 0
-        assinatura.status = 'ativa'
-        assinatura.proxima_cobranca = aluno.vencimento
+        # v1.7.2 — regra do vencimento isolada em _novo_vencimento (nunca regride).
+        aluno.vencimento = _novo_vencimento(venc_anterior, data_cobranca)
+        # Reativa (ativo, status 'ativa', zera recusas) só se a data desta
+        # cobrança for posterior à última recusa. Com a regra do vencimento
+        # da 1.7.2 o vencimento sempre avança, então "avançou o vencimento"
+        # não serve de critério: o que decide é data da cobrança x última
+        # recusa. Um pagamento antigo (ex.: recuperado pela reconciliação)
+        # é lançado, mas não desbloqueia o aluno.
+        # Webhook Cielo, webhook Asaas e reconciliação passam todos por aqui.
+        ultima_negativa = assinatura.data_ultima_negativa
+        posterior_a_recusa = (ultima_negativa is None
+                              or data_cobranca is None
+                              or data_cobranca > ultima_negativa.date())
+        if posterior_a_recusa:
+            aluno.ativo = True
+            assinatura.tentativas_negadas = 0
+            assinatura.status = 'ativa'
+            assinatura.proxima_cobranca = aluno.vencimento
+            reativou = True
     venc_novo = aluno.vencimento
+    # Estado antes do commit (para a frase do log, sem nova consulta depois)
+    st_assinatura, tent_assinatura, aluno_ativo = assinatura.status, assinatura.tentativas_negadas, aluno.ativo
+    ultima_negativa_txt = _dt(assinatura.data_ultima_negativa)
 
     db.session.add(pagamento)
     try:
@@ -1026,6 +1093,23 @@ def _processar_pagamento_confirmado(assinatura, ctx):
         venc_txt = f'Novo vencimento: {_dt(venc_novo)} (antes {_dt(venc_anterior)})'
     else:
         venc_txt = f'vencimento mantido em {_dt(venc_anterior)} (já cobria esta cobrança)'
+
+    pendente = st_assinatura != 'ativa' or not aluno_ativo or tent_assinatura > 0
+    if not reativou and pendente:
+        if st_assinatura == 'bloqueada_inadimplencia' or not aluno_ativo:
+            situacao = 'aluno continua bloqueado'
+        else:
+            situacao = f'assinatura continua "{st_assinatura}" com {tent_assinatura} recusa(s)'
+        _log('pagamento_lancado', nivel='WARNING', assinatura_recorrente_id=assinatura_id,
+             payment_id_gateway=payment_id,
+             resultado=f'Pagamento antigo lançado; {situacao} — conferir. {prefixo} — {aluno_txt}, '
+                       f'{valor_txt}, cobrado em {_dt(data_cobranca)} (antes da última recusa, '
+                       f'{ultima_negativa_txt}); {venc_txt}; status, recusas e acesso NÃO foram '
+                       f'alterados — {_ref(ctx)}{obs}')
+        return ('lancado',
+                f'lançado sem reativar (cobrança anterior à última recusa) assinatura_id={assinatura_id} '
+                f'aluno_id={aluno_id} vencimento {venc_anterior} -> {venc_novo}', 'warning')
+
     _log('pagamento_lancado', assinatura_recorrente_id=assinatura_id, payment_id_gateway=payment_id,
          resultado=f'{prefixo} — {aluno_txt}, {valor_txt}, cobrado em {_dt(data_cobranca)}; '
                    f'{venc_txt} — {_ref(ctx)}{obs}')
@@ -1042,6 +1126,19 @@ def _processar_pagamento_negado(assinatura, ctx):
     Retorna (codigo, resumo, nível); codigo: 'negado' | 'duplicado' | 'ignorado'."""
     payment_id = ctx.get('chave')
     assinatura_id = assinatura.id
+
+    # v1.7.2: assinatura já encerrada — a recusa não conta tentativa nem bloqueia
+    if assinatura.status in STATUS_ENCERRADA:
+        status = assinatura.status
+        status_txt = NOMES_STATUS_ENCERRADA.get(status, status)
+        aluno_txt = _aluno_txt(assinatura.aluno)
+        valor_txt = _reais(ctx.get('valor') if ctx.get('valor') is not None else assinatura.valor_mensal)
+        _log('webhook_recebido', nivel='INFO', assinatura_recorrente_id=assinatura_id,
+             payment_id_gateway=payment_id,
+             resultado=f'Recusa ignorada: assinatura {status_txt} — {aluno_txt}, {valor_txt}, cobrança de '
+                       f'{_dt(ctx.get("data_cobranca"))} ({ctx.get("rotulo_negado", "Cartão recusado")}); '
+                       f'tentativa não contada e aluno não bloqueado — {_ref(ctx)}')
+        return 'ignorado', f'ignorado (recusa em assinatura {status}) assinatura_id={assinatura_id}', 'info'
 
     if not payment_id:
         _log('erro_parsing', nivel='ERROR', assinatura_recorrente_id=assinatura_id,
@@ -1151,6 +1248,19 @@ def reconciliar_cielo():
             db.session.rollback()
             try:
                 resposta = cielo_client.listar_pagamentos_link(link_id, timeout=15)
+            except (CieloAuthError, CieloComunicacaoError) as e:
+                # v1.7.2: credencial recusada ou rede fora valem para todas as
+                # assinaturas: interrompe a rodada com uma linha só (sem um POST
+                # de token e dois ERROR por assinatura a cada hora)
+                cont['erros'] += 1
+                motivo = getattr(e, 'motivo', None) or type(e).__name__
+                _log('erro_autenticacao' if isinstance(e, CieloAuthError) else 'erro_comunicacao',
+                     nivel='ERROR',
+                     resultado=f'Reconciliação interrompida: falha de autenticação/comunicação com a Cielo '
+                               f'— {motivo}')
+                current_app.logger.error(f'[pagamentos] reconciliação Cielo: interrompida — falha de '
+                                         f'autenticação/comunicação com a Cielo ({type(e).__name__}: {motivo})')
+                break
             except Exception as e:
                 cont['erros'] += 1
                 _log('erro_comunicacao', nivel='ERROR', assinatura_recorrente_id=assinatura_id,
@@ -1162,31 +1272,52 @@ def reconciliar_cielo():
             cont['consultadas'] += 1
 
             for order in (resposta or {}).get('orders') or []:
-                pagamento_cielo = order.get('payment') or {}
-                chave = order.get('orderNumber')
-                criado = _data_iso(pagamento_cielo.get('createdDate') or order.get('createdDate'))
-                if not chave or not criado or criado < limite:
-                    continue
-                if pagamento_cielo.get('status') != 'Paid':
-                    continue   # Denied, Pending, Expired, Voided...: não lança
-                codigo = _reconciliar_cobranca_paga(assinatura_id, str(chave), pagamento_cielo, criado)
-                if codigo == 'lancado' or codigo == 'lancado_cancelada':
-                    cont['lancadas'] += 1
-                elif codigo == 'aviso':
-                    cont['avisos'] += 1
+                # v1.7.2: try por cobrança — um item malformado não pula as demais
+                chave = None
+                try:
+                    pagamento_cielo = order.get('payment') or {}
+                    chave = order.get('orderNumber')
+                    criado = _data_iso(pagamento_cielo.get('createdDate') or order.get('createdDate'))
+                    if not chave or not criado or criado < limite:
+                        continue
+                    if pagamento_cielo.get('status') != 'Paid':
+                        continue   # Denied, Pending, Expired, Voided...: não lança
+                    codigo = _reconciliar_cobranca_paga(assinatura_id, str(chave), pagamento_cielo, criado)
+                    if codigo == 'lancado' or codigo == 'lancado_cancelada':
+                        cont['lancadas'] += 1
+                    elif codigo == 'aviso':
+                        cont['avisos'] += 1
+                except Exception as e:
+                    cont['erros'] += 1
+                    _erro_reconciliacao(assinatura_id, e, chave, na_cobranca=True)
         except Exception as e:
             cont['erros'] += 1
-            try:
-                db.session.rollback()
-            except Exception:
-                pass
-            current_app.logger.error(f'[pagamentos] reconciliação Cielo: erro na assinatura_id='
-                                     f'{assinatura_id}: {type(e).__name__}')
+            _erro_reconciliacao(assinatura_id, e)
 
     current_app.logger.info(
         f'[pagamentos] reconciliação Cielo: fim da rodada — consultadas={cont["consultadas"]} '
         f'lançadas={cont["lancadas"]} avisos={cont["avisos"]} erros={cont["erros"]}')
     return cont
+
+
+def _erro_reconciliacao(assinatura_id, e, chave=None, na_cobranca=False):
+    """Erro inesperado numa assinatura ou cobrança da reconciliação: ERROR na
+    tela de logs e no servico.log (só o tipo do erro), e a rodada segue."""
+    try:
+        db.session.rollback()
+    except Exception:
+        pass
+    chave_txt = str(chave)[:50] if isinstance(chave, (str, int)) else None
+    if chave_txt:
+        onde = f'a cobrança {chave_txt}'
+    else:
+        onde = 'uma cobrança sem identificação' if na_cobranca else 'as cobranças'
+    _log('erro_parsing', nivel='ERROR', assinatura_recorrente_id=assinatura_id,
+         payment_id_gateway=chave_txt,
+         resultado=f'Reconciliação: erro inesperado ao processar {onde} da assinatura #{assinatura_id} '
+                   f'({type(e).__name__}). Nada foi lançado para esse item; a rodada seguiu.')
+    current_app.logger.error(f'[pagamentos] reconciliação Cielo: erro na assinatura_id={assinatura_id}'
+                             + (f' chave={chave_txt}' if chave_txt else '') + f': {type(e).__name__}')
 
 
 def _reconciliar_cobranca_paga(assinatura_id, chave, pagamento_cielo, data_cobranca):
@@ -1263,7 +1394,11 @@ def _reconciliar_cobranca_paga(assinatura_id, chave, pagamento_cielo, data_cobra
 @bp.route('/webhooks/asaas', methods=['POST'])
 @asaas_webhook_auth_required
 def webhook_asaas():
-    dados = request.get_json(silent=True) or {}
+    dados = request.get_json(silent=True)
+    erro = _payload_invalido(dados, 'Asaas')
+    if erro:
+        _arq('asaas', f'aviso com conteúdo inválido ({erro}); respondendo 400', 'error')
+        return jsonify({'erro': 'payload inválido'}), 400
     evento = dados.get('event')
     payment_id = (dados.get('payment') or {}).get('id')
 

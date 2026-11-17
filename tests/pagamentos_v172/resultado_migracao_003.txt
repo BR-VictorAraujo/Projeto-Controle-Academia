@@ -6,14 +6,15 @@ pagamentos=0 soma_ids=0 com_chave=0
 == 1) up sem duplicatas -> cria os indices ==
 NOTICE:  relation "schema_migracao" already exists, skipping
 codigo de saida: 0
-indices=ix_log_integracao_pagamento_criado_em,uq_pagamentos_payment_id_gateway
+indices=ix_log_integracao_pagamento_criado_em,ix_log_integracao_pagamento_payment_id,uq_pagamentos_payment_id_gateway
 schema_migracao_003=1
 pagamentos=0 soma_ids=0 com_chave=0
+CREATE INDEX ix_log_integracao_pagamento_payment_id ON public.log_integracao_pagamento USING btree (payment_id_gateway) WHERE (payment_id_gateway IS NOT NULL)
 CREATE UNIQUE INDEX uq_pagamentos_payment_id_gateway ON public.pagamentos USING btree (payment_id_gateway) WHERE (payment_id_gateway IS NOT NULL)
 
 == 2) up de novo -> idempotente ==
-codigo de saida: 1
-indices=ix_log_integracao_pagamento_criado_em,uq_pagamentos_payment_id_gateway
+codigo de saida: 0
+indices=ix_log_integracao_pagamento_criado_em,ix_log_integracao_pagamento_payment_id,uq_pagamentos_payment_id_gateway
 schema_migracao_003=1
 pagamentos=0 soma_ids=0 com_chave=0
 
@@ -39,6 +40,9 @@ pagamentos=5 soma_ids=15 com_chave=5
 == 5) nome que o installer/atualizar_banco.py usa para pular a 003 ==
 003_v1.7.2_pagamentos_unicidade
 
-== 2 (corrigido) reaplicacao no gymflow_v172_teste (003 ja aplicada): codigo 0 duas vezes (o 1 acima era o codigo do grep) ==
+== 6) 003 reaplicada (versao com o indice novo) no gymflow_v172_teste, que ja tinha a 003 antiga ==
+codigo 0; so o ix_log_integracao_pagamento_payment_id foi criado (os outros: NOTICE "already exists, skipping")
 
-== Instalacao nova (banco vazio gymflow_novo_teste): inicializar_banco()/create_all criou os dois indices (parcial com WHERE payment_id_gateway IS NOT NULL); a 003 depois roda sem erro (codigo 0, so NOTICEs) ==
+== 7) instalacao nova: DDL que o db.create_all() gera a partir do model ==
+CREATE INDEX ix_log_integracao_pagamento_criado_em ON log_integracao_pagamento (criado_em)
+CREATE INDEX ix_log_integracao_pagamento_payment_id ON log_integracao_pagamento (payment_id_gateway) WHERE payment_id_gateway IS NOT NULL

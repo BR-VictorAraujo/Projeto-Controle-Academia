@@ -16,6 +16,7 @@ BEGIN;
 
 DROP INDEX IF EXISTS uq_pagamentos_payment_id_gateway;
 DROP INDEX IF EXISTS ix_log_integracao_pagamento_criado_em;
+DROP INDEX IF EXISTS ix_log_integracao_pagamento_payment_id;
 
 DO $sm$
 BEGIN

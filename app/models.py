@@ -183,9 +183,12 @@ class LogIntegracaoPagamento(db.Model):
 
     ip_origem = db.Column(db.String(45))
 
-    # v1.7.2: a tela de logs ordena por criado_em (migração 003)
+    # v1.7.2: a tela de logs ordena por criado_em; a idempotência busca por
+    # payment_id_gateway (migração 003)
     __table_args__ = (
         Index('ix_log_integracao_pagamento_criado_em', 'criado_em'),
+        Index('ix_log_integracao_pagamento_payment_id', 'payment_id_gateway',
+              postgresql_where=text('payment_id_gateway IS NOT NULL')),
     )
 
 # ─────────────────────────────────────────────────────────────────────────────

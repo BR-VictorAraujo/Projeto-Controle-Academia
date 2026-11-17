@@ -15,6 +15,7 @@ sempre passar por aqui, para manter log e tratamento de erro consistentes.
 """
 
 import base64
+import re
 import time
 import requests
 from flask import current_app
@@ -49,7 +50,28 @@ _token_cache = {
 
 
 class CieloClientError(Exception):
-    pass
+    def __init__(self, mensagem='', motivo=None):
+        super().__init__(mensagem)
+        # v1.7.2: motivo curto, sem payload, para log (ex.: "credencial recusada (HTTP 401)")
+        self.motivo = motivo or mensagem
+
+
+class CieloAuthError(CieloClientError):
+    """v1.7.2: credencial recusada ou resposta de token invalida."""
+
+
+class CieloComunicacaoError(CieloClientError):
+    """v1.7.2: rede fora ou timeout (sem resposta da Cielo)."""
+
+
+# v1.7.2: chave do pedido (checkout_cielo_order_number / meucheckout_order_number /
+# orderNumber) = 20 ou 32 hexadecimais. Padrao ^[0-9a-fA-F]{20}$|^[0-9a-fA-F]{32}$
+# aplicado com fullmatch ('$' com re.match aceitaria quebra de linha no fim).
+_RE_CHAVE_PEDIDO = re.compile(r'[0-9a-fA-F]{20}|[0-9a-fA-F]{32}')
+
+
+def chave_pedido_valida(chave):
+    return isinstance(chave, str) and _RE_CHAVE_PEDIDO.fullmatch(chave) is not None
 
 
 def _log(tipo_evento, nivel='INFO', resultado=None, payload=None,
@@ -72,10 +94,13 @@ def _log(tipo_evento, nivel='INFO', resultado=None, payload=None,
             db.session.rollback()
         except Exception:
             pass
-        current_app.logger.error(f"Falha ao gravar log_integracao_pagamento: {e}")
+        # v1.7.2: so o tipo do erro (a mensagem do banco pode trazer o payload)
+        current_app.logger.error(f"Falha ao gravar log_integracao_pagamento: {type(e).__name__}")
 
 
-def _obter_token():
+def _obter_token(registrar_falha=True):
+    """registrar_falha=False: nao grava 'erro_autenticacao' (a reconciliacao
+    grava uma unica linha ao interromper a rodada)."""
     agora = time.time()
 
     if _token_cache['access_token'] and agora < _token_cache['expira_em']:
@@ -102,21 +127,30 @@ def _obter_token():
             timeout=15,
         )
     except requests.exceptions.RequestException as e:
-        _log('erro_autenticacao', nivel='ERROR', resultado=str(e))
-        raise CieloClientError(f"Falha ao autenticar na Cielo: {e}")
+        if registrar_falha:
+            _log('erro_autenticacao', nivel='ERROR', resultado=str(e))
+        raise CieloComunicacaoError(f"Falha ao autenticar na Cielo: {e}",
+                                    motivo=f'sem resposta da Cielo ({type(e).__name__})')
 
     if resp.status_code >= 400:
-        _log('erro_autenticacao', nivel='ERROR',
-             resultado=f"HTTP {resp.status_code}: {resp.text[:500]}")
-        raise CieloClientError(f"Falha ao autenticar na Cielo: HTTP {resp.status_code} - {resp.text[:400]}")
+        if registrar_falha:
+            _log('erro_autenticacao', nivel='ERROR',
+                 resultado=f"HTTP {resp.status_code}: {resp.text[:500]}")
+        raise CieloAuthError(f"Falha ao autenticar na Cielo: HTTP {resp.status_code} - {resp.text[:400]}",
+                             motivo=f'credencial recusada (HTTP {resp.status_code})')
 
-    dados = resp.json()
-    access_token = dados.get('access_token')
-    expira_em_segundos = int(dados.get('expires_in', 1200))
+    try:
+        dados = resp.json()
+    except ValueError:
+        dados = {}
+    access_token = dados.get('access_token') if isinstance(dados, dict) else None
 
     if not access_token:
-        _log('erro_autenticacao', nivel='ERROR', resultado='Resposta sem access_token', payload=dados)
-        raise CieloClientError("Cielo nao retornou access_token")
+        if registrar_falha:
+            _log('erro_autenticacao', nivel='ERROR', resultado='Resposta sem access_token',
+                 payload=dados if isinstance(dados, dict) else None)
+        raise CieloAuthError("Cielo nao retornou access_token", motivo='resposta do token sem access_token')
+    expira_em_segundos = int(dados.get('expires_in', 1200))
 
     _token_cache['access_token'] = access_token
     _token_cache['expira_em'] = agora + expira_em_segundos - 60
@@ -124,9 +158,9 @@ def _obter_token():
     return access_token
 
 
-def _headers():
+def _headers(registrar_falha=True):
     return {
-        'Authorization': f'Bearer {_obter_token()}',
+        'Authorization': f'Bearer {_obter_token(registrar_falha)}',
         'Content-Type': 'application/json',
     }
 
@@ -224,27 +258,39 @@ def desativar_recorrencia(pagador_recurrent_payment_id):
     return resp.json() if resp.text else {}
 
 
-def _get_simples(url, timeout, tentativas):
+def _get_simples(url, timeout, tentativas, registrar_falha_token=True):
     """GET com Bearer, sem gravar payload em log (respostas com dados
-    pessoais). Retentativa so em erro de rede. Erros viram CieloClientError."""
+    pessoais). Retentativa so em erro de rede. Erros viram CieloClientError:
+    CieloAuthError (token recusado), CieloComunicacaoError (rede/timeout)."""
     ultimo_erro = None
     for _ in range(tentativas):
         try:
-            resp = requests.get(url, headers=_headers(), timeout=timeout)
+            resp = requests.get(url, headers=_headers(registrar_falha_token), timeout=timeout)
         except requests.exceptions.RequestException as e:
             ultimo_erro = e
             continue
+        if resp.status_code in (401, 403):
+            # token recusado: descarta o cache para a proxima chamada pedir outro
+            _token_cache['access_token'] = None
+            raise CieloAuthError(f"Cielo retornou HTTP {resp.status_code}",
+                                 motivo=f'token recusado (HTTP {resp.status_code})')
         if resp.status_code >= 400:
             raise CieloClientError(f"Cielo retornou HTTP {resp.status_code}")
         return resp.json()
-    raise CieloClientError(f"Falha de comunicacao com a Cielo: {type(ultimo_erro).__name__}")
+    raise CieloComunicacaoError(f"Falha de comunicacao com a Cielo: {type(ultimo_erro).__name__}",
+                                motivo=f'sem resposta da Cielo ({type(ultimo_erro).__name__})')
 
 
 def listar_pagamentos_link(link_pagamento_id, timeout=15):
-    """v1.7.2 -- cobrancas do link (reconciliacao). Uma retentativa em erro de rede."""
-    return _get_simples(URL_LINK_PAYMENTS.format(id=link_pagamento_id), timeout, tentativas=2)
+    """v1.7.2 -- cobrancas do link (reconciliacao). Uma retentativa em erro de rede.
+    Falha do token nao grava 'erro_autenticacao': a reconciliacao grava uma linha so."""
+    return _get_simples(URL_LINK_PAYMENTS.format(id=link_pagamento_id), timeout, tentativas=2,
+                        registrar_falha_token=False)
 
 
 def consultar_pedido(order_number, timeout=5):
-    """v1.7.2 -- detalhe da cobranca (motivo da recusa em payment.errorCode)."""
+    """v1.7.2 -- detalhe da cobranca (motivo da recusa em payment.errorCode).
+    So aceita chave no formato da Cielo (evita montar URL com caminho arbitrario)."""
+    if not chave_pedido_valida(order_number):
+        raise CieloClientError("Chave do pedido fora do padrao (20 ou 32 hexadecimais)")
     return _get_simples(URL_ORDER.format(id=order_number), timeout, tentativas=1)

@@ -1,14 +1,14 @@
 == 1) order Paid sem pagamento -> lanca 1 vez; rodar de novo nao duplica ==
-  [OK]   1 pagamento, vencimento 11/12/2026 ({'venc': datetime.date(2026, 12, 11), 'ativo': True, 'status': 'ativa', 'tent': 0, 'pags': 1}); contagens {'consultadas': 20, 'lancadas': 1, 'avisos': 0, 'erros': 0} / {'consultadas': 20, 'lancadas': 0, 'avisos': 0, 'erros': 0}
-     log: ('pagamento_lancado', 'INFO', 'Pagamento recuperado pela consulta à Cielo (o aviso não chegou) — Aluno Teste V172 2974226321 (#384), R$ 60,00, cobrado em 11/11/2026; Novo vencimento: 11/12/2026 (antes 10/11/2026) — pedido assin2974226321, chave 23d9ca6a267459adca9587d8608e0d10')
+  [OK]   1 pagamento, vencimento 11/12/2026 ({'venc': datetime.date(2026, 12, 11), 'ativo': True, 'status': 'ativa', 'tent': 0, 'pags': 1}); contagens {'consultadas': 130, 'lancadas': 1, 'avisos': 0, 'erros': 0} / {'consultadas': 130, 'lancadas': 0, 'avisos': 0, 'erros': 0}
+     log: ('pagamento_lancado', 'INFO', 'Pagamento recuperado pela consulta à Cielo (o aviso não chegou) — Aluno Teste V172 9698469432 (#686), R$ 60,00, cobrado em 11/11/2026; Novo vencimento: 11/12/2026 (antes 10/11/2026) — pedido assin9698469432, chave ee5ba77940915e03ed7fb83033c870f8')
 == 2) order Paid com pagamento ja existente pela chave -> nada ==
   [OK]   continua 1 pagamento (1)
 == 3) order Paid + pagamento recorrente SEM chave de 17/11 -> WARNING (1 vez), nao lanca ==
-[2026-11-17 12:20:48,621] WARNING in pagamentos: [pagamentos] reconciliação Cielo: conferir chave=c3d2a3a0254e831962711a4147777f45 assinatura_id=284 (possível lançamento sem chave)
+[2026-11-17 14:28:44,892] WARNING in pagamentos: [pagamentos] reconciliação Cielo: conferir chave=4ccf72bc4410521b9c7162bcb8642df8 assinatura_id=586 (possível lançamento sem chave)
   [OK]   nao lancou (1 pagamento) e 1 WARNING (1)
-     log: ('reconciliacao_conferir', 'WARNING', 'Cobrança paga na Cielo sem chave correspondente no GymFlow — possível lançamento já existente sem chave; conferir (pedido c3d2a3a0254e831962711a4147777f45, aluno Aluno Teste V172 8230085372 (#386), R$ 60,00, cobrado em 11/11/2026; lançamento #354 de 17/11/2026, R$ 60,00, origem recorrente_gateway). Nada foi lançado.')
+     log: ('reconciliacao_conferir', 'WARNING', 'Cobrança paga na Cielo sem chave correspondente no GymFlow — possível lançamento já existente sem chave; conferir (pedido 4ccf72bc4410521b9c7162bcb8642df8, aluno Aluno Teste V172 6363937278 (#688), R$ 60,00, cobrado em 11/11/2026; lançamento #537 de 17/11/2026, R$ 60,00, origem recorrente_gateway). Nada foi lançado.')
    3b) pagamento MANUAL pago do mesmo aluno em 12/11 -> WARNING, nao lanca
-[2026-11-17 12:20:48,708] WARNING in pagamentos: [pagamentos] reconciliação Cielo: conferir chave=a508a238d43b454bf4e84781890c2947 assinatura_id=285 (possível lançamento sem chave)
+[2026-11-17 14:28:45,219] WARNING in pagamentos: [pagamentos] reconciliação Cielo: conferir chave=46ae6f274952e25d3e871f0f94e14d53 assinatura_id=587 (possível lançamento sem chave)
   [OK]   nao lancou (0) e 1 WARNING
    3c) pagamento sem chave de 40 dias antes (fora da janela de 25) -> lanca
   [OK]   lancou (2 pagamentos: o antigo + o recuperado)
@@ -18,22 +18,57 @@
   [OK]   nada lancado nem contado ({'venc': datetime.date(2026, 11, 10), 'ativo': True, 'status': 'ativa', 'tent': 0, 'pags': 0})
    5b) order Paid de 50 dias atras (fora dos 40) -> nao lanca
   [OK]   nao lancou
-== 6) API fora -> ERROR, job segue para a proxima assinatura ==
-[2026-11-17 12:20:49,704] ERROR in pagamentos: [pagamentos] reconciliação Cielo: erro ao consultar assinatura_id=299: CieloClientError
-  [OK]   ERROR registrado: ('erro_comunicacao', 'ERROR', 'Reconciliação: falha ao consultar as cobranças do link na Cielo (CieloClientError: Falha de comunicacao com a Cielo: ConnectTimeout)')
+== 6) link com erro HTTP 404 -> ERROR, job segue para a proxima assinatura ==
+[2026-11-17 14:28:48,081] ERROR in pagamentos: [pagamentos] reconciliação Cielo: erro ao consultar assinatura_id=601: CieloClientError
+  [OK]   ERROR registrado: ('erro_comunicacao', 'ERROR', 'Reconciliação: falha ao consultar as cobranças do link na Cielo (CieloClientError: Cielo retornou HTTP 404)')
   [OK]   a proxima assinatura foi lancada mesmo com a falha anterior
    6b) cliente HTTP: 1 retentativa em erro de rede, timeout repassado
   [OK]   2a tentativa funcionou (chamadas=2, timeout=15)
   [OK]   2 tentativas e CieloClientError (chamadas=2)
 == 7) recusa com errorCode 51 -> log com "saldo/limite insuficiente" ==
-[2026-11-17 12:20:49,758] WARNING in pagamentos: [pagamentos] cielo: resultado: tentativa negada 2/4 assinatura_id=301 aluno_id=403 (order_number=assin5919303688 chave=265df4bd30912ab1c113a3f441b89021)
-  [OK]   log: Cartão recusado — Aluno Teste V172 5919303688 (#403), R$ 60,00, cobrança de 14/11/2026; tentativa 2/4; motivo: saldo/limite insuficiente (código 51) — pedido assin5919303688, chave 265df4bd30912ab1c113a3f441b89021, cartão final 2128 (Visa)
+[2026-11-17 14:28:48,161] WARNING in pagamentos: [pagamentos] cielo: resultado: tentativa negada 2/4 assinatura_id=603 aluno_id=705 (order_number=assin6722247658 chave=3cbd954604da9fa70f8f74513007fc69)
+  [OK]   log: Cartão recusado — Aluno Teste V172 6722247658 (#705), R$ 60,00, cobrança de 14/11/2026; tentativa 2/4; motivo: saldo/limite insuficiente (código 51) — pedido assin6722247658, chave 3cbd954604da9fa70f8f74513007fc69, cartão final 2128 (Visa)
    7b) consulta falha -> fica "motivo nao informado"
-[2026-11-17 12:20:49,803] WARNING in pagamentos: [pagamentos] cielo: motivo da recusa indisponível (chave=ad89eda493e7945cd072a8a46399dbbe): CieloClientError
-[2026-11-17 12:20:49,803] WARNING in pagamentos: [pagamentos] cielo: resultado: tentativa negada 1/4 assinatura_id=302 aluno_id=404 (order_number=assin7407780480 chave=ad89eda493e7945cd072a8a46399dbbe)
-  [OK]   log: Cartão recusado — Aluno Teste V172 7407780480 (#404), R$ 60,00, cobrança de 11/11/2026; tentativa 1/4; motivo não informado pela Cielo no aviso — pedido assin7407780480, chave ad89eda493e7945cd072a8a46399dbbe, cartão final 2128 (Visa)
+[2026-11-17 14:28:48,231] WARNING in pagamentos: [pagamentos] cielo: motivo da recusa indisponível (chave=0d16757535781c5c06594640acf15c8e): CieloClientError
+[2026-11-17 14:28:48,231] WARNING in pagamentos: [pagamentos] cielo: resultado: tentativa negada 1/4 assinatura_id=604 aluno_id=706 (order_number=assin2764383905 chave=0d16757535781c5c06594640acf15c8e)
+  [OK]   log: Cartão recusado — Aluno Teste V172 2764383905 (#706), R$ 60,00, cobrança de 11/11/2026; tentativa 1/4; motivo não informado pela Cielo no aviso — pedido assin2764383905, chave 0d16757535781c5c06594640acf15c8e, cartão final 2128 (Visa)
    7c) codigo fora da tabela -> "codigo X"
-[2026-11-17 12:20:49,832] WARNING in pagamentos: [pagamentos] cielo: resultado: tentativa negada 1/4 assinatura_id=303 aluno_id=405 (order_number=assin5012862916 chave=9fc5dba1c2f50fe93b75f1f99148e9aa)
-  [OK]   Cartão recusado — Aluno Teste V172 5012862916 (#405), R$ 60,00, cobrança de 11/11/2026; tentativa 1/4; motivo: código AB — pedido assin5012862916, chave 9fc5dba1c2f50fe93b75f1f99148e9aa, cartão final 2128 (Visa)
+[2026-11-17 14:28:48,272] WARNING in pagamentos: [pagamentos] cielo: resultado: tentativa negada 1/4 assinatura_id=605 aluno_id=707 (order_number=assin1788926806 chave=9a887e1969e469cb34325ce5913e732b)
+  [OK]   Cartão recusado — Aluno Teste V172 1788926806 (#707), R$ 60,00, cobrança de 11/11/2026; tentativa 1/4; motivo: código AB — pedido assin1788926806, chave 9a887e1969e469cb34325ce5913e732b, cartão final 2128 (Visa)
+== 8) credencial recusada (token HTTP 401) com 3 assinaturas novas -> 1 POST, 1 ERROR, rodada interrompida ==
+[2026-11-17 14:28:48,379] ERROR in pagamentos: [pagamentos] reconciliação Cielo: interrompida — falha de autenticação/comunicação com a Cielo (CieloAuthError: credencial recusada (HTTP 401))
+  [OK]   151 assinaturas elegiveis; POST de token=1, GET=0
+  [OK]   1 ERROR na tela: [('erro_autenticacao', 'ERROR', 'Reconciliação interrompida: falha de autenticação/comunicação com a Cielo — credencial recusada (HTTP 401)')]
+  [OK]   1 ERROR no servico.log: ['[pagamentos] reconciliação Cielo: interrompida — falha de autenticação/comunicação com a Cielo (CieloAuthError: credencial recusada (HTTP 401))']
+  [OK]   erro_autenticacao gravado uma vez so
+   8b) rede fora no token (ConnectTimeout) -> 1 POST, 1 ERROR
+[2026-11-17 14:28:48,401] ERROR in pagamentos: [pagamentos] reconciliação Cielo: interrompida — falha de autenticação/comunicação com a Cielo (CieloComunicacaoError: sem resposta da Cielo (ConnectTimeout))
+  [OK]   POST=1, GET=0, tela: Reconciliação interrompida: falha de autenticação/comunicação com a Cielo — sem resposta da Cielo (ConnectTimeout) | servico.log: ['[pagamentos] reconciliação Cielo: interrompida — falha de autenticação/comunicação com a Cielo (CieloComunicacaoError: sem resposta da Cielo (ConnectTimeout))']
+   8c) token ok, GET com timeout (2 tentativas) -> interrompe na 1a assinatura
+[2026-11-17 14:28:48,416] ERROR in pagamentos: [pagamentos] reconciliação Cielo: interrompida — falha de autenticação/comunicação com a Cielo (CieloComunicacaoError: sem resposta da Cielo (ReadTimeout))
+  [OK]   POST=1, GET=2, tela: Reconciliação interrompida: falha de autenticação/comunicação com a Cielo — sem resposta da Cielo (ReadTimeout) | servico.log: ['[pagamentos] reconciliação Cielo: interrompida — falha de autenticação/comunicação com a Cielo (CieloComunicacaoError: sem resposta da Cielo (ReadTimeout))']
+   8d) token ok, GET 401 (token recusado) -> interrompe, cache do token descartado
+[2026-11-17 14:28:48,430] ERROR in pagamentos: [pagamentos] reconciliação Cielo: interrompida — falha de autenticação/comunicação com a Cielo (CieloAuthError: token recusado (HTTP 401))
+  [OK]   GET=1, tela: Reconciliação interrompida: falha de autenticação/comunicação com a Cielo — token recusado (HTTP 401)
+== 9) cobranca malformada no meio da lista -> as outras da mesma assinatura sao lancadas ==
+[2026-11-17 14:28:48,641] ERROR in pagamentos: [pagamentos] reconciliação Cielo: erro na assinatura_id=609: AttributeError
+[2026-11-17 14:28:48,643] ERROR in pagamentos: [pagamentos] reconciliação Cielo: erro na assinatura_id=609 chave=4886cfca3226ad33f6fa4f1c86e585d3: AttributeError
+  [OK]   1a e 4a cobrancas lancadas (2 pagamentos); contagens {'consultadas': 152, 'lancadas': 2, 'avisos': 0, 'erros': 2}
+  [OK]   2 ERROR na tela (2)
+     log: ('erro_parsing', 'ERROR', 'Reconciliação: erro inesperado ao processar uma cobrança sem identificação da assinatura #609 (AttributeError). Nada foi lançado para esse item; a rodada seguiu.')
+     log: ('erro_parsing', 'ERROR', 'Reconciliação: erro inesperado ao processar a cobrança 4886cfca3226ad33f6fa4f1c86e585d3 da assinatura #609 (AttributeError). Nada foi lançado para esse item; a rodada seguiu.')
+   9b) resposta da Cielo que nao e objeto (lista) -> ERROR na tela, segue para a proxima assinatura
+[2026-11-17 14:28:48,888] ERROR in pagamentos: [pagamentos] reconciliação Cielo: erro na assinatura_id=609: AttributeError
+[2026-11-17 14:28:48,891] ERROR in pagamentos: [pagamentos] reconciliação Cielo: erro na assinatura_id=609 chave=4886cfca3226ad33f6fa4f1c86e585d3: AttributeError
+[2026-11-17 14:28:48,896] ERROR in pagamentos: [pagamentos] reconciliação Cielo: erro na assinatura_id=610: AttributeError
+  [OK]   log: Reconciliação: erro inesperado ao processar as cobranças da assinatura #610 (AttributeError). Nada foi lançado para esse item; a rodada seguiu.
+== 10) reconciliacao: pagamento antigo numa assinatura bloqueada -> lanca sem reativar ==
+[2026-11-17 14:28:49,133] ERROR in pagamentos: [pagamentos] reconciliação Cielo: erro na assinatura_id=609: AttributeError
+[2026-11-17 14:28:49,135] ERROR in pagamentos: [pagamentos] reconciliação Cielo: erro na assinatura_id=609 chave=4886cfca3226ad33f6fa4f1c86e585d3: AttributeError
+[2026-11-17 14:28:49,141] ERROR in pagamentos: [pagamentos] reconciliação Cielo: erro na assinatura_id=610: AttributeError
+[2026-11-17 14:28:49,155] WARNING in pagamentos: [pagamentos] cielo: reconciliação: lançado sem reativar (cobrança anterior à última recusa) assinatura_id=612 aluno_id=714 vencimento 2026-12-11 -> 2027-01-11 chave=a35b9c083c2b7c128c18dfa49f23844c
+  [OK]   nao reativou ({'venc': datetime.date(2027, 1, 11), 'ativo': False, 'status': 'bloqueada_inadimplencia', 'tent': 4, 'pags': 1})
+  [OK]   log: Pagamento antigo lançado; aluno continua bloqueado — conferir. Pagamento recuperado pela consulta à Cielo (o aviso não chegou) — Aluno Teste V172 5422921649 (#714), R$ 60,00, cobrado em 11/11/2026 (antes da última recusa, 15/11/2026); Novo vencimento: 11/01/2027 (antes 11/12/2026); status, recusas e acesso NÃO foram alterados — pedido assin5422921649, chave a35b9c083c2b7c128c18dfa49f23844c
+  [OK]   data_pagamento = data da cobranca ([(datetime.date(2026, 11, 11),)])
 
 RESULTADO: TUDO OK

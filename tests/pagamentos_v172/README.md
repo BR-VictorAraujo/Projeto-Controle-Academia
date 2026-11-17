@@ -12,6 +12,8 @@ Nada chama a Cielo real: a API é simulada com `unittest.mock`.
 | `teste_asaas.py` | webhook Asaas (duplicidade, data, recusa) | `resultado_asaas.txt` |
 | `teste_telas.py` | tela de logs (busca, máscara), recorrências, financeiro/pagamento manual | `resultado_telas.txt` |
 | `teste_migracao_003.sh` | migração 003: up, reaplicação, down, abort com duplicatas | `resultado_migracao_003.txt` |
+| `teste_ajustes.py` | ajustes finais: reativação indevida, recusa em assinatura encerrada, `data_pagamento`, chave fora do padrão, payload que não é objeto JSON, `hide_parameters` | `resultado_ajustes.txt` |
+| `teste_regra_vencimento.py` | regra do vencimento isolada (`_novo_vencimento`), casos com o esperado da regra atual e da proposta | `resultado_regra_vencimento.txt` |
 
 ```bash
 # banco descartável copiado do dev, com a 003
@@ -27,6 +29,8 @@ E="-e DATABASE_URL=postgresql+psycopg://gymflow:gymflow@db:5432/gymflow_v172_tes
 docker compose exec -T $E web python tests/pagamentos_v172/teste_reconciliacao.py
 docker compose exec -T $E web python tests/pagamentos_v172/teste_asaas.py
 docker compose exec -T $E web python tests/pagamentos_v172/teste_telas.py
+docker compose exec -T $E web python tests/pagamentos_v172/teste_ajustes.py
+docker compose exec -T web python tests/pagamentos_v172/teste_regra_vencimento.py
 sh tests/pagamentos_v172/teste_migracao_003.sh
 
 # limpeza

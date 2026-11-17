@@ -1,2 +1,48 @@
 sem credenciais: None
 com credenciais: jobs= 1 interval[1:00:00] max_instances= 1 coalesce= True proxima= 2026-11-17 12:26:02.035153-03:00
+
+== Job de reconciliacao pelo APScheduler real (Cielo simulada; rede bloqueada) - ajustes finais 1.7.2 ==
+  [OK]   job de reconciliacao agendado com credenciais (_executar_job_reconciliacao (trigger: interval[1:00:00], next run at: 2026-11-17 12:57:32 -03))
+== 6a) credenciais invalidas (token 401) pelo agendador ==
+INFO [app] [pagamentos] reconciliação Cielo: início da rodada
+ERROR [app] [pagamentos] reconciliação Cielo: interrompida — falha de autenticação/comunicação com a Cielo (CieloAuthError: credencial recusada (HTTP 401))
+INFO [app] [pagamentos] reconciliação Cielo: fim da rodada — consultadas=0 lançadas=0 avisos=0 erros=1
+  [OK]   job terminou sem excecao propagada ({'ok': True, 'exc': None})
+  [OK]   agendador continua rodando
+  [OK]   job continua agendado (proxima 2026-11-17 13:52:32.175211-03:00)
+  [OK]   assinatura A: sem ERROR por assinatura (rodada interrompida) (0)
+  [OK]   assinatura B: sem ERROR por assinatura (rodada interrompida) (0)
+  [OK]   1 ERROR na rodada: [('erro_autenticacao', 'Reconciliação interrompida: falha de autenticação/comunicação com a Cielo — credencial recusada (HTTP 401)')]
+  [OK]   1 POST de token na rodada (1)
+  chamadas ao token: 1; logs erro_autenticacao novos: 1; assinaturas consultadas: 73
+  ultimo erro_autenticacao: [('Reconciliação interrompida: falha de autenticação/comunicação com a Cielo — credencial recusada (HTTP 401)',)]
+  [OK]   app continua respondendo depois do job (/login 200)
+INFO [app] [pagamentos] cielo: aviso recebido: order_number=assin5269549299 chave=51988d8231676ba944b974ebe601010a payment_status=2 (Pago) recurrent_status=Ativa
+INFO [app] [pagamentos] cielo: resultado: lançado assinatura_id=315 aluno_id=417 vencimento 2026-11-10 -> 2026-12-11 (order_number=assin5269549299 chave=51988d8231676ba944b974ebe601010a)
+  [OK]   webhook depois do job com erro: 200
+== 6b) segunda rodada (proxima hora) tambem roda ==
+INFO [app] [pagamentos] reconciliação Cielo: início da rodada
+ERROR [app] [pagamentos] reconciliação Cielo: interrompida — falha de autenticação/comunicação com a Cielo (CieloAuthError: credencial recusada (HTTP 401))
+INFO [app] [pagamentos] reconciliação Cielo: fim da rodada — consultadas=0 lançadas=0 avisos=0 erros=1
+  [OK]   segunda rodada ok
+== 6c) erro inesperado no meio de uma assinatura nao impede as proximas ==
+INFO [app] [pagamentos] reconciliação Cielo: início da rodada
+ERROR [app] [pagamentos] reconciliação Cielo: erro ao consultar assinatura_id=...: CieloClientError  (x73 linhas: links de outros testes, HTTP simulado)
+INFO [app] [pagamentos] cielo: reconciliação: lançado assinatura_id=317 aluno_id=419 vencimento 2026-11-10 -> 2026-12-11 chave=6c3274dc60488f331f07e7ccdcf9409d
+ERROR [app] [pagamentos] reconciliação Cielo: erro na assinatura_id=318 chave=6f9dff72079b7ff59938f3e7bf07795a: RuntimeError
+INFO [app] [pagamentos] cielo: reconciliação: lançado assinatura_id=319 aluno_id=421 vencimento 2026-11-10 -> 2026-12-11 chave=69948b3191123064f263de40149e00cb
+INFO [app] [pagamentos] reconciliação Cielo: fim da rodada — consultadas=3 lançadas=2 avisos=0 erros=74
+  [OK]   job terminou e agendador segue
+  [OK]   antes da falha lancou (1), na falha nada (0), depois lancou (1)
+== 6d) resposta malformada da Cielo ==
+INFO [app] [pagamentos] reconciliação Cielo: início da rodada
+ERROR [app] [pagamentos] reconciliação Cielo: erro ao consultar assinatura_id=...: CieloClientError  (x73 linhas: links de outros testes, HTTP simulado)
+ERROR [app] [pagamentos] reconciliação Cielo: erro na assinatura_id=317: AttributeError
+ERROR [app] [pagamentos] reconciliação Cielo: erro na assinatura_id=317: AttributeError
+INFO [app] [pagamentos] cielo: reconciliação: lançado assinatura_id=318 aluno_id=420 vencimento 2026-11-10 -> 2026-12-11 chave=6f9dff72079b7ff59938f3e7bf07795a
+  [OK]   rodada com resposta malformada nao propagou excecao: {'consultadas': 4, 'lancadas': 2, 'avisos': 0, 'erros': 75}
+INFO [app] [pagamentos] cielo: reconciliação: lançado assinatura_id=320 aluno_id=422 vencimento 2026-11-10 -> 2026-12-11 chave=7c320da3daee95f00ab02258bd4265b1
+INFO [app] [pagamentos] reconciliação Cielo: fim da rodada — consultadas=4 lançadas=2 avisos=0 erros=75
+  [OK]   assinatura seguinte a malformada foi lancada
+
+RESULTADO: TUDO OK

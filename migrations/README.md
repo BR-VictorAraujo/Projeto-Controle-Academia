@@ -6,7 +6,7 @@ O que já foi aplicado fica registrado na tabela `schema_migracao` (criada pela 
 | Arquivo | Versão do app | Descrição |
 |---|---|---|
 | `001_v1.7.0_lgpd_up.sql` / `001_v1.7.0_lgpd_down.sql` | web 1.7.0 | Estrutura LGPD: `lgpd_termo_versao` (versões imutáveis do termo), `lgpd_manifestacao` (respostas, append-only), `schema_migracao`. **Não publica termo.** |
-| `003_v1.7.2_pagamentos_unicidade_up.sql` / `_down.sql` | web 1.7.2 | Índice UNIQUE parcial `uq_pagamentos_payment_id_gateway` (mesma cobrança do gateway não gera dois lançamentos) e índice em `log_integracao_pagamento(criado_em)`. Aborta, sem alterar nada, se já houver duplicatas pela chave. |
+| `003_v1.7.2_pagamentos_unicidade_up.sql` / `_down.sql` | web 1.7.2 | Índice UNIQUE parcial `uq_pagamentos_payment_id_gateway` (mesma cobrança do gateway não gera dois lançamentos) e índices em `log_integracao_pagamento(criado_em)` e `log_integracao_pagamento(payment_id_gateway)` (parcial, chave não nula). Aborta, sem alterar nada, se já houver duplicatas pela chave. |
 | `NNN_termo_v<versao>.sql` | - | Publica uma versão do termo. Gerado por `tools/gerar_migracao_termo.py`. Sem rollback. |
 | `opcional_role_app.sql` | - | **Opcional, não aplicado automaticamente.** Role `gymflow_app` sem permissão de alterar as tabelas LGPD. |
 

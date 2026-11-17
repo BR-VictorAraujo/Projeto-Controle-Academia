@@ -55,7 +55,8 @@ def _log(tipo_evento, nivel='INFO', resultado=None, payload=None,
             db.session.rollback()
         except Exception:
             pass
-        current_app.logger.error(f"Falha ao gravar log_integracao_pagamento (Asaas): {e}")
+        # v1.7.2: so o tipo do erro (a mensagem do banco pode trazer o payload)
+        current_app.logger.error(f"Falha ao gravar log_integracao_pagamento (Asaas): {type(e).__name__}")
 
 
 def _url_base():

@@ -77,7 +77,7 @@ def _executar_job_reconciliacao(app):
         try:
             reconciliar_cielo()
         except Exception as e:
-            logger.error(f'Reconciliacao Cielo falhou: {type(e).__name__}: {e}')
+            logger.error(f'Reconciliacao Cielo falhou: {type(e).__name__}')
 
 
 def _construir_trigger(modo, horario_str, intervalo_horas):

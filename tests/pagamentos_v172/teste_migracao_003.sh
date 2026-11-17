@@ -10,7 +10,7 @@ UP=migrations/003_v1.7.2_pagamentos_unicidade_up.sql
 DOWN=migrations/003_v1.7.2_pagamentos_unicidade_down.sql
 
 estado() {
-  $PSQL -At -c "SELECT 'indices=' || coalesce(string_agg(indexname, ',' ORDER BY indexname), '-') FROM pg_indexes WHERE indexname IN ('uq_pagamentos_payment_id_gateway','ix_log_integracao_pagamento_criado_em')" \
+  $PSQL -At -c "SELECT 'indices=' || coalesce(string_agg(indexname, ',' ORDER BY indexname), '-') FROM pg_indexes WHERE indexname IN ('uq_pagamentos_payment_id_gateway','ix_log_integracao_pagamento_criado_em','ix_log_integracao_pagamento_payment_id')" \
         -c "SELECT 'schema_migracao_003=' || count(*) FROM schema_migracao WHERE versao='003_v1.7.2_pagamentos_unicidade'" \
         -c "SELECT 'pagamentos=' || count(*) || ' soma_ids=' || coalesce(sum(id),0) || ' com_chave=' || count(payment_id_gateway) FROM pagamentos"
 }
@@ -22,7 +22,7 @@ estado
 echo; echo "== 1) up sem duplicatas -> cria os indices =="
 $PSQL < $UP; echo "codigo de saida: $?"
 estado
-$PSQL -At -c "SELECT indexdef FROM pg_indexes WHERE indexname='uq_pagamentos_payment_id_gateway'"
+$PSQL -At -c "SELECT indexdef FROM pg_indexes WHERE indexname IN ('uq_pagamentos_payment_id_gateway','ix_log_integracao_pagamento_payment_id') ORDER BY indexname"
 
 echo; echo "== 2) up de novo -> idempotente =="
 $PSQL < $UP 2>/dev/null; echo "codigo de saida: $?"

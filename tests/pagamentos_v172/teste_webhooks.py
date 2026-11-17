@@ -309,15 +309,17 @@ def modo_cenarios():
     cen = criar_cenario(date(2026, 11, 13))
     post(completo(cen, chave_nova(), created='11/11/2026 03:45:43'))
     e = estado(cen)
-    conferir(e['venc'] == date(2026, 12, 11), f'cobranca de 11/11 chegando hoje -> 11/12/2026 (obtido {e["venc"]})')
+    # regra 1.7.2: max(vencimento atual, data da cobranca) + 1 mes
+    conferir(e['venc'] == date(2026, 12, 13), f'venc 13/11, cobranca de 11/11 -> 13/12/2026 (obtido {e["venc"]})')
     post(completo(cen, chave_nova(), created='11/11/2026 03:45:43'))
     e2 = estado(cen)
-    conferir(e2['venc'] == date(2026, 12, 11) and e2['pags'] == 2,
-             f'mesmo aviso com chave diferente: vencimento nao muda ({e2["venc"]}), pagamentos={e2["pags"]}')
+    conferir(e2['venc'] == date(2027, 1, 13) and e2['pags'] == 2,
+             f'outra cobranca (chave diferente): vale outro mes -> 13/01/2027 ({e2["venc"]}), pagamentos={e2["pags"]}')
     cen = criar_cenario(date(2027, 1, 20))
     post(completo(cen, chave_nova(), created='11/11/2026 03:45:43'))
     e = estado(cen)
-    conferir(e['venc'] == date(2027, 1, 20) and e['pags'] == 1, f'vencimento a frente nao regride ({e["venc"]})')
+    conferir(e['venc'] == date(2027, 2, 20) and e['pags'] == 1,
+             f'vencimento a frente nao regride e soma 1 mes -> 20/02/2027 ({e["venc"]})')
     cen = criar_cenario(date(2026, 11, 1))
     post(curto(cen, chave_nova()))
     e = estado(cen)
